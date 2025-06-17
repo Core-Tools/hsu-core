@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option go_package = "github.com/ai-core-tools/hsu-core/api/proto";
+
+package proto;
+
+service CoreService {
+  rpc Ping(PingRequest) returns (PingResponse) {}
+}
+
+message PingRequest {
+}
+
+message PingResponse {
+}
