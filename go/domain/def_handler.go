@@ -3,7 +3,7 @@ package domain
 import (
 	"context"
 
-	"github.com/ai-core-tools/hsu-core/go/logging"
+	"github.com/core-tools/hsu-core/go/logging"
 )
 
 func NewDefaultHandler(logger logging.Logger) Contract {

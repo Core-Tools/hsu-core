@@ -24,14 +24,14 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11\x63oreservice.proto\x12\x05proto\"\r\n\x0bPingRequest\"\x0e\n\x0cPingResponse2@\n\x0b\x43oreService\x12\x31\n\x04Ping\x12\x12.proto.PingRequest\x1a\x13.proto.PingResponse\"\x00\x42-Z+github.com/ai-core-tools/hsu-core/api/protob\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11\x63oreservice.proto\x12\x05proto\"\r\n\x0bPingRequest\"\x0e\n\x0cPingResponse2@\n\x0b\x43oreService\x12\x31\n\x04Ping\x12\x12.proto.PingRequest\x1a\x13.proto.PingResponse\"\x00\x42*Z(github.com/core-tools/hsu-core/api/protob\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'coreservice_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
-  _globals['DESCRIPTOR']._serialized_options = b'Z+github.com/ai-core-tools/hsu-core/api/proto'
+  _globals['DESCRIPTOR']._serialized_options = b'Z(github.com/core-tools/hsu-core/api/proto'
   _globals['_PINGREQUEST']._serialized_start=28
   _globals['_PINGREQUEST']._serialized_end=41
   _globals['_PINGRESPONSE']._serialized_start=43

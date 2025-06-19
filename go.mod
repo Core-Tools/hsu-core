@@ -1,4 +1,4 @@
-module github.com/ai-core-tools/hsu-core
+module github.com/core-tools/hsu-core
 
 go 1.22.3
 

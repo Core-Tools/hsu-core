@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ai-core-tools/hsu-core/go/logging"
-	"github.com/ai-core-tools/hsu-core/go/process"
+	"github.com/core-tools/hsu-core/go/logging"
+	"github.com/core-tools/hsu-core/go/process"
 
 	"github.com/phayes/freeport"
 	"google.golang.org/grpc"

@@ -3,9 +3,9 @@ package control
 import (
 	"context"
 
-	"github.com/ai-core-tools/hsu-core/go/api/proto"
-	"github.com/ai-core-tools/hsu-core/go/domain"
-	"github.com/ai-core-tools/hsu-core/go/logging"
+	"github.com/core-tools/hsu-core/go/api/proto"
+	"github.com/core-tools/hsu-core/go/domain"
+	"github.com/core-tools/hsu-core/go/logging"
 	"google.golang.org/grpc"
 )
 
