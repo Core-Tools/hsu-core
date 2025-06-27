@@ -11,10 +11,10 @@ def fix_imports(grpc_file_path):
     with open(grpc_file_path, 'r') as f:
         content = f.read()
     
-    # Replace simple 'import localservice_pb2' with 'from . import localservice_pb2'
+    # Replace simple 'import coreservice_pb2' with 'from . import localservice_pb2'
     fixed_content = re.sub(
-        r'import localservice_pb2 as localservice__pb2',
-        r'from . import localservice_pb2 as localservice__pb2',
+        r'import coreservice_pb2 as coreservice__pb2',
+        r'from . import coreservice_pb2 as coreservice__pb2',
         content
     )
     
@@ -26,7 +26,7 @@ def fix_imports(grpc_file_path):
 if __name__ == "__main__":
     # Path to the generated gRPC file
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    grpc_file = os.path.join(current_dir, "localservice_pb2_grpc.py")
+    grpc_file = os.path.join(current_dir, "coreservice_pb2_grpc.py")
     
     if os.path.exists(grpc_file):
         fix_imports(grpc_file)
