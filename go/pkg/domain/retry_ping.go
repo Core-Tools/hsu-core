@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/core-tools/hsu-core/go/logging"
+	"github.com/core-tools/hsu-core/pkg/logging"
 )
 
 type RetryPingOptions struct {

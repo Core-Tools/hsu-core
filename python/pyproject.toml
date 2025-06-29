@@ -64,8 +64,8 @@ packages = [
     "hsu_core.generated.api",
     "hsu_core.generated.api.proto", 
     "hsu_core.control",
-    "hsu_core.domain"
-    "hsu_core.build"
+    "hsu_core.domain",
+    "hsu_core.build",
 ]
 
 [tool.setuptools.package-dir]

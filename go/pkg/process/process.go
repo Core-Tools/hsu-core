@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/core-tools/hsu-core/go/logging"
+	"github.com/core-tools/hsu-core/pkg/logging"
 )
 
 type Controller interface {

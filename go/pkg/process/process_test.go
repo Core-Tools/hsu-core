@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/core-tools/hsu-core/go/logging"
+	"github.com/core-tools/hsu-core/pkg/logging"
 
 	"github.com/stretchr/testify/require"
 )
