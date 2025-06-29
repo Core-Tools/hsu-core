@@ -9,8 +9,8 @@ sys.path.append(parent_dir)
 proto_dir = os.path.join(parent_dir, "generated", "api", "proto")
 sys.path.append(proto_dir)
 
-from ..api.proto import coreservice_pb2
-from ..api.proto import coreservice_pb2_grpc
+from ..generated.api.proto import coreservice_pb2
+from ..generated.api.proto import coreservice_pb2_grpc
 from ..domain.contract import Contract
 
 def register_grpc_server_handler(grpc_server, handler: Contract):
