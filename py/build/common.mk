@@ -58,14 +58,14 @@ NUITKA_COMMON_OPTS := \
     --show-progress \
     --show-memory \
     --include-package=grpc \
+    --include-module=hsu_core.py.build.patch_meta \
+    --include-module=hsu_core.py.api.proto.coreservice_pb2 \
+    --include-module=hsu_core.py.api.proto.coreservice_pb2_grpc \
     --include-module=echocore.py.api.proto.echoservice_pb2 \
     --include-module=echocore.py.api.proto.echoservice_pb2_grpc \
-    --include-module=localcore.py.api.proto.localservice_pb2 \
-    --include-module=localcore.py.api.proto.localservice_pb2_grpc \
     --include-module=jaraco.text \
     --include-package=tqdm \
     --include-package=yaml \
-    --include-module=hsu_core.py.build.patch_meta \
     $(NOFOLLOW_OPTS) \
     --include-module=importlib.metadata \
     --remove-output \
