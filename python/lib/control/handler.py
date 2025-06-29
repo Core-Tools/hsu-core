@@ -6,7 +6,7 @@ import grpc
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(parent_dir)
 # Also add the proto directory to path so coreservice_pb2_grpc can find coreservice_pb2
-proto_dir = os.path.join(parent_dir, "api", "proto")
+proto_dir = os.path.join(parent_dir, "generated", "api", "proto")
 sys.path.append(proto_dir)
 
 from ..api.proto import coreservice_pb2
