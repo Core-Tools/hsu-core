@@ -1,8 +1,9 @@
-module github.com/core-tools/hsu-core
+module github.com/core-tools/hsu-core/go
 
 go 1.22.3
 
 require (
+	github.com/core-tools/hsu-core v0.0.0-20250629172003-b109d2fef051
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
 	github.com/stretchr/testify v1.10.0
 	google.golang.org/grpc v1.65.0

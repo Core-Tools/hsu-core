@@ -60,14 +60,16 @@ docs = [
 [tool.setuptools]
 packages = [
     "hsu_core",
-    "hsu_core.api",
-    "hsu_core.api.proto", 
+    "hsu_core.generated",
+    "hsu_core.generated.api",
+    "hsu_core.generated.api.proto", 
     "hsu_core.control",
     "hsu_core.domain"
+    "hsu_core.build"
 ]
 
 [tool.setuptools.package-dir]
-"hsu_core" = "py"
+"hsu_core" = "lib"
 
 # UV configuration (future-ready)
 [tool.uv]

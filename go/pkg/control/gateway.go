@@ -6,6 +6,7 @@ import (
 	"github.com/core-tools/hsu-core/go/api/proto"
 	"github.com/core-tools/hsu-core/go/domain"
 	"github.com/core-tools/hsu-core/go/logging"
+
 	"google.golang.org/grpc"
 )
 
