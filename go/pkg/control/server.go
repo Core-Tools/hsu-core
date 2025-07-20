@@ -78,25 +78,14 @@ func (s *server) Run(onShutdownFunc func()) {
 }
 
 func (s *server) RunWithOptions(options RunOptions, onShutdownFunc func()) {
-	var ctx context.Context
-	if options.Context == nil {
+	ctx := options.Context
+	if ctx == nil {
 		ctx = context.Background()
-	} else {
-		ctx = options.Context
 	}
 
-	var stopped chan struct{}
-	if options.Stopped == nil {
-		stopped = make(chan struct{})
-	} else {
-		stopped = options.Stopped
-	}
-
-	var forcedShutdownTimeout time.Duration
-	if options.ForcedShutdownTimeout == 0 {
+	forcedShutdownTimeout := options.ForcedShutdownTimeout
+	if forcedShutdownTimeout <= 0 {
 		forcedShutdownTimeout = DefaultForcedShutdownTimeout
-	} else {
-		forcedShutdownTimeout = options.ForcedShutdownTimeout
 	}
 
 	go func() {
@@ -130,6 +119,8 @@ func (s *server) RunWithOptions(options RunOptions, onShutdownFunc func()) {
 	ctx, cancel := context.WithTimeout(ctx, forcedShutdownTimeout)
 	defer cancel()
 
+	stopped := make(chan struct{})
+
 	// Stop components in reverse order of creation
 	if onShutdownFunc != nil {
 		onShutdownFunc()
@@ -149,7 +140,10 @@ func (s *server) RunWithOptions(options RunOptions, onShutdownFunc func()) {
 	case <-ctx.Done():
 		s.logger.Infof("Shutdown timed out, forcing gRPC server to stop")
 		s.grpcServer.Stop()
-		close(stopped)
+	}
+
+	if options.Stopped != nil {
+		close(options.Stopped)
 	}
 
 	s.logger.Infof("Stopped")
