@@ -56,6 +56,15 @@ func (s *server) GRPC() grpc.ServiceRegistrar {
 }
 
 func (s *server) Run(onShutdownFunc func()) {
+	// Create a timeout context for graceful shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+
+	stopped := make(chan struct{})
+	s.RunWithContextAndStopped(ctx, stopped, onShutdownFunc)
+}
+
+func (s *server) RunWithContextAndStopped(ctx context.Context, stopped chan struct{}, onShutdownFunc func()) {
 	go func() {
 		err := s.grpcServer.Serve(s.listener)
 		if err != nil {
@@ -84,10 +93,6 @@ func (s *server) Run(onShutdownFunc func()) {
 
 	s.logger.Infof("Stopping...")
 
-	// Create a timeout context for graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
-	defer cancel()
-
 	// Stop components in reverse order of creation
 	if onShutdownFunc != nil {
 		onShutdownFunc()
@@ -95,7 +100,6 @@ func (s *server) Run(onShutdownFunc func()) {
 
 	s.logger.Infof("Stopping gRPC server...")
 	// Use GracefulStop instead of Stop for graceful shutdown
-	stopped := make(chan struct{})
 	go func() {
 		s.grpcServer.GracefulStop()
 		close(stopped)
