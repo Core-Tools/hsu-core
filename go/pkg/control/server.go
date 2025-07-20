@@ -22,6 +22,7 @@ type ServerOptions struct {
 type Server interface {
 	GRPC() grpc.ServiceRegistrar
 	Run(onShutdownFunc func())
+	RunWithContextAndStopped(ctx context.Context, stopped chan struct{}, onShutdownFunc func())
 }
 
 func NewServer(options ServerOptions, logger logging.Logger) (Server, error) {
