@@ -111,7 +111,7 @@ func (s *server) RunWithContextAndStopped(ctx context.Context, stopped chan stru
 	case <-stopped:
 		s.logger.Infof("gRPC server stopped gracefully")
 	case <-ctx.Done():
-		s.logger.Infof("Shutdown timed out, forcing stop")
+		s.logger.Infof("Shutdown timed out, forcing gRPC server to stop")
 		s.grpcServer.Stop()
 	}
 
