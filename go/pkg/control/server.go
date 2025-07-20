@@ -19,10 +19,16 @@ type ServerOptions struct {
 	Port int
 }
 
+type RunOptions struct {
+	Context               context.Context
+	ForcedShutdownTimeout time.Duration
+	Stopped               chan struct{}
+}
+
 type Server interface {
 	GRPC() grpc.ServiceRegistrar
 	Run(onShutdownFunc func())
-	RunWithContextAndStopped(ctx context.Context, stopped chan struct{}, onShutdownFunc func())
+	RunWithOptions(options RunOptions, onShutdownFunc func())
 }
 
 func NewServer(options ServerOptions, logger logging.Logger) (Server, error) {
@@ -56,16 +62,43 @@ func (s *server) GRPC() grpc.ServiceRegistrar {
 	return s.grpcServer
 }
 
+const DefaultForcedShutdownTimeout = 25 * time.Second
+
 func (s *server) Run(onShutdownFunc func()) {
 	// Create a timeout context for graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 
 	stopped := make(chan struct{})
-	s.RunWithContextAndStopped(ctx, stopped, onShutdownFunc)
+	s.RunWithOptions(RunOptions{
+		Context:               ctx,
+		ForcedShutdownTimeout: DefaultForcedShutdownTimeout,
+		Stopped:               stopped,
+	}, onShutdownFunc)
 }
 
-func (s *server) RunWithContextAndStopped(ctx context.Context, stopped chan struct{}, onShutdownFunc func()) {
+func (s *server) RunWithOptions(options RunOptions, onShutdownFunc func()) {
+	var ctx context.Context
+	if options.Context == nil {
+		ctx = context.Background()
+	} else {
+		ctx = options.Context
+	}
+
+	var stopped chan struct{}
+	if options.Stopped == nil {
+		stopped = make(chan struct{})
+	} else {
+		stopped = options.Stopped
+	}
+
+	var forcedShutdownTimeout time.Duration
+	if options.ForcedShutdownTimeout == 0 {
+		forcedShutdownTimeout = DefaultForcedShutdownTimeout
+	} else {
+		forcedShutdownTimeout = options.ForcedShutdownTimeout
+	}
+
 	go func() {
 		err := s.grpcServer.Serve(s.listener)
 		if err != nil {
@@ -94,6 +127,9 @@ func (s *server) RunWithContextAndStopped(ctx context.Context, stopped chan stru
 
 	s.logger.Infof("Stopping...")
 
+	ctx, cancel := context.WithTimeout(ctx, forcedShutdownTimeout)
+	defer cancel()
+
 	// Stop components in reverse order of creation
 	if onShutdownFunc != nil {
 		onShutdownFunc()
@@ -113,6 +149,7 @@ func (s *server) RunWithContextAndStopped(ctx context.Context, stopped chan stru
 	case <-ctx.Done():
 		s.logger.Infof("Shutdown timed out, forcing gRPC server to stop")
 		s.grpcServer.Stop()
+		close(stopped)
 	}
 
 	s.logger.Infof("Stopped")
