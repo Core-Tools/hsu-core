@@ -17,7 +17,7 @@ type ServerOptions struct {
 type Server interface {
 	GRPC() grpc.ServiceRegistrar
 	Start(ctx context.Context)
-	Shutdown(ctx context.Context, stopped chan struct{})
+	Shutdown(ctx context.Context)
 }
 
 func NewServer(options ServerOptions, logger logging.Logger) (Server, error) {
@@ -61,25 +61,25 @@ func (s *server) Start(ctx context.Context) {
 	}()
 }
 
-func (s *server) Shutdown(ctx context.Context, stopped chan struct{}) {
+func (s *server) Shutdown(ctx context.Context) {
 	s.logger.Infof("Stopping server...")
 
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	innerStopped := make(chan struct{})
+	stopped := make(chan struct{})
 
 	s.logger.Infof("Stopping gRPC server...")
 	// Use GracefulStop instead of Stop for graceful shutdown
 	go func() {
 		s.grpcServer.GracefulStop()
-		close(innerStopped)
+		close(stopped)
 	}()
 
 	// Wait for graceful shutdown or timeout
 	select {
-	case <-innerStopped:
+	case <-stopped:
 		s.logger.Infof("gRPC server stopped gracefully")
 	case <-ctx.Done():
 		s.logger.Infof("Server shutdown timed out, forcing gRPC server to stop")
@@ -87,8 +87,4 @@ func (s *server) Shutdown(ctx context.Context, stopped chan struct{}) {
 	}
 
 	s.logger.Infof("Server stopped")
-
-	if stopped != nil {
-		close(stopped)
-	}
 }
