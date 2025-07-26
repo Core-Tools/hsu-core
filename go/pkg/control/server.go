@@ -4,11 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
-	"os/signal"
-	"runtime"
-	"syscall"
-	"time"
 
 	"github.com/core-tools/hsu-core/pkg/logging"
 
@@ -19,16 +14,10 @@ type ServerOptions struct {
 	Port int
 }
 
-type RunOptions struct {
-	Context               context.Context
-	ForcedShutdownTimeout time.Duration
-	Stopped               chan struct{}
-}
-
 type Server interface {
 	GRPC() grpc.ServiceRegistrar
-	Run(onShutdownFunc func())
-	RunWithOptions(options RunOptions, onShutdownFunc func())
+	Start(ctx context.Context)
+	Shutdown(ctx context.Context, stopped chan struct{})
 }
 
 func NewServer(options ServerOptions, logger logging.Logger) (Server, error) {
@@ -62,89 +51,44 @@ func (s *server) GRPC() grpc.ServiceRegistrar {
 	return s.grpcServer
 }
 
-const DefaultForcedShutdownTimeout = 25 * time.Second
-
-func (s *server) Run(onShutdownFunc func()) {
-	// Create a timeout context for graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
-	defer cancel()
-
-	stopped := make(chan struct{})
-	s.RunWithOptions(RunOptions{
-		Context:               ctx,
-		ForcedShutdownTimeout: DefaultForcedShutdownTimeout,
-		Stopped:               stopped,
-	}, onShutdownFunc)
+func (s *server) Start(ctx context.Context) {
+	go func() {
+		err := s.grpcServer.Serve(s.listener)
+		if err != nil {
+			s.logger.Errorf("gRPC server Serve failed: %v", err)
+			return
+		}
+	}()
 }
 
-func (s *server) RunWithOptions(options RunOptions, onShutdownFunc func()) {
-	ctx := options.Context
+func (s *server) Shutdown(ctx context.Context, stopped chan struct{}) {
+	s.logger.Infof("Stopping server...")
+
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	forcedShutdownTimeout := options.ForcedShutdownTimeout
-	if forcedShutdownTimeout <= 0 {
-		forcedShutdownTimeout = DefaultForcedShutdownTimeout
-	}
-
-	go func() {
-		err := s.grpcServer.Serve(s.listener)
-		if err != nil {
-			s.logger.Errorf("LLM gRPC server Serve failed: %v", err)
-			return
-		}
-	}()
-
-	sig := make(chan os.Signal, 1)
-	if runtime.GOOS == "windows" {
-		signal.Notify(sig) // Unix signals not implemented on Windows
-	} else {
-		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-	}
-
-	receivedSignal := <-sig
-
-	if runtime.GOOS == "windows" {
-		if receivedSignal != os.Interrupt {
-			s.logger.Errorf("Wrong signal received: got %q, want %q\n", receivedSignal, os.Interrupt)
-			os.Exit(42)
-		}
-	}
-
-	s.logger.Infof("Received signal: %v", receivedSignal)
-
-	s.logger.Infof("Stopping...")
-
-	ctx, cancel := context.WithTimeout(ctx, forcedShutdownTimeout)
-	defer cancel()
-
-	stopped := make(chan struct{})
-
-	// Stop components in reverse order of creation
-	if onShutdownFunc != nil {
-		onShutdownFunc()
-	}
+	innerStopped := make(chan struct{})
 
 	s.logger.Infof("Stopping gRPC server...")
 	// Use GracefulStop instead of Stop for graceful shutdown
 	go func() {
 		s.grpcServer.GracefulStop()
-		close(stopped)
+		close(innerStopped)
 	}()
 
 	// Wait for graceful shutdown or timeout
 	select {
-	case <-stopped:
+	case <-innerStopped:
 		s.logger.Infof("gRPC server stopped gracefully")
 	case <-ctx.Done():
-		s.logger.Infof("Shutdown timed out, forcing gRPC server to stop")
+		s.logger.Infof("Server shutdown timed out, forcing gRPC server to stop")
 		s.grpcServer.Stop()
 	}
 
-	if options.Stopped != nil {
-		close(options.Stopped)
-	}
+	s.logger.Infof("Server stopped")
 
-	s.logger.Infof("Stopped")
+	if stopped != nil {
+		close(stopped)
+	}
 }
