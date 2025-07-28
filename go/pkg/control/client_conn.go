@@ -53,7 +53,7 @@ func NewConnection(options ConnectionOptions, logger logging.Logger) (Connection
 		grpc.WithInitialConnWindowSize(1 * 1024 * 1024),
 	}
 
-	grpcClientConnection, err := grpc.NewClient(address, dialOpts...)
+	grpcClientConnection, err := grpc.Dial(address, dialOpts...)
 	if err != nil {
 		if serverProcessController != nil {
 			serverProcessController.Stop()
