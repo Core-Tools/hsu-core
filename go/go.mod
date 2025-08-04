@@ -5,7 +5,6 @@ go 1.20
 replace github.com/core-tools/hsu-core => ./
 
 require (
-	github.com/core-tools/hsu-core v0.0.0-00010101000000-000000000000
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/zap v1.27.0
