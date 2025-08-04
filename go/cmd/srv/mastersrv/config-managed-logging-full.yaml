@@ -1,0 +1,139 @@
+master:
+  port: 50055
+
+# ===== LOG COLLECTION CONFIGURATION (OPTIONAL) =====
+log_collection:
+  enabled: true
+  global_aggregation:
+    enabled: true
+    targets:
+      - type: "master_stdout"
+        format: "enhanced_plain"
+        prefix: "[AGGREGATED]"
+      - type: "file" 
+        path: "master-aggregated.log"
+        format: "enhanced_plain"
+  enhancement:
+    enabled: true
+    metadata:
+      add_master_id: true
+      add_hostname: true
+      add_timestamp: true
+      add_sequence: true
+      add_line_number: true
+  default_worker:
+    enabled: true
+    capture_stdout: true
+    capture_stderr: true
+    buffering:
+      size: "1MB"
+      flush_interval: "3s"
+      max_lines: 2000
+    processing:
+      parse_structured: true
+      add_metadata: true
+      filters:
+        level_filter: "debug"
+        exclude_patterns:
+          - "^DEBUG: health check"
+          - "heartbeat"
+    outputs:
+      separate:
+        stdout:
+          - type: "file"
+            path: "{worker_id}-stdout.log"
+            format: "enhanced_plain"
+            rotation:
+              max_size: "50MB"
+              max_files: 5
+              max_age: "3d"
+        stderr:
+          - type: "file"
+            path: "{worker_id}-stderr.log"
+            format: "enhanced_plain"
+            rotation:
+              max_size: "50MB"
+              max_files: 5
+              max_age: "3d"
+          - type: "master_stdout"
+            format: "enhanced_plain"
+            prefix: "[ERROR]"
+  system:
+    worker_directory: "workers"
+    buffer_size: "2MB"
+    flush_interval: "2s"
+    max_workers: 10
+    metrics:
+      enabled: true
+      interval: "30s"
+
+workers:
+  - id: "test-managed-1"
+    type: "managed"
+    profile_type: "web"  # ✅ NEW: Echo gRPC server is a web service
+    unit:
+      managed:
+        metadata:
+          name: "Echo gRPC server as managed unit"
+        control:
+          execution:
+            executable_path: "..\\..\\..\\..\\hsu-example1-go\\cmd\\srv\\echogrpcsrv\\echogrpcsrv.exe"
+            args: ["--port", "50051"]
+          restart_policy: "on-failure"  # ✅ NEW: Separated restart policy
+          context_aware_restart:        # ✅ NEW: Context-aware restart configuration
+            default:
+              max_retries: 3
+              retry_delay: "5s"
+              backoff_rate: 1.5
+          # ===== WORKER-SPECIFIC LOG COLLECTION (OPTIONAL) =====
+          log_collection:
+            enabled: true
+            capture_stdout: true
+            capture_stderr: true
+            processing:
+              filters:
+                exclude_patterns:
+                  - "^gRPC server listening"
+                  - "heartbeat received"
+            outputs:
+              separate:
+                stdout:
+                  - type: "file"
+                    path: "{worker_id}-detailed.log"
+                    format: "enhanced_plain"
+                stderr:
+                  - type: "master_stdout"
+                    format: "enhanced_plain"
+                    prefix: "[{worker_id}-ERROR]"
+        health_check:
+          type: "process"
+          run_options:
+            enabled: true
+            interval: "10s"
+            timeout: "5s"
+            initial_delay: "2s"
+            retries: 2
+  - id: "test-managed-2"
+    type: "managed"
+    unit:
+      managed:
+        metadata:
+          name: "Echo gRPC server as managed unit"
+        control:
+          execution:
+            executable_path: "..\\..\\..\\..\\hsu-example1-go\\cmd\\srv\\echogrpcsrv\\echogrpcsrv.exe"
+            args: ["--port", "50052"]
+          restart:
+            policy: "on-failure"
+            max_retries: 3
+            retry_delay: "5s"
+            backoff_rate: 1.5
+          # This worker will use default log collection settings
+        health_check:
+          type: "process"
+          run_options:
+            enabled: true
+            interval: "10s"
+            timeout: "5s"
+            initial_delay: "2s"
+            retries: 2

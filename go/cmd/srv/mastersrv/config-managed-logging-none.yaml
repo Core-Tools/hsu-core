@@ -1,0 +1,54 @@
+master:
+  port: 50055
+
+workers:
+  - id: "test-managed-1"
+    type: "managed"
+    profile_type: "web"
+    unit:
+      managed:
+        metadata:
+          name: "Echo gRPC server as managed unit"
+        control:
+          execution:
+            executable_path: "..\\..\\..\\..\\hsu-example1-go\\cmd\\srv\\echogrpcsrv\\echogrpcsrv.exe"
+            args: ["--port", "50051"]
+          restart_policy: "on-failure"
+          context_aware_restart:
+            default:
+              max_retries: 3
+              retry_delay: "5s"
+              backoff_rate: 1.5
+        health_check:
+          type: "process"
+          run_options:
+            enabled: true
+            interval: "10s"
+            timeout: "5s"
+            initial_delay: "2s"
+            retries: 2
+  - id: "test-managed-2"
+    type: "managed"
+    profile_type: "web"
+    unit:
+      managed:
+        metadata:
+          name: "Echo gRPC server as managed unit"
+        control:
+          execution:
+            executable_path: "..\\..\\..\\..\\hsu-example1-go\\cmd\\srv\\echogrpcsrv\\echogrpcsrv.exe"
+            args: ["--port", "50052"]
+          restart_policy: "on-failure"
+          context_aware_restart:
+            default:
+              max_retries: 3
+              retry_delay: "5s"
+              backoff_rate: 1.5
+        health_check:
+          type: "process"
+          run_options:
+            enabled: true
+            interval: "10s"
+            timeout: "5s"
+            initial_delay: "2s"
+            retries: 2

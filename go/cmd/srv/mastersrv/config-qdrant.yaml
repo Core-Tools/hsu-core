@@ -1,0 +1,71 @@
+master:
+  port: 50055
+
+log_collection:
+  enabled: true
+  global_aggregation:
+    enabled: true
+    targets:
+      - type: "master_stdout"
+        format: "enhanced_plain"
+        prefix: "[AGGREGATED]"
+      - type: "file" 
+        path: "master-aggregated.log"
+        format: "enhanced_plain"
+  default_worker:
+    enabled: true
+    capture_stdout: true
+    capture_stderr: true
+    outputs:
+      separate:
+        stdout:
+          - type: "file"
+            path: "{worker_id}-stdout.log"
+            format: "enhanced_plain"
+        stderr:
+          - type: "file"
+            path: "{worker_id}-stderr.log"
+            format: "enhanced_plain"
+          - type: "master_stdout"
+            format: "enhanced_plain"
+            prefix: "[ERROR]"
+
+workers:
+  - id: "qdrant"
+    type: "managed"
+    profile_type: "database"
+    unit:
+      managed:
+        metadata:
+          name: "Qdrant"
+        control:
+          execution:
+            executable_path: "C:\\qdrant-x86_64-pc-windows-msvc\\qdrant.exe"
+          restart_policy: "on-failure"
+          context_aware_restart:
+            default:
+              max_retries: 3
+              retry_delay: "5s"
+              backoff_rate: 1.5
+          limits:
+            memory:
+              max_rss: 1048576
+              warning_threshold: 80
+              policy: "restart"
+          log_collection:
+            enabled: true
+            outputs:
+              separate:
+                stdout:
+                  - type: "file"
+                    path: "{worker_id}-detailed.log"
+                    format: "enhanced_plain"
+        health_check:
+          type: "process"
+          run_options:
+            enabled: true
+            interval: "10s"
+            timeout: "5s"
+            initial_delay: "2s"
+            retries: 2
+   

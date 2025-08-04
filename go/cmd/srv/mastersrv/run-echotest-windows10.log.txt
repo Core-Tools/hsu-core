@@ -1,0 +1,235 @@
+C:\Projects\go\src\github.com\core-tools\hsu-master-go\cmd\srv\mastersrv>mastersrv.exe --config config-echotest-windows.yaml --enable-log
+2025/08/02 17:55:28 module: hsu-master-server , Master runner starting...
+2025/08/02 17:55:28 module: hsu-master-server , Platform: OS=windows, Arch=amd64, CPUs=8, Go=go1.22.3
+2025/08/02 17:55:28 module: hsu-master-server , Using CONFIGURATION FILE: config-echotest-windows.yaml
+2025/08/02 17:55:28 module: hsu-master-server , Log collection is ENABLED - worker logs will be collected!
+2025/08/02 17:55:28 module: hsu-master-server , Configuration loaded successfully from config-echotest-windows.yaml
+2025/08/02 17:55:28 module: hsu-master-server , Master port: 50055, Workers: 1
+2025/08/02 17:55:28 module: hsu-master-server , Using log collection configuration from config file
+2025/08/02 17:55:28 module: hsu-master-server , Log collection integration initialized successfully (enabled: true)
+2025/08/02 17:55:28 module: hsu-master-server , Log collection config summary:
+2025/08/02 17:55:28 module: hsu-master-server ,   - Global aggregation enabled: true
+2025/08/02 17:55:28 module: hsu-master-server ,   - Default worker capture stdout: true
+2025/08/02 17:55:28 module: hsu-master-server ,   - Default worker capture stderr: true
+2025/08/02 17:55:28 module: hsu-master-server ,   - Worker directory template:
+2025/08/02 17:55:28 module: hsu-master-server ,   - Global aggregation targets: 2 configured
+2025/08/02 17:55:28 module: hsu-master-server ,     [0] Type: master_stdout, Format: enhanced_plain
+2025/08/02 17:55:28 module: hsu-master-server ,     [1] Type: file, Format: enhanced_plain
+2025/08/02 17:55:28 module: hsu-master-server ,         Path: master-aggregated.log
+{"level":"info","timestamp":"2025-08-02T17:55:28+03:00","caller":"logcollection/zap_adapter.go:43","msg":"Log collection service started","component":"log_collection","max_workers":0}
+2025/08/02 17:55:28 module: hsu-master-server , Log collection service started
+2025/08/02 17:55:28 module: hsu-master-server , Log collection service started successfully
+2025/08/02 17:55:28 module: hsu-master-server , Log collection directory: C:\Users\alexey.trunov\AppData\Local\logs\hsu-master\logs
+2025/08/02 17:55:28 module: hsu-master-server , Worker logs directory: C:\Users\alexey.trunov\AppData\Local\logs\hsu-master\logs\workers
+2025/08/02 17:55:28 module: hsu-core-server , Listening at 127.0.0.1:50055
+2025/08/02 17:55:28 module: hsu-master-server , Log collection service configured for master
+2025/08/02 17:55:28 module: hsu-master-server , Worker echotest created with log collection support
+2025/08/02 17:55:28 module: hsu-master-server , Created 1 workers
+2025/08/02 17:55:28 module: hsu-master-server , Adding worker, id: echotest, can_attach: true, can_execute: true, can_terminate: true, can_restart: true
+2025/08/02 17:55:28 module: hsu-master-server , Worker state transition, worker: echotest, unknown->registered, operation: add
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Using provided context-aware restart configuration for worker echotest
+2025/08/02 17:55:28 module: hsu-master-server , Worker added successfully, id: echotest, state: registered
+2025/08/02 17:55:28 module: hsu-master-server , Added worker: echotest
+2025/08/02 17:55:28 module: hsu-master-server , Starting master...
+2025/08/02 17:55:28 module: hsu-master-server , Master started
+2025/08/02 17:55:28 module: hsu-master-server , Enabling signal handling...
+2025/08/02 17:55:28 module: hsu-master-server , Master is ready, starting workers...
+2025/08/02 17:55:28 module: hsu-master-server , Starting worker, id: echotest
+2025/08/02 17:55:28 module: hsu-master-server , Worker state transition, worker: echotest, registered->starting, operation: start
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Starting process control for worker echotest
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Starting process for worker echotest, can_attach: true, can_execute: true, can_terminate: true
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Attempting to attach to existing process, worker: echotest
+2025/08/02 17:55:28 module: hsu-master-server , Attaching to managed worker, id: echotest
+2025/08/02 17:55:28 module: hsu-master-server , Attaching to process, id: echotest, discovery config: {Method:pid-file ProcessName: ProcessArgs:[] Port:0 Protocol: PIDFile:C:\Users\alexey.trunov\AppData\Local\hsu-master\echotest.pid ServiceName: CheckInterval:30s}
+2025/08/02 17:55:28 module: hsu-master-server , Starting process discovery, id: echotest, method: pid-file
+2025/08/02 17:55:28 module: hsu-master-server , Discovering process by PID file, id: echotest, file: C:\Users\alexey.trunov\AppData\Local\hsu-master\echotest.pid
+2025/08/02 17:55:28 module: hsu-master-server , Failed to discover process, id: echotest, method: pid-file, error: process: failed to find process: OpenProcess: The parameter is incorrect.
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Failed to attach to existing process, worker: echotest, error: discovery: failed to discover process: process: failed to find process: OpenProcess: The parameter is incorrect.
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Executing new process, worker: echotest
+2025/08/02 17:55:28 module: hsu-master-server , Executing managed worker command, id: echotest
+2025/08/02 17:55:28 module: hsu-master-server , Executing process, id: echotest, execution config: {ExecutablePath:..\..\test\echotest\echotest.exe Args:[--run-duration 0 --memory-mb 100] Environment:[] WorkingDirectory: WaitDelay:10s}
+2025/08/02 17:55:28 module: hsu-master-server , Executing process: id: echotest, executable path: '..\..\test\echotest\echotest.exe', args: [--run-duration 0 --memory-mb 100], working directory: 'C:\Projects\go\src\github.com\core-tools\hsu-master-go\cmd\test\echotest'
+2025/08/02 17:55:28 module: hsu-master-server , Executing process, id: echotest, cmd: ..\..\test\echotest\echotest.exe --run-duration 0 --memory-mb 100
+2025/08/02 17:55:28 module: hsu-master-server , Successfully executed process, id: echotest, PID: 29132
+2025/08/02 17:55:28 module: hsu-master-server , Writing PID file, worker: echotest, pid: 29132, path: C:\Users\alexey.trunov\AppData\Local\hsu-master\echotest.pid
+2025/08/02 17:55:28 module: hsu-master-server , PID file written successfully, worker: echotest, pid: 29132, path: C:\Users\alexey.trunov\AppData\Local\hsu-master\echotest.pid
+2025/08/02 17:55:28 module: hsu-master-server , PID file written for worker echotest: C:\Users\alexey.trunov\AppData\Local\hsu-master\echotest.pid (PID: 29132)
+2025/08/02 17:55:28 module: hsu-master-server , Managed worker command executed successfully, id: echotest, PID: 29132
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , New process started successfully, worker: echotest, PID: 29132
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Process started, process: &{Pid:29132 handle:416 isdone:{_:{} v:0} sigMu:{w:{state:0 sema:0} writerSem:0 readerSem:0 readerCount:{_:{} v:0} readerWait:{_:{} v:0}}}, stdout: &{file:0xc000198c88}
+{"level":"info","timestamp":"2025-08-02T17:55:28+03:00","caller":"logcollection/zap_adapter.go:43","msg":"Worker registered for log collection","worker_id":"echotest","capture_stdout":true,"capture_stderr":true}
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Log collection started for worker echotest
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Starting health monitor for worker echotest, config: &{Type:process HTTP:{URL: PMethod: Headers:map[]} GRPC:{Address: Service: Method: Headers:map[]} TCP:{Address: Port:0} Exec:{Command: Args:[]} RunOptions:{Enabled:true Interval:10s Timeout:5s InitialDelay:2s Retries:2}}
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Restart callback set for health monitor, id: echotest
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Recovery callback set for health monitor, id: echotest
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Starting health monitor, id: echotest, type: process, interval: 10s
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Health monitor started, worker: echotest
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Initializing resource monitoring for worker echotest, PID: 29132
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Starting resource limit management for PID 29132
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Applying resource limits to PID 29132
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Health monitor loop started, id: echotest
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Health monitor initial delay, id: echotest, delay: 2s
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Applying memory limits to PID 29132 (MaxRSS: 10485760, MaxVirtual: 0)
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Some resource limits could not be applied to PID 29132: [memory limits: current process does not hold privileges for memory limits]
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Failed to apply some resource limits to PID 29132: memory limits: current process does not hold privileges for memory limits
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Starting resource monitoring for PID 29132, interval: 30s
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Resource limit management started for PID 29132
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Resource monitoring started for worker echotest, PID: 29132
+2025/08/02 17:55:28 module: hsu-master-server , worker: echotest , Process control started, worker: echotest
+2025/08/02 17:55:28 module: hsu-master-server , Worker state transition, worker: echotest, starting->running, operation: start
+2025/08/02 17:55:28 module: hsu-master-server , Worker started successfully, id: echotest, state: running
+2025/08/02 17:55:28 module: hsu-master-server , Started worker: echotest
+2025/08/02 17:55:28 module: hsu-master-server , All workers started, master is fully operational
+[2025-08-02T17:55:28+03:00][echotest][stdout] Running Echotest, opts: {RunDuration:0 MemoryMB:100}...
+[2025-08-02T17:55:28+03:00][echotest][stdout] Using MEMORY MB of 100 Megabytes
+[2025-08-02T17:55:28+03:00][echotest][stdout] Echotest is ready, starting workers...
+2025/08/02 17:55:30 module: hsu-master-server , worker: echotest , Performing health check, id: echotest, type: process
+2025/08/02 17:55:30 module: hsu-master-server , worker: echotest , Performing process health check, id: echotest
+2025/08/02 17:55:30 module: hsu-master-server , worker: echotest , Health check recovered, id: echotest, previous: unknown, consecutive_successes: 1, message: process is running: PID 29132, err: <nil>
+[2025-08-02T17:55:30+03:00][echotest][stdout] Echotest is fully operational
+2025/08/02 17:55:38 module: hsu-master-server , worker: echotest , Windows resource usage for PID 29132: Memory RSS: 106MB, CPU: 0.0%, Handles: 88
+2025/08/02 17:55:38 module: hsu-master-server , worker: echotest , Resource violation for PID 29132: Memory RSS (111931392 bytes) exceeds limit (10485760 bytes), severity: critical
+2025/08/02 17:55:38 module: hsu-master-server , worker: echotest , Resource violation for PID 29132: Memory RSS (111931392 bytes) exceeds warning threshold (8388608 bytes), severity: warning
+2025/08/02 17:55:38 module: hsu-master-server , worker: echotest , Resource violation detected for worker echotest: Memory RSS (111931392 bytes) exceeds limit (10485760 bytes)
+2025/08/02 17:55:38 module: hsu-master-server , worker: echotest , RESTART: Resource limit exceeded, restarting process (policy: restart): Memory RSS (111931392 bytes) exceeds limit (10485760 bytes)
+2025/08/02 17:55:38 module: hsu-master-server , worker: echotest , Restart request, id: echotest, trigger: resource_violation, severity: critical, worker_profile: web, message: Memory RSS (111931392 bytes) exceeds limit (10485760 bytes)
+2025/08/02 17:55:38 module: hsu-master-server , worker: echotest , Restart blocked: within startup grace period, id: echotest, trigger: resource_violation, remaining: 19.9640957s
+2025/08/02 17:55:38 module: hsu-master-server , worker: echotest , Failed to restart process after resource violation (circuit breaker): validation: restart blocked: within startup grace period
+2025/08/02 17:55:40 module: hsu-master-server , worker: echotest , Performing health check, id: echotest, type: process
+2025/08/02 17:55:40 module: hsu-master-server , worker: echotest , Performing process health check, id: echotest
+2025/08/02 17:55:40 module: hsu-master-server , worker: echotest , Health check passed, id: echotest, consecutive_successes: 2, message: process is running: PID 29132, err: <nil>
+2025/08/02 17:55:48 module: hsu-master-server , worker: echotest , Windows resource usage for PID 29132: Memory RSS: 106MB, CPU: 0.0%, Handles: 88
+2025/08/02 17:55:48 module: hsu-master-server , worker: echotest , Resource violation for PID 29132: Memory RSS (111931392 bytes) exceeds limit (10485760 bytes), severity: critical
+2025/08/02 17:55:48 module: hsu-master-server , worker: echotest , Resource violation for PID 29132: Memory RSS (111931392 bytes) exceeds warning threshold (8388608 bytes), severity: warning
+2025/08/02 17:55:48 module: hsu-master-server , worker: echotest , Resource violation detected for worker echotest: Memory RSS (111931392 bytes) exceeds limit (10485760 bytes)
+2025/08/02 17:55:48 module: hsu-master-server , worker: echotest , RESTART: Resource limit exceeded, restarting process (policy: restart): Memory RSS (111931392 bytes) exceeds limit (10485760 bytes)
+2025/08/02 17:55:48 module: hsu-master-server , worker: echotest , Restart request, id: echotest, trigger: resource_violation, severity: critical, worker_profile: web, message: Memory RSS (111931392 bytes) exceeds limit (10485760 bytes)
+2025/08/02 17:55:48 module: hsu-master-server , worker: echotest , Restart blocked: within startup grace period, id: echotest, trigger: resource_violation, remaining: 9.9712931s
+2025/08/02 17:55:48 module: hsu-master-server , worker: echotest , Failed to restart process after resource violation (circuit breaker): validation: restart blocked: within startup grace period
+2025/08/02 17:55:50 module: hsu-master-server , worker: echotest , Performing health check, id: echotest, type: process
+2025/08/02 17:55:50 module: hsu-master-server , worker: echotest , Performing process health check, id: echotest
+2025/08/02 17:55:50 module: hsu-master-server , worker: echotest , Health check passed, id: echotest, consecutive_successes: 3, message: process is running: PID 29132, err: <nil>
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Windows resource usage for PID 29132: Memory RSS: 106MB, CPU: 0.0%, Handles: 88
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Resource violation for PID 29132: Memory RSS (111931392 bytes) exceeds limit (10485760 bytes), severity: critical
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Resource violation for PID 29132: Memory RSS (111931392 bytes) exceeds warning threshold (8388608 bytes), severity: warning
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Windows resource usage for PID 29132: Memory RSS: 106MB, CPU: 0.0%, Handles: 88
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Resource violation detected for worker echotest: Memory RSS (111931392 bytes) exceeds limit (10485760 bytes)
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , RESTART: Resource limit exceeded, restarting process (policy: restart): Memory RSS (111931392 bytes) exceeds limit (10485760 bytes)
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Restart request, id: echotest, trigger: resource_violation, severity: critical, worker_profile: web, message: Memory RSS (111931392 bytes) exceeds limit (10485760 bytes)
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Proceeding with restart, id: echotest, trigger: resource_violation, attempt: 1/12, delay: 10s, message: Memory RSS (111931392 bytes) exceeds limit (10485760 bytes)
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Restarting process control, worker: echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Resource usage for PID 29132: Memory RSS: 106MB, CPU: 0.0%, FDs: 88
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Resource usage update for PID 29132: Memory RSS: 106MB, CPU: 0.0%
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Stopping process control...
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , State transition: -> stopping, worker: echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Terminating process PID 29132
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Sending termination signal to PID 29132, idDead: false, timeout: 20s
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Waiting for process PID 29132 to terminate gracefully
+[2025-08-02T17:55:58+03:00][echotest][stdout] Echotest received signal: interrupt
+[2025-08-02T17:55:58+03:00][echotest][stdout] Echotest stopped
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Process PID 29132 exited with status: exit status 0
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Process PID 29132 terminated gracefully
+{"level":"info","timestamp":"2025-08-02T17:55:58+03:00","caller":"logcollection/zap_adapter.go:43","msg":"Worker unregistered from log collection","worker_id":"echotest"}
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Log collection stopped for worker echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Stopping resource limit management for PID 29132
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Stopping resource monitoring for PID 29132
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Resource violation check loop stopped for PID 29132
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Resource monitoring loop stopped for PID 29132
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Resource monitoring stopped for PID 29132
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Resource limit management stopped for PID 29132
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Resource monitoring stopped for worker echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Stopping health monitor, id: echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Health monitor loop stopping, id: echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Health monitor stopped, id: echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Health monitor stopped for worker echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Stdout closed for worker echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , State transition: stopping -> idle, worker: echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Process control stopped successfully
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Starting process control for worker echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Starting process for worker echotest, can_attach: true, can_execute: true, can_terminate: true
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Attempting to attach to existing process, worker: echotest
+2025/08/02 17:55:58 module: hsu-master-server , Attaching to managed worker, id: echotest
+2025/08/02 17:55:58 module: hsu-master-server , Attaching to process, id: echotest, discovery config: {Method:pid-file ProcessName: ProcessArgs:[] Port:0 Protocol: PIDFile:C:\Users\alexey.trunov\AppData\Local\hsu-master\echotest.pid ServiceName: CheckInterval:30s}
+2025/08/02 17:55:58 module: hsu-master-server , Starting process discovery, id: echotest, method: pid-file
+2025/08/02 17:55:58 module: hsu-master-server , Discovering process by PID file, id: echotest, file: C:\Users\alexey.trunov\AppData\Local\hsu-master\echotest.pid
+2025/08/02 17:55:58 module: hsu-master-server , Failed to discover process, id: echotest, method: pid-file, error: process: process is not running
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Failed to attach to existing process, worker: echotest, error: discovery: failed to discover process: process: process is not running
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Executing new process, worker: echotest
+2025/08/02 17:55:58 module: hsu-master-server , Executing managed worker command, id: echotest
+2025/08/02 17:55:58 module: hsu-master-server , Executing process, id: echotest, execution config: {ExecutablePath:..\..\test\echotest\echotest.exe Args:[--run-duration 0 --memory-mb 100] Environment:[] WorkingDirectory: WaitDelay:10s}
+2025/08/02 17:55:58 module: hsu-master-server , Executing process: id: echotest, executable path: '..\..\test\echotest\echotest.exe', args: [--run-duration 0 --memory-mb 100], working directory: 'C:\Projects\go\src\github.com\core-tools\hsu-master-go\cmd\test\echotest'
+2025/08/02 17:55:58 module: hsu-master-server , Executing process, id: echotest, cmd: ..\..\test\echotest\echotest.exe --run-duration 0 --memory-mb 100
+2025/08/02 17:55:58 module: hsu-master-server , Successfully executed process, id: echotest, PID: 8788
+2025/08/02 17:55:58 module: hsu-master-server , Writing PID file, worker: echotest, pid: 8788, path: C:\Users\alexey.trunov\AppData\Local\hsu-master\echotest.pid
+2025/08/02 17:55:58 module: hsu-master-server , PID file written successfully, worker: echotest, pid: 8788, path: C:\Users\alexey.trunov\AppData\Local\hsu-master\echotest.pid
+2025/08/02 17:55:58 module: hsu-master-server , PID file written for worker echotest: C:\Users\alexey.trunov\AppData\Local\hsu-master\echotest.pid (PID: 8788)
+2025/08/02 17:55:58 module: hsu-master-server , Managed worker command executed successfully, id: echotest, PID: 8788
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , New process started successfully, worker: echotest, PID: 8788
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Process started, process: &{Pid:8788 handle:612 isdone:{_:{} v:0} sigMu:{w:{state:0 sema:0} writerSem:0 readerSem:0 readerCount:{_:{} v:0} readerWait:{_:{} v:0}}}, stdout: &{file:0xc000494288}
+{"level":"info","timestamp":"2025-08-02T17:55:58+03:00","caller":"logcollection/zap_adapter.go:43","msg":"Worker registered for log collection","worker_id":"echotest","capture_stdout":true,"capture_stderr":true}
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Log collection started for worker echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Starting health monitor for worker echotest, config: &{Type:process HTTP:{URL: PMethod: Headers:map[]} GRPC:{Address: Service: Method: Headers:map[]} TCP:{Address: Port:0} Exec:{Command: Args:[]} RunOptions:{Enabled:true Interval:10s Timeout:5s InitialDelay:2s Retries:2}}
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Restart callback set for health monitor, id: echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Recovery callback set for health monitor, id: echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Starting health monitor, id: echotest, type: process, interval: 10s
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Health monitor started, worker: echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Initializing resource monitoring for worker echotest, PID: 8788
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Health monitor loop started, id: echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Health monitor initial delay, id: echotest, delay: 2s
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Starting resource limit management for PID 8788
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Applying resource limits to PID 8788
+[2025-08-02T17:55:58+03:00][echotest][stdout] Running Echotest, opts: {RunDuration:0 MemoryMB:100}...
+[2025-08-02T17:55:58+03:00][echotest][stdout] Using MEMORY MB of 100 Megabytes
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Applying memory limits to PID 8788 (MaxRSS: 10485760, MaxVirtual: 0)
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Some resource limits could not be applied to PID 8788: [memory limits: current process does not hold privileges for memory limits]
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Failed to apply some resource limits to PID 8788: memory limits: current process does not hold privileges for memory limits
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Starting resource monitoring for PID 8788, interval: 30s
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Resource limit management started for PID 8788
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Resource monitoring started for worker echotest, PID: 8788
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Process control started, worker: echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Process control restarted successfully, worker: echotest
+2025/08/02 17:55:58 module: hsu-master-server , worker: echotest , Restart completed, id: echotest, trigger: resource_violation, attempt: 1
+[2025-08-02T17:55:58+03:00][echotest][stdout] Echotest is ready, starting workers...
+2025/08/02 17:56:00 module: hsu-master-server , worker: echotest , Performing health check, id: echotest, type: process
+2025/08/02 17:56:00 module: hsu-master-server , worker: echotest , Performing process health check, id: echotest
+2025/08/02 17:56:00 module: hsu-master-server , worker: echotest , Health check recovered, id: echotest, previous: unknown, consecutive_successes: 1, message: process is running: PID 8788, err: <nil>
+[2025-08-02T17:56:00+03:00][echotest][stdout] Echotest is fully operational
+2025/08/02 17:56:03 module: hsu-master-server , Master runner received signal: interrupt
+2025/08/02 17:56:03 module: hsu-master-server , Waiting for workers start to finish...
+2025/08/02 17:56:03 module: hsu-master-server , Ready to stop master...
+2025/08/02 17:56:03 module: hsu-master-server , Stopping master...
+2025/08/02 17:56:03 module: hsu-core-server , Stopping server...
+2025/08/02 17:56:03 module: hsu-core-server , Stopping gRPC server...
+2025/08/02 17:56:03 module: hsu-core-server , gRPC server stopped gracefully
+2025/08/02 17:56:03 module: hsu-core-server , Server stopped
+2025/08/02 17:56:03 module: hsu-master-server , Stopping process controls...
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Stopping process control...
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , State transition: -> stopping, worker: echotest
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Terminating process PID 8788
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Sending termination signal to PID 8788, idDead: false, timeout: 20s
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Waiting for process PID 8788 to terminate gracefully
+[2025-08-02T17:56:03+03:00][echotest][stdout] Echotest received signal: interrupt
+[2025-08-02T17:56:03+03:00][echotest][stdout] Echotest stopped
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Process PID 8788 exited with status: exit status 0
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Process PID 8788 terminated gracefully
+{"level":"info","timestamp":"2025-08-02T17:56:03+03:00","caller":"logcollection/zap_adapter.go:43","msg":"Worker unregistered from log collection","worker_id":"echotest"}
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Log collection stopped for worker echotest
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Stopping resource limit management for PID 8788
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Stopping resource monitoring for PID 8788
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Resource violation check loop stopped for PID 8788
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Resource monitoring loop stopped for PID 8788
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Resource monitoring stopped for PID 8788
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Resource limit management stopped for PID 8788
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Resource monitoring stopped for worker echotest
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Stopping health monitor, id: echotest
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Health monitor loop stopping, id: echotest
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Health monitor stopped, id: echotest
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Health monitor stopped for worker echotest
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Stdout closed for worker echotest
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , State transition: stopping -> idle, worker: echotest
+2025/08/02 17:56:03 module: hsu-master-server , worker: echotest , Process control stopped successfully
+2025/08/02 17:56:03 module: hsu-master-server , Process controls stopped.
+2025/08/02 17:56:03 module: hsu-master-server , Master stopped
+2025/08/02 17:56:03 module: hsu-master-server , Master runner stopped
+{"level":"info","timestamp":"2025-08-02T17:56:03+03:00","caller":"logcollection/zap_adapter.go:43","msg":"Log collection service stopped","uptime":35.3005885,"total_lines":12,"total_bytes":410}
+2025/08/02 17:56:03 module: hsu-master-server , Log collection service stopped
