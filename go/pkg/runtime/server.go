@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/core-tools/hsu-core/pkg/errors"
 	"github.com/core-tools/hsu-core/pkg/logging"
 	"github.com/core-tools/hsu-core/pkg/modules"
 
@@ -17,12 +18,22 @@ type grpcServerOptions struct {
 }
 
 func newGRPCServer(options grpcServerOptions, logger logging.Logger) (*grpcServer, error) {
-	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", options.Port))
-	if err != nil {
-		return nil, fmt.Errorf("failed to listen at port %d: %v", options.Port, err)
+	if options.Port <= 0 {
+		return nil, errors.NewValidationError("invalid port number", nil).
+			WithContext("port", options.Port)
 	}
 
-	logger.Infof("Listening at %s", listener.Addr().String())
+	address := fmt.Sprintf("127.0.0.1:%d", options.Port)
+	logger.Infof("Creating gRPC server on address: %s", address)
+
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		return nil, errors.NewIOError("failed to create network listener", err).
+			WithContext("address", address).
+			WithContext("port", options.Port)
+	}
+
+	logger.Infof("gRPC server listening at %s", listener.Addr().String())
 
 	serverImpl := grpc.NewServer(options.Options...)
 
@@ -40,12 +51,14 @@ type grpcServer struct {
 }
 
 func (s *grpcServer) Start(ctx context.Context) {
+	s.logger.Infof("Starting gRPC server at %s", s.listener.Addr().String())
 	go func() {
 		err := s.serverImpl.Serve(s.listener)
 		if err != nil {
-			s.logger.Errorf("gRPC server Serve failed: %v", err)
+			s.logger.Errorf("gRPC server serve failed at %s: %v", s.listener.Addr().String(), err)
 			return
 		}
+		s.logger.Infof("gRPC server stopped serving at %s", s.listener.Addr().String())
 	}()
 }
 
@@ -91,6 +104,13 @@ type Server interface {
 }
 
 func NewServer(config ServerConfig, handlerRegistrarInfoReader modules.HandlerRegistrarInfoReader, logger logging.Logger) Server {
+	if handlerRegistrarInfoReader == nil {
+		logger.Errorf("Handler registrar info reader is nil")
+		return nil
+	}
+
+	logger.Infof("Creating new server with gRPC port: %d", config.GRPC.Port)
+
 	grpcServerOptions := grpcServerOptions{
 		Port: config.GRPC.Port,
 		// TODO: Add options
@@ -101,19 +121,37 @@ func NewServer(config ServerConfig, handlerRegistrarInfoReader modules.HandlerRe
 		return nil
 	}
 
+	// Register all handlers
 	handlerRegistrarInfos := handlerRegistrarInfoReader.GetAllHandlerRegistrarInfos()
+	logger.Infof("Registering %d handlers", len(handlerRegistrarInfos))
 
+	registeredCount := 0
 	for key, handlerRegistrarInfo := range handlerRegistrarInfos {
+		logger.Debugf("Processing handler for key: %s", key)
+		
 		directClosure := handlerRegistrarInfo.DirectClosure
 		if directClosure == nil {
-			logger.Warnf("Direct closure is nil for key %s", key)
+			logger.Warnf("Direct closure is nil for handler key: %s, skipping", key)
 			continue
 		}
+		
 		registrar := handlerRegistrarInfo.Registrar
 		if registrar.GRPC != nil {
+			if registrar.GRPC.RegistrarFunc == nil {
+				logger.Warnf("gRPC registrar function is nil for key: %s, skipping", key)
+				continue
+			}
+			
+			logger.Debugf("Registering gRPC handler for key: %s", key)
 			registrar.GRPC.RegistrarFunc(grpcServer.serverImpl, directClosure, logger)
+			registeredCount++
+			logger.Infof("gRPC handler registered successfully for key: %s", key)
+		} else {
+			logger.Debugf("No gRPC registrar for key: %s, skipping", key)
 		}
 	}
+
+	logger.Infof("Server created successfully with %d handlers registered", registeredCount)
 
 	return &server{
 		grpcServer: grpcServer,

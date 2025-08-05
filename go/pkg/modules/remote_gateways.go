@@ -13,18 +13,18 @@ type GRPCGatewayFactory struct {
 	DialOptions []grpc.DialOption
 }
 
-type GatewayFactoryUnion struct {
+type GatewayConfig struct {
 	GRPC *GRPCGatewayFactory
 	// TODO: HTTP, etc.
 	EnableDirect bool
 }
 
 type GatewayFactoryProvider interface {
-	ProvideGatewayFactory(moduleID, endpointID string, factory GatewayFactoryUnion) error
+	ProvideGatewayFactory(moduleID, endpointID string, factory GatewayConfig) error
 }
 
 type GatewayFactoryInfo struct {
-	Factory       GatewayFactoryUnion
+	Factory       GatewayConfig
 	DirectClosure interface{}
 }
 

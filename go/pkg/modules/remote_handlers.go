@@ -12,17 +12,17 @@ type GRPCHandlerRegistrar struct {
 	RegistrarFunc GRPCHandlerRegistratFunc
 }
 
-type HandlerRegistrarUnion struct {
+type HandlerConfig struct {
 	GRPC *GRPCHandlerRegistrar
 	// TODO: HTTP, etc.
 }
 
 type HandlerRegistrarProvider interface {
-	ProvideHandlerRegistrar(moduleID, endpointID string, registrar HandlerRegistrarUnion) error
+	ProvideHandlerRegistrar(moduleID, endpointID string, registrar HandlerConfig) error
 }
 
 type HandlerRegistrarInfo struct {
-	Registrar     HandlerRegistrarUnion
+	Registrar     HandlerConfig
 	DirectClosure interface{}
 }
 
