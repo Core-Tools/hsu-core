@@ -16,7 +16,7 @@ const (
 	// WorkerStateUnknown is the initial state before worker registration
 	WorkerStateUnknown WorkerState = "unknown"
 
-	// WorkerStateRegistered means worker is added to master but not started
+	// WorkerStateRegistered means worker is added to process manager but not started
 	WorkerStateRegistered WorkerState = "registered"
 
 	// WorkerStateStarting means worker start operation is in progress

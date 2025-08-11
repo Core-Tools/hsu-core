@@ -122,11 +122,11 @@ func CreateLoggerForWorker(workerID string, baseLogger StructuredLogger) Structu
 	)
 }
 
-// CreateLoggerForMaster creates a logger instance specifically for the master
-func CreateLoggerForMaster(masterID string, baseLogger StructuredLogger) StructuredLogger {
+// CreateLoggerForProcessManager creates a logger instance specifically for the process manager
+func CreateLoggerForProcessManager(processManagerID string, baseLogger StructuredLogger) StructuredLogger {
 	return baseLogger.WithFields(
-		String("master_id", masterID),
-		Component("master"),
+		String("process_manager_id", processManagerID),
+		Component("process_manager"),
 		String("component_type", "process_manager"),
 	)
 }
@@ -135,7 +135,7 @@ func CreateLoggerForMaster(masterID string, baseLogger StructuredLogger) Structu
 func CreateLoggerForComponent(component string, baseLogger StructuredLogger) StructuredLogger {
 	return baseLogger.WithFields(
 		Component(component),
-		String("subsystem", "master"),
+		String("subsystem", "process_manager"),
 	)
 }
 

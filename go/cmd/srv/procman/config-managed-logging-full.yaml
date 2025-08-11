@@ -1,4 +1,4 @@
-master:
+process_manager:
   port: 50055
 
 # ===== LOG COLLECTION CONFIGURATION (OPTIONAL) =====
@@ -7,16 +7,16 @@ log_collection:
   global_aggregation:
     enabled: true
     targets:
-      - type: "master_stdout"
+      - type: "process_manager_stdout"
         format: "enhanced_plain"
         prefix: "[AGGREGATED]"
       - type: "file" 
-        path: "master-aggregated.log"
+        path: "process_manager-aggregated.log"
         format: "enhanced_plain"
   enhancement:
     enabled: true
     metadata:
-      add_master_id: true
+      add_process_manager_id: true
       add_hostname: true
       add_timestamp: true
       add_sequence: true
@@ -55,7 +55,7 @@ log_collection:
               max_size: "50MB"
               max_files: 5
               max_age: "3d"
-          - type: "master_stdout"
+          - type: "process_manager_stdout"
             format: "enhanced_plain"
             prefix: "[ERROR]"
   system:
@@ -102,7 +102,7 @@ workers:
                     path: "{worker_id}-detailed.log"
                     format: "enhanced_plain"
                 stderr:
-                  - type: "master_stdout"
+                  - type: "process_manager_stdout"
                     format: "enhanced_plain"
                     prefix: "[{worker_id}-ERROR]"
         health_check:

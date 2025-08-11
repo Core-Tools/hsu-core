@@ -1,4 +1,4 @@
-master:
+process_manager:
   port: 50055
 
 log_collection:
@@ -6,11 +6,11 @@ log_collection:
   global_aggregation:
     enabled: true
     targets:
-      - type: "master_stdout"
+      - type: "process_manager_stdout"
         format: "enhanced_plain"
         prefix: "[AGGREGATED]"
       - type: "file" 
-        path: "master-aggregated.log"
+        path: "process_manager-aggregated.log"
         format: "enhanced_plain"
   default_worker:
     enabled: true
@@ -26,32 +26,30 @@ log_collection:
           - type: "file"
             path: "{worker_id}-stderr.log"
             format: "enhanced_plain"
-          - type: "master_stdout"
+          - type: "process_manager_stdout"
             format: "enhanced_plain"
             prefix: "[ERROR]"
 
 workers:
-  - id: "echotest"
+  - id: "qdrant"
     type: "managed"
-    profile_type: "web"
+    profile_type: "database"
     unit:
       managed:
         metadata:
-          name: "Echo Test"
+          name: "Qdrant"
         control:
           execution:
-            executable_path: "../../test/echotest/echotest"
-            args: ["--run-duration", "0", "--memory-mb", "1"]
-          restart_policy: "always"
+            executable_path: "C:\\qdrant-x86_64-pc-windows-msvc\\qdrant.exe"
+          restart_policy: "on-failure"
           context_aware_restart:
             default:
               max_retries: 3
               retry_delay: "5s"
               backoff_rate: 1.5
-            startup_grace_period: "30s"
           limits:
             memory:
-              max_rss: 104857600 # 100MB
+              max_rss: 1048576
               warning_threshold: 80
               policy: "restart"
           log_collection:

@@ -1,4 +1,4 @@
-package master
+package processmanager
 
 import (
 	"context"
@@ -10,13 +10,13 @@ import (
 	"github.com/core-tools/hsu-core/pkg/logcollection"
 	logconfig "github.com/core-tools/hsu-core/pkg/logcollection/config"
 	"github.com/core-tools/hsu-core/pkg/logging"
-	"github.com/core-tools/hsu-core/pkg/master/workerstatemachine"
+	"github.com/core-tools/hsu-core/pkg/processmanager/workerstatemachine"
 	"github.com/core-tools/hsu-core/pkg/workers"
 	"github.com/core-tools/hsu-core/pkg/workers/processcontrol"
 	"github.com/core-tools/hsu-core/pkg/workers/processcontrolimpl"
 )
 
-type WorkerManager interface {
+type ProcessRegistry interface {
 	AddWorker(worker workers.Worker) error
 	RemoveWorker(id string) error
 }
@@ -25,11 +25,12 @@ type LogCollectorIntegration interface {
 	SetLogCollectionService(service logcollection.LogCollectionService)
 }
 
-type WorkerLifecycle interface {
+type ProcessLifecycle interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 	StartWorker(ctx context.Context, id string) error
 	StopWorker(ctx context.Context, id string) error
+	GetManagerState() ProcessManagerState
 	GetAllWorkerStatesWithDiagnostics() map[string]WorkerStateWithDiagnostics
 	GetWorkerState(id string) (workerstatemachine.WorkerState, error)
 	GetWorkerContext(id string) (map[string]string, error)
@@ -38,31 +39,31 @@ type WorkerLifecycle interface {
 	GetWorkerProcessDiagnostics(id string) (processcontrol.ProcessDiagnostics, error)
 }
 
-type Master interface {
-	WorkerManager
+type ProcessManager interface {
+	ProcessRegistry
+	ProcessLifecycle
 	LogCollectorIntegration
-	WorkerLifecycle
 }
 
-type MasterOptions struct {
+type ProcessManagerOptions struct {
 	ForceShutdownTimeout time.Duration
 }
 
-// MasterState represents the current state of the master server
-type MasterState string
+// ProcessManagerState represents the current state of the process manager
+type ProcessManagerState string
 
 const (
-	// MasterStateNotStarted is the initial state before Run() is called
-	MasterStateNotStarted MasterState = "not_started"
+	// ProcessManagerStateNotStarted is the initial state before Run() is called
+	ProcessManagerStateNotStarted ProcessManagerState = "not_started"
 
-	// MasterStateRunning means master is running and can manage workers
-	MasterStateRunning MasterState = "running"
+	// ProcessManagerStateRunning means process manager is running and can manage workers
+	ProcessManagerStateRunning ProcessManagerState = "running"
 
-	// MasterStateStopping means master is shutting down
-	MasterStateStopping MasterState = "stopping"
+	// ProcessManagerStateStopping means process manager is shutting down
+	ProcessManagerStateStopping ProcessManagerState = "stopping"
 
-	// MasterStateStopped means master has stopped
-	MasterStateStopped MasterState = "stopped"
+	// ProcessManagerStateStopped means process manager has stopped
+	ProcessManagerStateStopped ProcessManagerState = "stopped"
 )
 
 // workerEntry combines ProcessControl and StateMachine for a worker
@@ -71,26 +72,26 @@ type workerEntry struct {
 	StateMachine   *workerstatemachine.WorkerStateMachine
 }
 
-type master struct {
-	options              MasterOptions
-	logger               logging.Logger
+type processManager struct {
+	options              ProcessManagerOptions
 	workers              map[string]*workerEntry // Combined map for controls and state machines
-	masterState          MasterState             // Track master state
+	state                ProcessManagerState     // Track process manager state
 	mutex                sync.Mutex
 	logCollectionService logcollection.LogCollectionService // Log collection service
+	logger               logging.Logger
 }
 
-func NewMaster(options MasterOptions, logger logging.Logger) Master {
-	return &master{
-		options:     options,
-		logger:      logger,
-		workers:     make(map[string]*workerEntry),
-		masterState: MasterStateNotStarted,
-		mutex:       sync.Mutex{},
+func NewProcessManager(options ProcessManagerOptions, logger logging.Logger) ProcessManager {
+	return &processManager{
+		options: options,
+		logger:  logger,
+		workers: make(map[string]*workerEntry),
+		state:   ProcessManagerStateNotStarted,
+		mutex:   sync.Mutex{},
 	}
 }
 
-func (m *master) AddWorker(worker workers.Worker) error {
+func (pm *processManager) AddWorker(worker workers.Worker) error {
 	// Validate input
 	if worker == nil {
 		return errors.NewValidationError("worker cannot be nil", nil)
@@ -109,19 +110,19 @@ func (m *master) AddWorker(worker workers.Worker) error {
 		return errors.NewValidationError("invalid worker process control options", err).WithContext("worker_id", id)
 	}
 
-	m.logger.Infof("Adding worker, id: %s, can_attach: %t, can_execute: %t, can_terminate: %t, can_restart: %t",
+	pm.logger.Infof("Adding worker, id: %s, can_attach: %t, can_execute: %t, can_terminate: %t, can_restart: %t",
 		id, options.CanAttach, (options.ExecuteCmd != nil), options.CanTerminate, options.CanRestart)
 
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
 
 	// Check if worker already exists
-	if _, exists := m.workers[id]; exists {
+	if _, exists := pm.workers[id]; exists {
 		return errors.NewConflictError("worker already exists", nil).WithContext("worker_id", id)
 	}
 
 	// Create state machine for the worker
-	stateMachine := workerstatemachine.NewWorkerStateMachine(id, m.logger)
+	stateMachine := workerstatemachine.NewWorkerStateMachine(id, pm.logger)
 
 	// Validate that add operation is allowed
 	if err := stateMachine.ValidateOperation("add"); err != nil {
@@ -134,28 +135,28 @@ func (m *master) AddWorker(worker workers.Worker) error {
 	}
 
 	// Create process control
-	processControl := processcontrolimpl.NewProcessControl(options, id, m.logger)
+	processControl := processcontrolimpl.NewProcessControl(options, id, pm.logger)
 
 	// Store worker and state machine
-	m.workers[id] = &workerEntry{
+	pm.workers[id] = &workerEntry{
 		ProcessControl: processControl,
 		StateMachine:   stateMachine,
 	}
 
-	m.logger.Infof("Worker added successfully, id: %s, state: %s", id, stateMachine.GetCurrentState())
+	pm.logger.Infof("Worker added successfully, id: %s, state: %s", id, stateMachine.GetCurrentState())
 	return nil
 }
 
-func (m *master) RemoveWorker(id string) error {
+func (pm *processManager) RemoveWorker(id string) error {
 	// Validate worker ID
 	if err := ValidateWorkerID(id); err != nil {
 		return errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
 	}
 
-	m.logger.Infof("Removing worker, id: %s", id)
+	pm.logger.Infof("Removing worker, id: %s", id)
 
 	// Get worker and check if it's safely removable
-	workerEntry, _, exists := m.getWorkerAndMasterState(id)
+	workerEntry, _, exists := pm.getWorkerAndManagerState(id)
 	if !exists {
 		return errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
 	}
@@ -173,18 +174,18 @@ func (m *master) RemoveWorker(id string) error {
 	}
 
 	// Safe to remove - acquire lock and remove
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
 
 	// Double-check existence under lock (could have been removed by another goroutine)
-	if _, exists := m.workers[id]; !exists {
+	if _, exists := pm.workers[id]; !exists {
 		return errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
 	}
 
 	// Remove worker and state machine
-	delete(m.workers, id)
+	delete(pm.workers, id)
 
-	m.logger.Infof("Worker removed successfully, id: %s", id)
+	pm.logger.Infof("Worker removed successfully, id: %s", id)
 	return nil
 }
 
@@ -202,7 +203,7 @@ func isWorkerSafelyRemovable(state workerstatemachine.WorkerState) bool {
 	}
 }
 
-func (m *master) StartWorker(ctx context.Context, id string) error {
+func (pm *processManager) StartWorker(ctx context.Context, id string) error {
 	// Validate context
 	if ctx == nil {
 		return errors.NewValidationError("context cannot be nil", nil)
@@ -213,22 +214,22 @@ func (m *master) StartWorker(ctx context.Context, id string) error {
 		return errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
 	}
 
-	// Get worker and master state safely
-	workerEntry, currentMasterState, exists := m.getWorkerAndMasterState(id)
+	// Get worker and process manager state safely
+	workerEntry, currentState, exists := pm.getWorkerAndManagerState(id)
 
 	if !exists {
 		return errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
 	}
 
-	// Validate master is running - after worker existence check
-	if currentMasterState != MasterStateRunning {
+	// Validate process manager is running - after worker existence check
+	if currentState != ProcessManagerStateRunning {
 		return errors.NewValidationError(
-			fmt.Sprintf("master must be running to start workers, current state: %s", currentMasterState),
+			fmt.Sprintf("process manager must be running to start workers, current state: %s", currentState),
 			nil,
-		).WithContext("worker_id", id).WithContext("master_state", string(currentMasterState))
+		).WithContext("worker_id", id).WithContext("state", string(currentState))
 	}
 
-	m.logger.Infof("Starting worker, id: %s", id)
+	pm.logger.Infof("Starting worker, id: %s", id)
 
 	// 2. Validate operation using state machine (outside lock)
 	if err := workerEntry.StateMachine.ValidateOperation("start"); err != nil {
@@ -248,10 +249,10 @@ func (m *master) StartWorker(ctx context.Context, id string) error {
 		// Transition to failed state
 		transitionErr := workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateFailed, "start", err)
 		if transitionErr != nil {
-			m.logger.Errorf("Failed to transition worker to failed state, id: %s, error: %v", id, transitionErr)
+			pm.logger.Errorf("Failed to transition worker to failed state, id: %s, error: %v", id, transitionErr)
 		}
 
-		m.logger.Errorf("Failed to start worker, id: %s, error: %v", id, err)
+		pm.logger.Errorf("Failed to start worker, id: %s, error: %v", id, err)
 
 		// Check if the error is a context cancellation
 		if ctx.Err() != nil {
@@ -262,15 +263,15 @@ func (m *master) StartWorker(ctx context.Context, id string) error {
 
 	// 6. Transition to running state on success
 	if err := workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateRunning, "start", nil); err != nil {
-		m.logger.Errorf("Failed to transition worker to running state, id: %s, error: %v", id, err)
+		pm.logger.Errorf("Failed to transition worker to running state, id: %s, error: %v", id, err)
 		// Note: Process is actually running, but state tracking failed
 	}
 
-	m.logger.Infof("Worker started successfully, id: %s, state: %s", id, workerEntry.StateMachine.GetCurrentState())
+	pm.logger.Infof("Worker started successfully, id: %s, state: %s", id, workerEntry.StateMachine.GetCurrentState())
 	return nil
 }
 
-func (m *master) StopWorker(ctx context.Context, id string) error {
+func (pm *processManager) StopWorker(ctx context.Context, id string) error {
 	// Validate context
 	if ctx == nil {
 		return errors.NewValidationError("context cannot be nil", nil)
@@ -281,22 +282,22 @@ func (m *master) StopWorker(ctx context.Context, id string) error {
 		return errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
 	}
 
-	// Get worker and master state safely
-	workerEntry, currentMasterState, exists := m.getWorkerAndMasterState(id)
+	// Get worker and process manager state safely
+	workerEntry, currentState, exists := pm.getWorkerAndManagerState(id)
 
 	if !exists {
 		return errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
 	}
 
-	// Validate master is running - after worker existence check
-	if currentMasterState != MasterStateRunning {
+	// Validate process manager is running - after worker existence check
+	if currentState != ProcessManagerStateRunning {
 		return errors.NewValidationError(
-			fmt.Sprintf("master must be running to stop workers, current state: %s", currentMasterState),
+			fmt.Sprintf("process manager must be running to stop workers, current state: %s", currentState),
 			nil,
-		).WithContext("worker_id", id).WithContext("master_state", string(currentMasterState))
+		).WithContext("worker_id", id).WithContext("state", string(currentState))
 	}
 
-	m.logger.Infof("Stopping worker, id: %s", id)
+	pm.logger.Infof("Stopping worker, id: %s", id)
 
 	// 2. Validate operation using state machine (outside lock)
 	if err := workerEntry.StateMachine.ValidateOperation("stop"); err != nil {
@@ -316,10 +317,10 @@ func (m *master) StopWorker(ctx context.Context, id string) error {
 		// Transition to failed state
 		transitionErr := workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateFailed, "stop", err)
 		if transitionErr != nil {
-			m.logger.Errorf("Failed to transition worker to failed state, id: %s, error: %v", id, transitionErr)
+			pm.logger.Errorf("Failed to transition worker to failed state, id: %s, error: %v", id, transitionErr)
 		}
 
-		m.logger.Errorf("Failed to stop worker, id: %s, error: %v", id, err)
+		pm.logger.Errorf("Failed to stop worker, id: %s, error: %v", id, err)
 
 		// Check if the error is a context cancellation
 		if ctx.Err() != nil {
@@ -330,36 +331,36 @@ func (m *master) StopWorker(ctx context.Context, id string) error {
 
 	// 6. Transition to stopped state on success
 	if err := workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateStopped, "stop", nil); err != nil {
-		m.logger.Errorf("Failed to transition worker to stopped state, id: %s, error: %v", id, err)
+		pm.logger.Errorf("Failed to transition worker to stopped state, id: %s, error: %v", id, err)
 		// Note: Process is actually stopped, but state tracking failed
 	}
 
-	m.logger.Infof("Worker stopped successfully, id: %s, state: %s", id, workerEntry.StateMachine.GetCurrentState())
+	pm.logger.Infof("Worker stopped successfully, id: %s, state: %s", id, workerEntry.StateMachine.GetCurrentState())
 	return nil
 }
 
-func (m *master) Start(ctx context.Context) error {
-	m.logger.Infof("Starting master...")
+func (pm *processManager) Start(ctx context.Context) error {
+	pm.logger.Infof("Starting process manager...")
 
-	// Transition master to running state
-	m.setMasterState(MasterStateRunning)
+	// Transition process manager to running state
+	pm.setManagerState(ProcessManagerStateRunning)
 
-	m.logger.Infof("Master started")
+	pm.logger.Infof("Process manager started")
 
 	return nil
 }
 
-func (m *master) Stop(ctx context.Context) error {
-	m.logger.Infof("Stopping master...")
+func (pm *processManager) Stop(ctx context.Context) error {
+	pm.logger.Infof("Stopping process manager...")
 
 	// Transition to stopping state
-	m.setMasterState(MasterStateStopping)
+	pm.setManagerState(ProcessManagerStateStopping)
 
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	forcedShutdownTimeout := m.options.ForceShutdownTimeout
+	forcedShutdownTimeout := pm.options.ForceShutdownTimeout
 	if forcedShutdownTimeout <= 0 {
 		forcedShutdownTimeout = 30 * time.Second // Timeout super-default
 	}
@@ -368,19 +369,19 @@ func (m *master) Stop(ctx context.Context) error {
 	ctx, _ = context.WithTimeout(ctx, forcedShutdownTimeout)
 
 	// Stop workers
-	err := m.stopWorkerProcessControls(ctx)
+	err := pm.stopWorkerProcessControls(ctx)
 
 	// Transition to stopped state
-	m.setMasterState(MasterStateStopped)
+	pm.setManagerState(ProcessManagerStateStopped)
 
-	m.logger.Infof("Master stopped")
+	pm.logger.Infof("Process manager stopped")
 
 	return err
 }
 
 // GetAllWorkerStatesWithDiagnostics returns comprehensive state and diagnostic information for all workers
-func (m *master) GetAllWorkerStatesWithDiagnostics() map[string]WorkerStateWithDiagnostics {
-	workerEntriesCopy := m.getAllWorkers()
+func (pm *processManager) GetAllWorkerStatesWithDiagnostics() map[string]WorkerStateWithDiagnostics {
+	workerEntriesCopy := pm.getAllWorkers()
 
 	result := make(map[string]WorkerStateWithDiagnostics)
 	for id, workerEntry := range workerEntriesCopy {
@@ -396,13 +397,13 @@ func (m *master) GetAllWorkerStatesWithDiagnostics() map[string]WorkerStateWithD
 }
 
 // GetWorkerState returns the current state of a worker
-func (m *master) GetWorkerState(id string) (workerstatemachine.WorkerState, error) {
+func (pm *processManager) GetWorkerState(id string) (workerstatemachine.WorkerState, error) {
 	// Validate worker ID
 	if err := ValidateWorkerID(id); err != nil {
 		return workerstatemachine.WorkerStateUnknown, errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
 	}
 
-	workerEntry, _, exists := m.getWorkerAndMasterState(id)
+	workerEntry, _, exists := pm.getWorkerAndManagerState(id)
 
 	if !exists {
 		return workerstatemachine.WorkerStateUnknown, errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
@@ -411,13 +412,13 @@ func (m *master) GetWorkerState(id string) (workerstatemachine.WorkerState, erro
 	return workerEntry.StateMachine.GetCurrentState(), nil
 }
 
-func (m *master) GetWorkerContext(id string) (map[string]string, error) {
+func (pm *processManager) GetWorkerContext(id string) (map[string]string, error) {
 	// Validate worker ID
 	if err := ValidateWorkerID(id); err != nil {
 		return nil, errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
 	}
 
-	workerEntry, _, exists := m.getWorkerAndMasterState(id)
+	workerEntry, _, exists := pm.getWorkerAndManagerState(id)
 	if !exists {
 		return nil, errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
 	}
@@ -426,13 +427,13 @@ func (m *master) GetWorkerContext(id string) (map[string]string, error) {
 }
 
 // GetWorkerStateWithDiagnostics returns comprehensive state and diagnostic information for a worker
-func (m *master) GetWorkerStateWithDiagnostics(id string) (WorkerStateWithDiagnostics, error) {
+func (pm *processManager) GetWorkerStateWithDiagnostics(id string) (WorkerStateWithDiagnostics, error) {
 	// Validate worker ID
 	if err := ValidateWorkerID(id); err != nil {
 		return WorkerStateWithDiagnostics{}, errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
 	}
 
-	workerEntry, _, exists := m.getWorkerAndMasterState(id)
+	workerEntry, _, exists := pm.getWorkerAndManagerState(id)
 
 	if !exists {
 		return WorkerStateWithDiagnostics{}, errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
@@ -448,13 +449,13 @@ func (m *master) GetWorkerStateWithDiagnostics(id string) (WorkerStateWithDiagno
 }
 
 // IsWorkerOperationAllowed checks if an operation is allowed for a worker
-func (m *master) IsWorkerOperationAllowed(id string, operation string) (bool, error) {
+func (pm *processManager) IsWorkerOperationAllowed(id string, operation string) (bool, error) {
 	// Validate worker ID
 	if err := ValidateWorkerID(id); err != nil {
 		return false, errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
 	}
 
-	workerEntry, _, exists := m.getWorkerAndMasterState(id)
+	workerEntry, _, exists := pm.getWorkerAndManagerState(id)
 
 	if !exists {
 		return false, errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
@@ -463,11 +464,11 @@ func (m *master) IsWorkerOperationAllowed(id string, operation string) (bool, er
 	return workerEntry.StateMachine.IsOperationAllowed(operation), nil
 }
 
-// GetMasterState returns the current state of the master
-func (m *master) GetMasterState() MasterState {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	return m.masterState
+// GetManagerState returns the current state of the process manager
+func (pm *processManager) GetManagerState() ProcessManagerState {
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
+	return pm.state
 }
 
 // WorkerStateWithDiagnostics combines worker state info with process diagnostics
@@ -477,13 +478,13 @@ type WorkerStateWithDiagnostics struct {
 }
 
 // GetWorkerProcessDiagnostics returns detailed process diagnostics for a worker
-func (m *master) GetWorkerProcessDiagnostics(id string) (processcontrol.ProcessDiagnostics, error) {
+func (pm *processManager) GetWorkerProcessDiagnostics(id string) (processcontrol.ProcessDiagnostics, error) {
 	// Validate worker ID
 	if err := ValidateWorkerID(id); err != nil {
 		return processcontrol.ProcessDiagnostics{}, errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
 	}
 
-	workerEntry, _, exists := m.getWorkerAndMasterState(id)
+	workerEntry, _, exists := pm.getWorkerAndManagerState(id)
 
 	if !exists {
 		return processcontrol.ProcessDiagnostics{}, errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
@@ -492,22 +493,22 @@ func (m *master) GetWorkerProcessDiagnostics(id string) (processcontrol.ProcessD
 	return workerEntry.ProcessControl.GetDiagnostics(), nil
 }
 
-func (m *master) stopWorkerProcessControls(ctx context.Context) error {
-	m.logger.Infof("Stopping process controls...")
+func (pm *processManager) stopWorkerProcessControls(ctx context.Context) error {
+	pm.logger.Infof("Stopping process controls...")
 
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
 	// 1. Get all process controls under lock
-	workerEntriesCopy := m.getAllWorkers()
+	workerEntriesCopy := pm.getAllWorkers()
 
 	// 2. Stop processes outside of lock
 	errorCollection := errors.NewErrorCollection()
 	for id, workerEntry := range workerEntriesCopy {
 		err := workerEntry.ProcessControl.Stop(ctx)
 		if err != nil {
-			m.logger.Errorf("Failed to stop process control, id: %s, error: %v", id, err)
+			pm.logger.Errorf("Failed to stop process control, id: %s, error: %v", id, err)
 			// Add context to the error for better debugging
 			contextualErr := errors.NewProcessError("failed to stop process control", err).WithContext("worker_id", id)
 			errorCollection.Add(contextualErr)
@@ -515,55 +516,55 @@ func (m *master) stopWorkerProcessControls(ctx context.Context) error {
 	}
 
 	if errorCollection.HasErrors() {
-		m.logger.Errorf("Some process controls failed to stop: %v", errorCollection.Error())
+		pm.logger.Errorf("Some process controls failed to stop: %v", errorCollection.Error())
 	}
 
-	m.logger.Infof("Process controls stopped.")
+	pm.logger.Infof("Process controls stopped.")
 
 	return errorCollection.ToError()
 }
 
 // getAllWorkers returns a copy of all worker entries under lock
-func (m *master) getAllWorkers() map[string]*workerEntry {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+func (pm *processManager) getAllWorkers() map[string]*workerEntry {
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
 
 	workerEntriesCopy := make(map[string]*workerEntry)
-	for id, workerEntry := range m.workers {
+	for id, workerEntry := range pm.workers {
 		workerEntriesCopy[id] = workerEntry
 	}
 	return workerEntriesCopy
 }
 
-// getWorkerAndMasterState returns worker entry and master state under lock
-// Returns: workerEntry, masterState, exists
-func (m *master) getWorkerAndMasterState(id string) (*workerEntry, MasterState, bool) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+// getWorkerAndManagerState returns worker entry and process manager state under lock
+// Returns: workerEntry, state, exists
+func (pm *processManager) getWorkerAndManagerState(id string) (*workerEntry, ProcessManagerState, bool) {
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
 
-	workerEntry, exists := m.workers[id]
-	return workerEntry, m.masterState, exists
+	workerEntry, exists := pm.workers[id]
+	return workerEntry, pm.state, exists
 }
 
-// setMasterState sets the master state and releases the lock
-func (m *master) setMasterState(state MasterState) {
-	m.mutex.Lock()
-	m.masterState = state
-	m.mutex.Unlock()
+// setManagerState sets the process manager state and releases the lock
+func (pm *processManager) setManagerState(state ProcessManagerState) {
+	pm.mutex.Lock()
+	pm.state = state
+	pm.mutex.Unlock()
 }
 
-// SetLogCollectionService sets the log collection service for the master
-func (m *master) SetLogCollectionService(service logcollection.LogCollectionService) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+// SetLogCollectionService sets the log collection service for the process manager
+func (pm *processManager) SetLogCollectionService(service logcollection.LogCollectionService) {
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
 
-	m.logCollectionService = service
-	m.logger.Infof("Log collection service configured for master")
+	pm.logCollectionService = service
+	pm.logger.Infof("Log collection service configured for process manager")
 }
 
 // getLogCollectionConfig creates a default log collection config for workers
-func (m *master) getLogCollectionConfig() *logconfig.WorkerLogConfig {
-	if m.logCollectionService == nil {
+func (pm *processManager) getLogCollectionConfig() *logconfig.WorkerLogConfig {
+	if pm.logCollectionService == nil {
 		return nil
 	}
 

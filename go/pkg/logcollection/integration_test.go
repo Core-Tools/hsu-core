@@ -17,7 +17,7 @@ import (
 
 // TestLogCollectionIntegration demonstrates the complete log collection system
 func TestLogCollectionIntegration(t *testing.T) {
-	fmt.Println("\n🚀 HSU Master Log Collection Integration Test Starting...")
+	fmt.Println("\n🚀 HSU Process Manager Log Collection Integration Test Starting...")
 
 	// 1. Create structured logger
 	logger, err := NewStructuredLogger("zap", InfoLevel)
@@ -150,7 +150,7 @@ func TestRealTimeLogProcessing(t *testing.T) {
 		GlobalAggregation: config.GlobalAggregationConfig{
 			Enabled: true,
 			Targets: []config.OutputTargetConfig{
-				{Type: "master_stdout", Format: "enhanced_plain"},
+				{Type: "process_manager_stdout", Format: "enhanced_plain"},
 			},
 		},
 		DefaultWorker: config.DefaultWorkerLogConfig(),

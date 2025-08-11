@@ -592,7 +592,7 @@ func (w *workerLogCollector) recordError(errMsg string) {
 // createOutputWriter creates an output writer for a target
 func createOutputWriter(targetConfig config.OutputTargetConfig) (LogOutputWriter, error) {
 	switch targetConfig.Type {
-	case "stdout", "master_stdout":
+	case "stdout", "process_manager_stdout":
 		return &stdoutWriter{}, nil
 	case "file":
 		return &fileWriter{

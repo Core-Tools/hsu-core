@@ -25,7 +25,7 @@ func ExampleUsage() {
 	// ===== 2. USE CLEAN API WITH OUR FIELD TYPES =====
 
 	// Simple logging (backwards compatible)
-	logger.Infof("Master starting with %d workers", 3)
+	logger.Infof("Process manager starting with %d workers", 3)
 
 	// Structured logging with OUR types - no backend exposure!
 	logger.LogWithFields(InfoLevel, "Worker operation completed",
@@ -120,7 +120,7 @@ func TestPhase1Integration(t *testing.T) {
 			Enabled: true,
 			Targets: []config.OutputTargetConfig{
 				{
-					Type:   "master_stdout",
+					Type:   "process_manager_stdout",
 					Format: "enhanced_plain",
 				},
 			},

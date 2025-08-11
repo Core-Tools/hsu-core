@@ -1,4 +1,4 @@
-package master
+package processmanager
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/core-tools/hsu-core/pkg/processfile"
 )
 
-// LogCollectionIntegration handles log collection setup and management for the master service
+// LogCollectionIntegration handles log collection setup and management for the process manager service
 type LogCollectionIntegration struct {
 	service     logcollection.LogCollectionService
 	pathManager *processfile.ProcessFileManager
@@ -144,7 +144,7 @@ func (l *LogCollectionIntegration) GetPathManager() *processfile.ProcessFileMana
 
 // ===== ADAPTER =====
 
-// loggerAdapter adapts the master logging.Logger to the processfile logging interface
+// loggerAdapter adapts the process manager logging.Logger to the processfile logging interface
 type loggerAdapter struct {
 	logger logging.Logger
 }

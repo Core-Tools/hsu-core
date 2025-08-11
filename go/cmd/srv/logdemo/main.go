@@ -102,7 +102,7 @@ func DemoCrossPlatformPaths() {
 
 // LogCollectionDemo demonstrates log collection integration with ProcessControl
 func LogCollectionDemo() error {
-	fmt.Println("\n🚀 HSU Master Log Collection Demo Starting...")
+	fmt.Println("\n🚀 HSU Process Manager Log Collection Demo Starting...")
 
 	// 1. Create structured logger
 	structuredLogger, err := logcollection.NewStructuredLogger("zap", logcollection.InfoLevel)

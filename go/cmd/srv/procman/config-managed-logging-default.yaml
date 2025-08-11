@@ -1,4 +1,4 @@
-master:
+process_manager:
   port: 50055
 
 # ===== LOG COLLECTION CONFIGURATION (OPTIONAL) =====
@@ -7,11 +7,11 @@ log_collection:
   global_aggregation:
     enabled: true
     targets:
-      - type: "master_stdout"
+      - type: "process_manager_stdout"
         format: "enhanced_plain"
         prefix: "[AGGREGATED]"
       - type: "file" 
-        path: "master-aggregated.log"
+        path: "process_manager-aggregated.log"
         format: "enhanced_plain"
   default_worker:
     enabled: true
@@ -27,7 +27,7 @@ log_collection:
           - type: "file"
             path: "{worker_id}-stderr.log"
             format: "enhanced_plain"
-          - type: "master_stdout"
+          - type: "process_manager_stdout"
             format: "enhanced_plain"
             prefix: "[ERROR]"
 

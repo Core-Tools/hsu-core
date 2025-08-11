@@ -36,7 +36,7 @@ func SendTerminationSignal(pid int, idDead bool, timeout time.Duration) error {
 
 	if idDead {
 		// Apply the AttachConsole dead PID hack to fix Windows signal handling
-		// This restores Ctrl+C functionality for the master process
+		// This restores Ctrl+C functionality for the parent process
 		return consoleSignalFix(dll, pid)
 	} else {
 		// Send actual Ctrl+Break signal to alive process with safety checks

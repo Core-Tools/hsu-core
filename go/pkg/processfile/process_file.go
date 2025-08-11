@@ -12,8 +12,8 @@ import (
 	"github.com/core-tools/hsu-core/pkg/logging"
 )
 
-// Default application name for HSU Master
-const DefaultAppName = "hsu-master"
+// Default application name for HSU Process Manager
+const DefaultAppName = "hsu-process-manager"
 
 // ProcessFileConfig holds configuration for process file generation (PID files, port files, etc.)
 type ProcessFileConfig struct {
@@ -168,7 +168,7 @@ func (m *ProcessFileManager) GenerateLogDirectoryPath() string {
 
 	// Create app subdirectory if requested
 	if m.config.UseSubdirectory {
-		// For consistency with PID files: C:\ProgramData\hsu-master\logs
+		// For consistency with PID files: C:\ProgramData\hsu-process-manager\logs
 		baseDir = filepath.Join(baseDir, m.config.AppName)
 	}
 

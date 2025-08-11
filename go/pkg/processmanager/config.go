@@ -1,4 +1,4 @@
-package master
+package processmanager
 
 import (
 	"fmt"
@@ -14,15 +14,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// MasterConfig represents the top-level configuration file structure
-type MasterConfig struct {
-	Master        MasterConfigOptions            `yaml:"master"`
-	Workers       []WorkerConfig                 `yaml:"workers"`
-	LogCollection *logconfig.LogCollectionConfig `yaml:"log_collection,omitempty"` // Optional log collection configuration
+// ProcessManagerConfig represents the top-level configuration file structure
+type ProcessManagerConfig struct {
+	ProcessManager ProcessManagerConfigOptions    `yaml:"process_manager"`
+	Workers        []WorkerConfig                 `yaml:"workers"`
+	LogCollection  *logconfig.LogCollectionConfig `yaml:"log_collection,omitempty"` // Optional log collection configuration
 }
 
-// MasterConfigOptions represents master-level configuration
-type MasterConfigOptions struct {
+// ProcessManagerConfigOptions represents process manager-level configuration
+type ProcessManagerConfigOptions struct {
 	Port                 int           `yaml:"port"`
 	LogLevel             string        `yaml:"log_level,omitempty"`
 	ForceShutdownTimeout time.Duration `yaml:"force_shutdown_timeout,omitempty"`
@@ -31,13 +31,13 @@ type MasterConfigOptions struct {
 // WorkerConfig represents a single worker configuration
 type WorkerConfig struct {
 	ID          string               `yaml:"id"`
-	Type        WorkerManagementType `yaml:"type"`              // ✅ RENAMED: How the worker is managed
-	ProfileType string               `yaml:"profile_type"`      // ✅ NEW: Worker load/resource profile for restart policies
+	Type        WorkerManagementType `yaml:"type"`              // How the worker is managed
+	ProfileType string               `yaml:"profile_type"`      // Worker load/resource profile for restart policies
 	Enabled     *bool                `yaml:"enabled,omitempty"` // Pointer to distinguish unset from false
 	Unit        WorkerUnitConfig     `yaml:"unit"`
 }
 
-// WorkerManagementType represents how the worker is managed by HSU Master
+// WorkerManagementType represents how the worker is managed
 type WorkerManagementType string
 
 const (
@@ -66,14 +66,14 @@ type WorkerUnitConfig struct {
 	Integrated *workers.IntegratedUnit `yaml:"integrated,omitempty"`
 }
 
-// LoadConfigFromFile loads master configuration from a YAML file
-func LoadConfigFromFile(filename string) (*MasterConfig, error) {
+// LoadConfigFromFile loads process manager configuration from a YAML file
+func LoadConfigFromFile(filename string) (*ProcessManagerConfig, error) {
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, errors.NewIOError("failed to read configuration file", err).WithContext("filename", filename)
 	}
 
-	var config MasterConfig
+	var config ProcessManagerConfig
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, errors.NewValidationError("failed to parse YAML configuration", err).WithContext("filename", filename)
 	}
@@ -87,14 +87,14 @@ func LoadConfigFromFile(filename string) (*MasterConfig, error) {
 }
 
 // ValidateConfig validates the entire configuration structure
-func ValidateConfig(config *MasterConfig) error {
+func ValidateConfig(config *ProcessManagerConfig) error {
 	if config == nil {
 		return errors.NewValidationError("configuration cannot be nil", nil)
 	}
 
-	// Validate master configuration
-	if err := validateMasterConfig(&config.Master); err != nil {
-		return errors.NewValidationError("invalid master configuration", err)
+	// Validate process manager configuration
+	if err := validateProcessManagerConfig(&config.ProcessManager); err != nil {
+		return errors.NewValidationError("invalid process manager configuration", err)
 	}
 
 	// Validate workers
@@ -106,7 +106,7 @@ func ValidateConfig(config *MasterConfig) error {
 }
 
 // CreateWorkersFromConfig creates worker instances from configuration
-func CreateWorkersFromConfig(config *MasterConfig, logger logging.Logger) ([]workers.Worker, error) {
+func CreateWorkersFromConfig(config *ProcessManagerConfig, logger logging.Logger) ([]workers.Worker, error) {
 	if config == nil {
 		return nil, errors.NewValidationError("configuration cannot be nil", nil)
 	}
@@ -164,13 +164,13 @@ func createWorkerFromConfig(config WorkerConfig, logger logging.Logger) (workers
 }
 
 // setConfigDefaults applies default values to configuration
-func setConfigDefaults(config *MasterConfig) error {
-	// Set master defaults
-	if config.Master.Port == 0 {
-		config.Master.Port = 50055 // Default port
+func setConfigDefaults(config *ProcessManagerConfig) error {
+	// Set process manager defaults
+	if config.ProcessManager.Port == 0 {
+		config.ProcessManager.Port = 50055 // Default port
 	}
-	if config.Master.LogLevel == "" {
-		config.Master.LogLevel = "info"
+	if config.ProcessManager.LogLevel == "" {
+		config.ProcessManager.LogLevel = "info"
 	}
 
 	// Set worker defaults
@@ -297,7 +297,7 @@ func setIntegratedUnitDefaults(config *workers.IntegratedUnit) error {
 
 // Validation functions
 
-func validateMasterConfig(config *MasterConfigOptions) error {
+func validateProcessManagerConfig(config *ProcessManagerConfigOptions) error {
 	if config.Port <= 0 || config.Port > 65535 {
 		return errors.NewValidationError(
 			fmt.Sprintf("invalid port number: %d", config.Port),
@@ -449,7 +449,7 @@ func validateWorkerUnitConfig(workerType WorkerManagementType, unitConfig Worker
 
 // CreateWorkersFromConfigWithLogCollection creates workers with log collection support
 func CreateWorkersFromConfigWithLogCollection(
-	config *MasterConfig,
+	config *ProcessManagerConfig,
 	logger logging.Logger,
 	logIntegration *LogCollectionIntegration,
 ) ([]workers.Worker, error) {

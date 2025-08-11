@@ -1,4 +1,4 @@
-package master
+package processmanager
 
 import (
 	"os"
@@ -59,12 +59,12 @@ func TestLoadConfigFromFile(t *testing.T) {
 		name        string
 		configYAML  string
 		expectError bool
-		validate    func(*testing.T, *MasterConfig)
+		validate    func(*testing.T, *ProcessManagerConfig)
 	}{
 		{
 			name: "valid comprehensive config",
 			configYAML: `
-master:
+process_manager:
   port: 50055
   log_level: "info"
 
@@ -118,9 +118,9 @@ workers:
           interval: "30s"
 `,
 			expectError: false,
-			validate: func(t *testing.T, config *MasterConfig) {
-				assert.Equal(t, 50055, config.Master.Port)
-				assert.Equal(t, "info", config.Master.LogLevel)
+			validate: func(t *testing.T, config *ProcessManagerConfig) {
+				assert.Equal(t, 50055, config.ProcessManager.Port)
+				assert.Equal(t, "info", config.ProcessManager.LogLevel)
 				assert.Len(t, config.Workers, 2)
 
 				// Check managed worker
@@ -145,7 +145,7 @@ workers:
 		{
 			name: "minimal valid config",
 			configYAML: `
-master:
+process_manager:
   port: 50055
 
 workers:
@@ -162,9 +162,9 @@ workers:
             policy: "never"
 `,
 			expectError: false,
-			validate: func(t *testing.T, config *MasterConfig) {
-				assert.Equal(t, 50055, config.Master.Port)
-				assert.Equal(t, "info", config.Master.LogLevel) // Should use default
+			validate: func(t *testing.T, config *ProcessManagerConfig) {
+				assert.Equal(t, 50055, config.ProcessManager.Port)
+				assert.Equal(t, "info", config.ProcessManager.LogLevel) // Should use default
 				assert.Len(t, config.Workers, 1)
 
 				worker := config.Workers[0]
@@ -175,7 +175,7 @@ workers:
 		{
 			name: "invalid YAML",
 			configYAML: `
-master:
+process_manager:
   port: 50055
   invalid_yaml: [unclosed
 `,
@@ -230,13 +230,13 @@ func TestValidateConfig(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		config      *MasterConfig
+		config      *ProcessManagerConfig
 		expectError bool
 	}{
 		{
 			name: "valid config",
-			config: &MasterConfig{
-				Master: MasterConfigOptions{
+			config: &ProcessManagerConfig{
+				ProcessManager: ProcessManagerConfigOptions{
 					Port:     50055,
 					LogLevel: "info",
 				},
@@ -276,8 +276,8 @@ func TestValidateConfig(t *testing.T) {
 		},
 		{
 			name: "invalid port",
-			config: &MasterConfig{
-				Master: MasterConfigOptions{
+			config: &ProcessManagerConfig{
+				ProcessManager: ProcessManagerConfigOptions{
 					Port: -1, // Invalid port
 				},
 				Workers: []WorkerConfig{
@@ -323,8 +323,8 @@ func TestCreateWorkersFromConfig(t *testing.T) {
 	executablePath, _, _ := getTestExecutable()
 	testLogger := &TestLogger{}
 
-	config := &MasterConfig{
-		Master: MasterConfigOptions{Port: 50055},
+	config := &ProcessManagerConfig{
+		ProcessManager: ProcessManagerConfigOptions{Port: 50055},
 		Workers: []WorkerConfig{
 			{
 				ID:      "managed-worker",
@@ -381,8 +381,8 @@ func TestCreateWorkersFromConfig(t *testing.T) {
 func TestConfigDefaults(t *testing.T) {
 	executablePath, _, _ := getTestExecutable()
 
-	config := &MasterConfig{
-		Master: MasterConfigOptions{
+	config := &ProcessManagerConfig{
+		ProcessManager: ProcessManagerConfigOptions{
 			// Port not set - should get default
 		},
 		Workers: []WorkerConfig{
@@ -414,9 +414,9 @@ func TestConfigDefaults(t *testing.T) {
 	err := setConfigDefaults(config)
 	assert.NoError(t, err)
 
-	// Check master defaults
-	assert.Equal(t, 50055, config.Master.Port)
-	assert.Equal(t, "info", config.Master.LogLevel)
+	// Check process manager defaults
+	assert.Equal(t, 50055, config.ProcessManager.Port)
+	assert.Equal(t, "info", config.ProcessManager.LogLevel)
 
 	// Check worker defaults
 	worker := config.Workers[0]
@@ -431,8 +431,8 @@ func TestConfigDefaults(t *testing.T) {
 func TestGetConfigSummary(t *testing.T) {
 	executablePath, _, _ := getTestExecutable()
 
-	config := &MasterConfig{
-		Master: MasterConfigOptions{
+	config := &ProcessManagerConfig{
+		ProcessManager: ProcessManagerConfigOptions{
 			Port:     50055,
 			LogLevel: "debug",
 		},
@@ -471,7 +471,7 @@ func TestGetConfigSummary(t *testing.T) {
 
 	summary := GetConfigSummary(config)
 
-	assert.Equal(t, 50055, summary.MasterPort)
+	assert.Equal(t, 50055, summary.ProcessManagerPort)
 	assert.Equal(t, "debug", summary.LogLevel)
 	assert.Equal(t, 2, summary.TotalWorkers)
 	assert.Equal(t, 1, summary.EnabledWorkers)
@@ -499,7 +499,7 @@ func TestValidateConfigFile(t *testing.T) {
 
 	// Create a valid config file
 	validConfig := `
-master:
+process_manager:
   port: 50055
 
 workers:

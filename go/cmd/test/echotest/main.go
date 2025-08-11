@@ -14,7 +14,7 @@ import (
 )
 
 type flagOptions struct {
-	RunDuration int `long:"run-duration" description:"Duration in seconds to run the master (debug feature)"`
+	RunDuration int `long:"run-duration" description:"Duration in seconds to run (debug feature)"`
 	MemoryMB    int `long:"memory-mb" description:"Memory in Megabytes to allocate (debug feature)"`
 }
 

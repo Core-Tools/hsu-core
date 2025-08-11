@@ -7,7 +7,7 @@ import (
 	sprintflogging "github.com/core-tools/hsu-core/pkg/logging/sprintf"
 
 	"github.com/core-tools/hsu-core/pkg/logging"
-	"github.com/core-tools/hsu-core/pkg/master"
+	"github.com/core-tools/hsu-core/pkg/processmanager"
 
 	flags "github.com/jessevdk/go-flags"
 )
@@ -15,7 +15,7 @@ import (
 type flagOptions struct {
 	Config      string `long:"config" short:"c" description:"Configuration file path (YAML)" required:"true"`
 	EnableLog   bool   `long:"enable-log" description:"Enable log collection (uses defaults if no config)"`
-	RunDuration int    `long:"run-duration" description:"Duration in seconds to run the master (debug feature)"`
+	RunDuration int    `long:"run-duration" description:"Duration in seconds to run (debug feature)"`
 }
 
 func logPrefix(module string) string {
@@ -44,7 +44,7 @@ func main() {
 			Errorf: sprintfLogger.Errorf,
 		})
 
-	err = master.Run(opts.RunDuration, opts.Config, opts.EnableLog, logger)
+	err = processmanager.Run(opts.RunDuration, opts.Config, opts.EnableLog, logger)
 	if err != nil {
 		logger.Errorf("Failed to run: %v", err)
 		os.Exit(1)

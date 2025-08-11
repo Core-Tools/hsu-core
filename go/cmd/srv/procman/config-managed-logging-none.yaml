@@ -1,4 +1,4 @@
-master:
+process_manager:
   port: 50055
 
 workers:

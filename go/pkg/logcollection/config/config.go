@@ -121,11 +121,11 @@ type EnhancementConfig struct {
 
 // MetadataConfig defines what metadata to add to logs
 type MetadataConfig struct {
-	AddMasterID   bool `yaml:"add_master_id"`
-	AddHostname   bool `yaml:"add_hostname"`
-	AddTimestamp  bool `yaml:"add_timestamp"`
-	AddSequence   bool `yaml:"add_sequence"`    // Sequential log numbering
-	AddLineNumber bool `yaml:"add_line_number"` // Line number within worker stream
+	AddProcessManagerID bool `yaml:"add_process_manager_id"`
+	AddHostname         bool `yaml:"add_hostname"`
+	AddTimestamp        bool `yaml:"add_timestamp"`
+	AddSequence         bool `yaml:"add_sequence"`    // Sequential log numbering
+	AddLineNumber       bool `yaml:"add_line_number"` // Line number within worker stream
 }
 
 // EnricherConfig defines log enrichment rules
@@ -240,7 +240,7 @@ func (o *OutputTargetConfig) Validate() error {
 
 	validTypes := map[string]bool{
 		"file": true, "stdout": true, "stderr": true,
-		"syslog": true, "elasticsearch": true, "master_stdout": true,
+		"syslog": true, "elasticsearch": true, "process_manager_stdout": true,
 	}
 
 	if !validTypes[o.Type] {
@@ -286,11 +286,11 @@ func DefaultLogCollectionConfig() LogCollectionConfig {
 		Enhancement: EnhancementConfig{
 			Enabled: true,
 			Metadata: MetadataConfig{
-				AddMasterID:   true,
-				AddHostname:   true,
-				AddTimestamp:  true,
-				AddSequence:   true,
-				AddLineNumber: true,
+				AddProcessManagerID: true,
+				AddHostname:         true,
+				AddTimestamp:        true,
+				AddSequence:         true,
+				AddLineNumber:       true,
 			},
 		},
 		DefaultWorker: DefaultWorkerLogConfig(),

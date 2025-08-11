@@ -1,4 +1,4 @@
-package master
+package processmanager
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 )
 
 func Run(runDuration int, configFile string, enableLogCollection bool, logger logging.Logger) error {
-	logger.Infof("Master runner starting...")
+	logger.Infof("Process manager runner starting...")
 
 	// Log platform information
 	logger.Infof("Platform: OS=%s, Arch=%s, CPUs=%d, Go=%s",
@@ -53,7 +53,7 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 	}
 
 	logger.Infof("Configuration loaded successfully from %s", configFile)
-	logger.Infof("Master port: %d, Workers: %d", config.Master.Port, len(config.Workers))
+	logger.Infof("Process manager port: %d, Workers: %d", config.ProcessManager.Port, len(config.Workers))
 
 	var logIntegration *LogCollectionIntegration
 	if enableLogCollection {
@@ -85,19 +85,19 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 		}
 	}
 
-	// Create master options from config
-	masterOptions := MasterOptions{
-		ForceShutdownTimeout: config.Master.ForceShutdownTimeout,
+	// Create process manager options from config
+	processManagerOptions := ProcessManagerOptions{
+		ForceShutdownTimeout: config.ProcessManager.ForceShutdownTimeout,
 	}
 
-	// Create master instance
-	master := NewMaster(masterOptions, logger)
+	// Create process manager instance
+	processManager := NewProcessManager(processManagerOptions, logger)
 
 	var workers []workers.Worker
 	if logIntegration != nil {
-		// Set log collection service on master
+		// Set log collection service on process manager
 		if logIntegration.IsEnabled() {
-			master.SetLogCollectionService(logIntegration.GetLogCollectionService())
+			processManager.SetLogCollectionService(logIntegration.GetLogCollectionService())
 		}
 
 		// Create workers from configuration with log collection support
@@ -115,9 +115,9 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 
 	logger.Infof("Created %d workers", len(workers))
 
-	// Add all workers to master (registration phase)
+	// Add all workers to process manager (registration phase)
 	for _, worker := range workers {
-		err := master.AddWorker(worker)
+		err := processManager.AddWorker(worker)
 		if err != nil {
 			return errors.NewValidationError(
 				fmt.Sprintf("failed to add worker: %s", worker.ID()),
@@ -127,8 +127,8 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 		logger.Infof("Added worker: %s", worker.ID())
 	}
 
-	// Start master
-	master.Start(operationCtx)
+	// Start process manager
+	processManager.Start(operationCtx)
 
 	logger.Infof("Enabling signal handling...")
 
@@ -140,7 +140,7 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	}
 
-	logger.Infof("Master is ready, starting workers...")
+	logger.Infof("Process manager is ready, starting workers...")
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -149,7 +149,7 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 
 		// Start all workers (lifecycle phase)
 		for _, worker := range workers {
-			err := master.StartWorker(componentCtx, worker.ID())
+			err := processManager.StartWorker(componentCtx, worker.ID())
 			if err != nil {
 				logger.Errorf("Failed to start worker %s: %v", worker.ID(), err)
 				// Continue with other workers rather than failing completely
@@ -158,13 +158,13 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 			logger.Infof("Started worker: %s", worker.ID())
 		}
 
-		logger.Infof("All workers started, master is fully operational")
+		logger.Infof("All workers started, process manager is fully operational")
 	}()
 
 	// Wait for graceful shutdown or timeout
 	select {
 	case receivedSignal := <-sig:
-		logger.Infof("Master runner received signal: %v", receivedSignal)
+		logger.Infof("Process manager runner received signal: %v", receivedSignal)
 		if runtime.GOOS == "windows" {
 			if receivedSignal != os.Interrupt {
 				logger.Errorf("Wrong signal received: got %q, want %q\n", receivedSignal, os.Interrupt)
@@ -172,7 +172,7 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 			}
 		}
 	case <-operationCtx.Done():
-		logger.Infof("Master runner timed out")
+		logger.Infof("Process manager runner timed out")
 	}
 
 	logger.Infof("Waiting for workers start to finish...")
@@ -180,12 +180,12 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 	// Wait for starting workers to finish
 	wg.Wait()
 
-	logger.Infof("Ready to stop master...")
+	logger.Infof("Ready to stop process manager...")
 
-	// Stop master
-	master.Stop(context.Background()) // Reset context to background to enable graceful shutdown
+	// Stop process manager
+	processManager.Stop(context.Background()) // Reset context to background to enable graceful shutdown
 
-	logger.Infof("Master runner stopped")
+	logger.Infof("Process manager runner stopped")
 
 	return nil
 }
@@ -209,15 +209,15 @@ func ValidateConfigFile(configFile string) error {
 
 // GetConfigSummary returns a human-readable summary of the configuration
 // This is useful for debugging and operational visibility
-func GetConfigSummary(config *MasterConfig) ConfigSummary {
+func GetConfigSummary(config *ProcessManagerConfig) ConfigSummary {
 	if config == nil {
 		return ConfigSummary{Error: "configuration is nil"}
 	}
 
 	summary := ConfigSummary{
-		MasterPort: config.Master.Port,
-		LogLevel:   config.Master.LogLevel,
-		Workers:    make([]WorkerSummary, 0, len(config.Workers)),
+		ProcessManagerPort: config.ProcessManager.Port,
+		LogLevel:           config.ProcessManager.LogLevel,
+		Workers:            make([]WorkerSummary, 0, len(config.Workers)),
 	}
 
 	for _, worker := range config.Workers {
@@ -266,12 +266,12 @@ func GetConfigSummary(config *MasterConfig) ConfigSummary {
 
 // ConfigSummary provides a high-level overview of configuration
 type ConfigSummary struct {
-	MasterPort     int             `json:"master_port"`
-	LogLevel       string          `json:"log_level"`
-	TotalWorkers   int             `json:"total_workers"`
-	EnabledWorkers int             `json:"enabled_workers"`
-	Workers        []WorkerSummary `json:"workers"`
-	Error          string          `json:"error,omitempty"`
+	ProcessManagerPort int             `json:"process_manager_port"`
+	LogLevel           string          `json:"log_level"`
+	TotalWorkers       int             `json:"total_workers"`
+	EnabledWorkers     int             `json:"enabled_workers"`
+	Workers            []WorkerSummary `json:"workers"`
+	Error              string          `json:"error,omitempty"`
 }
 
 // WorkerSummary provides a summary of worker configuration

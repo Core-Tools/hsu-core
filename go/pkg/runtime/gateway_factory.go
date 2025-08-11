@@ -5,19 +5,19 @@ import (
 
 	"github.com/core-tools/hsu-core/pkg/errors"
 	"github.com/core-tools/hsu-core/pkg/logging"
-	"github.com/core-tools/hsu-core/pkg/master"
 	"github.com/core-tools/hsu-core/pkg/modules"
+	"github.com/core-tools/hsu-core/pkg/processmanager"
 
 	"google.golang.org/grpc"
 )
 
 type gatewayFactory struct {
 	factoryInfoReader modules.GatewayFactoryInfoReader
-	workerLifecycle   master.WorkerLifecycle
+	workerLifecycle   processmanager.ProcessLifecycle
 	logger            logging.Logger
 }
 
-func NewGatewayFactory(factoryInfoReader modules.GatewayFactoryInfoReader, workerLifecycle master.WorkerLifecycle, logger logging.Logger) modules.GatewayFactory {
+func NewGatewayFactory(factoryInfoReader modules.GatewayFactoryInfoReader, workerLifecycle processmanager.ProcessLifecycle, logger logging.Logger) modules.GatewayFactory {
 	gf := &gatewayFactory{
 		factoryInfoReader: factoryInfoReader,
 		workerLifecycle:   workerLifecycle,
@@ -31,7 +31,7 @@ func (gf *gatewayFactory) NewGateway(ctx context.Context, moduleID, endpointID s
 	if moduleID == "" {
 		return nil, errors.NewValidationError("module ID cannot be empty", nil)
 	}
-	
+
 	if gf.factoryInfoReader == nil {
 		return nil, errors.NewInternalError("factory info reader is not configured", nil)
 	}
@@ -89,7 +89,7 @@ func (gf *gatewayFactory) safeNewGRPCGateway(ctx context.Context, moduleID strin
 	if workerContext != nil {
 		address = workerContext["server_address"]
 	}
-	
+
 	if address == "" {
 		return nil, errors.NewProcessError("server address not available in worker context", nil).
 			WithContext("module_id", moduleID).

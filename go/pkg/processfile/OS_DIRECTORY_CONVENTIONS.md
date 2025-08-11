@@ -1,10 +1,10 @@
 # OS-Specific Directory Conventions Reference
 
-This document explains the cross-platform directory management strategy implemented in `ProcessFileManager` for HSU Master applications across Windows, macOS, and Linux systems.
+This document explains the cross-platform directory management strategy implemented in `ProcessFileManager` for HSU applications across Windows, macOS, and Linux systems.
 
 ## 📋 **Overview**
 
-The `ProcessFileManager` follows platform-specific conventions to ensure HSU Master integrates properly with each operating system's file system standards and user expectations.
+The `ProcessFileManager` follows platform-specific conventions to ensure HSU Process Manager integrates properly with each operating system's file system standards and user expectations.
 
 ### **File Types Managed**
 - **PID Files** - Process identification files (`.pid`)
@@ -23,14 +23,14 @@ The `ProcessFileManager` follows platform-specific conventions to ensure HSU Mas
 ### **System Services** (`SystemService`)
 | File Type | Base Directory | Example Path |
 |-----------|---------------|--------------|
-| **PID/Port** | `%PROGRAMDATA%` | `C:\ProgramData\hsu-master\worker1.pid` |
-| **Logs** | `%PROGRAMDATA%` | `C:\ProgramData\hsu-master\logs\aggregated.log` |
+| **PID/Port** | `%PROGRAMDATA%` | `C:\ProgramData\hsu-process-manager\worker1.pid` |
+| **Logs** | `%PROGRAMDATA%` | `C:\ProgramData\hsu-process-manager\logs\aggregated.log` |
 
 ### **User Services** (`UserService`)  
 | File Type | Base Directory | Example Path |
 |-----------|---------------|--------------|
-| **PID/Port** | `%LOCALAPPDATA%` | `C:\Users\John\AppData\Local\hsu-master\worker1.pid` |
-| **Logs** | `%LOCALAPPDATA%\logs` | `C:\Users\John\AppData\Local\logs\hsu-master\worker1.log` |
+| **PID/Port** | `%LOCALAPPDATA%` | `C:\Users\John\AppData\Local\hsu-process-manager\worker1.pid` |
+| **Logs** | `%LOCALAPPDATA%\logs` | `C:\Users\John\AppData\Local\logs\hsu-process-manager\worker1.log` |
 
 ### **Session Services** (`SessionService`)
 | File Type | Base Directory | Example Path |
@@ -50,14 +50,14 @@ The `ProcessFileManager` follows platform-specific conventions to ensure HSU Mas
 ### **System Services** (`SystemService`)
 | File Type | Base Directory | Example Path |
 |-----------|---------------|--------------|
-| **PID/Port** | `/var/run` | `/var/run/hsu-master/worker1.pid` |
-| **Logs** | `/var/log` | `/var/log/hsu-master/worker1.log` |
+| **PID/Port** | `/var/run` | `/var/run/hsu-process-manager/worker1.pid` |
+| **Logs** | `/var/log` | `/var/log/hsu-process-manager/worker1.log` |
 
 ### **User Services** (`UserService`)
 | File Type | Base Directory | Example Path |
 |-----------|---------------|--------------|
-| **PID/Port** | `~/Library/Application Support` | `~/Library/Application Support/hsu-master/worker1.pid` |
-| **Logs** | `~/Library/Logs` | `~/Library/Logs/hsu-master/worker1.log` |
+| **PID/Port** | `~/Library/Application Support` | `~/Library/Application Support/hsu-process-manager/worker1.pid` |
+| **Logs** | `~/Library/Logs` | `~/Library/Logs/hsu-process-manager/worker1.log` |
 
 ### **Session Services** (`SessionService`)
 | File Type | Base Directory | Example Path |
@@ -77,14 +77,14 @@ The `ProcessFileManager` follows platform-specific conventions to ensure HSU Mas
 ### **System Services** (`SystemService`)
 | File Type | Base Directory | Example Path |
 |-----------|---------------|--------------|
-| **PID/Port** | `/run` (fallback `/var/run`) | `/run/hsu-master/worker1.pid` |
-| **Logs** | `/var/log` | `/var/log/hsu-master/worker1.log` |
+| **PID/Port** | `/run` (fallback `/var/run`) | `/run/hsu-process-manager/worker1.pid` |
+| **Logs** | `/var/log` | `/var/log/hsu-process-manager/worker1.log` |
 
 ### **User Services** (`UserService`)
 | File Type | Base Directory | Example Path |
 |-----------|---------------|--------------|
 | **PID/Port** | `$XDG_RUNTIME_DIR` (fallback `/tmp`) | `/run/user/1000/worker1.pid` |
-| **Logs** | `$XDG_DATA_HOME/logs` (fallback `~/.local/share/logs`) | `~/.local/share/logs/hsu-master/worker1.log` |
+| **Logs** | `$XDG_DATA_HOME/logs` (fallback `~/.local/share/logs`) | `~/.local/share/logs/hsu-process-manager/worker1.log` |
 
 ### **Session Services** (`SessionService`)
 | File Type | Base Directory | Example Path |
@@ -120,7 +120,7 @@ case SessionService: return getSessionServiceDirectory()
 When `UseSubdirectory: true` (recommended for production):
 ```
 Base Directory/
-├── {AppName}/           # e.g., "hsu-master"
+├── {AppName}/           # e.g., "hsu-process-manager"
 │   ├── worker1.pid
 │   ├── worker2.pid
 │   └── logs/
@@ -165,34 +165,34 @@ Each platform implements robust fallback mechanisms:
 ```go
 config := ProcessFileConfig{
     ServiceContext:  SystemService,
-    AppName:         "hsu-master",
+    AppName:         "hsu-process-manager",
     UseSubdirectory: true,
 }
 ```
 **Results in:**
-- Windows: `C:\ProgramData\hsu-master\`
-- macOS: `/var/run/hsu-master/`  
-- Linux: `/run/hsu-master/`
+- Windows: `C:\ProgramData\hsu-process-manager\`
+- macOS: `/var/run/hsu-process-manager/`  
+- Linux: `/run/hsu-process-manager/`
 
 ### **User Service Configuration**
 ```go
 config := ProcessFileConfig{
     ServiceContext:  UserService,
-    AppName:         "hsu-master",
+    AppName:         "hsu-process-manager",
     UseSubdirectory: true,
 }
 ```
 **Results in:**
-- Windows: `%LOCALAPPDATA%\hsu-master\`
-- macOS: `~/Library/Application Support/hsu-master/`
-- Linux: `$XDG_RUNTIME_DIR/hsu-master/` or `~/.local/share/hsu-master/`
+- Windows: `%LOCALAPPDATA%\hsu-process-manager\`
+- macOS: `~/Library/Application Support/hsu-process-manager/`
+- Linux: `$XDG_RUNTIME_DIR/hsu-process-manager/` or `~/.local/share/hsu-process-manager/`
 
 ### **Development Configuration**
 ```go
-config := GetRecommendedProcessFileConfig("development", "hsu-master")
+config := GetRecommendedProcessFileConfig("development", "hsu-process-manager")
 ```
 **Results in:**
-- All platforms: `{temp}/hsu-master-dev/`
+- All platforms: `{temp}/hsu-process-manager-dev/`
 
 ---
 
@@ -224,4 +224,4 @@ The `ProcessFileManager` implements a sophisticated cross-platform directory man
 - ✅ **Enables proper permissions management** across platforms
 - ✅ **Facilitates system administration** by using expected locations
 
-This ensures HSU Master applications feel "native" on each platform and integrate seamlessly with existing system administration workflows and monitoring tools. 
+This ensures HSU applications feel "native" on each platform and integrate seamlessly with existing system administration workflows and monitoring tools. 

@@ -1,4 +1,4 @@
-package master
+package processmanager
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/core-tools/hsu-core/pkg/errors"
-	"github.com/core-tools/hsu-core/pkg/master/workerstatemachine"
 	"github.com/core-tools/hsu-core/pkg/process"
+	"github.com/core-tools/hsu-core/pkg/processmanager/workerstatemachine"
 	"github.com/core-tools/hsu-core/pkg/workers"
 	"github.com/core-tools/hsu-core/pkg/workers/processcontrol"
 
@@ -63,14 +63,14 @@ func (m *MockLogger) Errorf(format string, args ...interface{}) {
 	m.Called(format, args)
 }
 
-func createTestMaster(t *testing.T) *master {
+func createTestProcessManager(t *testing.T) *processManager {
 	logger := &MockLogger{}
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	logger.On("Infof", mock.Anything, mock.Anything).Maybe()
 	logger.On("Warnf", mock.Anything, mock.Anything).Maybe()
 	logger.On("Errorf", mock.Anything, mock.Anything).Maybe()
 
-	return &master{
+	return &processManager{
 		logger:  logger,
 		workers: make(map[string]*workerEntry), // Updated to use new combined map
 	}
@@ -123,38 +123,38 @@ func createTestWorker(id string) *MockWorker {
 	return worker
 }
 
-func TestMaster_AddWorker(t *testing.T) {
+func TestProcessManager_AddWorker(t *testing.T) {
 	t.Run("valid_worker", func(t *testing.T) {
-		master := createTestMaster(t)
+		manager := createTestProcessManager(t)
 		worker := createTestWorker("test-worker-1")
 
-		err := master.AddWorker(worker)
+		err := manager.AddWorker(worker)
 
 		assert.NoError(t, err)
-		assert.Equal(t, 1, len(master.workers))
+		assert.Equal(t, 1, len(manager.workers))
 		worker.AssertExpectations(t)
 	})
 
 	t.Run("nil_worker", func(t *testing.T) {
-		master := createTestMaster(t)
-		err := master.AddWorker(nil)
+		manager := createTestProcessManager(t)
+		err := manager.AddWorker(nil)
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsValidationError(err))
 	})
 
 	t.Run("duplicate_worker", func(t *testing.T) {
-		master := createTestMaster(t)
+		manager := createTestProcessManager(t)
 		worker1 := createTestWorker("test-worker-1")
 		worker2 := createTestWorker("test-worker-1")
 
-		err1 := master.AddWorker(worker1)
-		err2 := master.AddWorker(worker2)
+		err1 := manager.AddWorker(worker1)
+		err2 := manager.AddWorker(worker2)
 
 		assert.NoError(t, err1)
 		require.Error(t, err2)
 		assert.True(t, errors.IsConflictError(err2), "Expected ConflictError but got: %v", err2)
-		assert.Equal(t, 1, len(master.workers))
+		assert.Equal(t, 1, len(manager.workers))
 
 		// Clean up mock expectations
 		worker1.AssertExpectations(t)
@@ -162,12 +162,12 @@ func TestMaster_AddWorker(t *testing.T) {
 	})
 
 	t.Run("invalid_worker_id", func(t *testing.T) {
-		master := createTestMaster(t)
+		manager := createTestProcessManager(t)
 		worker := &MockWorker{}
 		worker.On("ID").Return("") // Empty ID
 		// Don't set up ProcessControlOptions expectation since validation fails before it's called
 
-		err := master.AddWorker(worker)
+		err := manager.AddWorker(worker)
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsValidationError(err))
@@ -175,51 +175,51 @@ func TestMaster_AddWorker(t *testing.T) {
 	})
 }
 
-func TestMaster_RemoveWorker(t *testing.T) {
+func TestProcessManager_RemoveWorker(t *testing.T) {
 	t.Run("valid_removal", func(t *testing.T) {
-		master := createTestMaster(t)
+		manager := createTestProcessManager(t)
 
 		// Add a worker
 		worker := createTestWorker("test-worker-1")
-		err := master.AddWorker(worker)
+		err := manager.AddWorker(worker)
 		require.NoError(t, err)
 
 		// Worker should be in 'registered' state, which is safe to remove
-		err = master.RemoveWorker("test-worker-1")
+		err = manager.RemoveWorker("test-worker-1")
 		assert.NoError(t, err)
 
 		// Verify worker is removed
-		_, err = master.GetWorkerState("test-worker-1")
+		_, err = manager.GetWorkerState("test-worker-1")
 		assert.Error(t, err)
 		assert.True(t, errors.IsNotFoundError(err))
 	})
 
 	t.Run("invalid_worker_id", func(t *testing.T) {
-		master := createTestMaster(t)
-		err := master.RemoveWorker("")
+		manager := createTestProcessManager(t)
+		err := manager.RemoveWorker("")
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsValidationError(err))
 	})
 
 	t.Run("nonexistent_worker", func(t *testing.T) {
-		master := createTestMaster(t)
-		err := master.RemoveWorker("nonexistent-worker")
+		manager := createTestProcessManager(t)
+		err := manager.RemoveWorker("nonexistent-worker")
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsNotFoundError(err))
 	})
 
 	t.Run("cannot_remove_running_worker", func(t *testing.T) {
-		master := createTestMaster(t)
+		manager := createTestProcessManager(t)
 
 		// Add a worker
 		worker := createTestWorker("running-worker")
-		err := master.AddWorker(worker)
+		err := manager.AddWorker(worker)
 		require.NoError(t, err)
 
 		// Manually transition to running state using proper sequence
-		workerEntry, _, exists := master.getWorkerAndMasterState("running-worker")
+		workerEntry, _, exists := manager.getWorkerAndManagerState("running-worker")
 		require.True(t, exists)
 		// registered -> starting -> running
 		err = workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateStarting, "start", nil)
@@ -228,28 +228,28 @@ func TestMaster_RemoveWorker(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should not be able to remove running worker
-		err = master.RemoveWorker("running-worker")
+		err = manager.RemoveWorker("running-worker")
 		assert.Error(t, err)
 		assert.True(t, errors.IsValidationError(err))
 		assert.Contains(t, err.Error(), "cannot remove worker in state 'running'")
 		assert.Contains(t, err.Error(), "worker must be stopped before removal")
 
 		// Worker should still exist
-		state, err := master.GetWorkerState("running-worker")
+		state, err := manager.GetWorkerState("running-worker")
 		assert.NoError(t, err)
 		assert.Equal(t, workerstatemachine.WorkerStateRunning, state)
 	})
 
 	t.Run("can_remove_stopped_worker", func(t *testing.T) {
-		master := createTestMaster(t)
+		manager := createTestProcessManager(t)
 
 		// Add a worker
 		worker := createTestWorker("stopped-worker")
-		err := master.AddWorker(worker)
+		err := manager.AddWorker(worker)
 		require.NoError(t, err)
 
 		// Manually transition to stopped state using proper sequence
-		workerEntry, _, exists := master.getWorkerAndMasterState("stopped-worker")
+		workerEntry, _, exists := manager.getWorkerAndManagerState("stopped-worker")
 		require.True(t, exists)
 		// registered -> starting -> running -> stopping -> stopped
 		err = workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateStarting, "start", nil)
@@ -262,25 +262,25 @@ func TestMaster_RemoveWorker(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should be able to remove stopped worker
-		err = master.RemoveWorker("stopped-worker")
+		err = manager.RemoveWorker("stopped-worker")
 		assert.NoError(t, err)
 
 		// Worker should be removed
-		_, err = master.GetWorkerState("stopped-worker")
+		_, err = manager.GetWorkerState("stopped-worker")
 		assert.Error(t, err)
 		assert.True(t, errors.IsNotFoundError(err))
 	})
 
 	t.Run("can_remove_failed_worker", func(t *testing.T) {
-		master := createTestMaster(t)
+		manager := createTestProcessManager(t)
 
 		// Add a worker
 		worker := createTestWorker("failed-worker")
-		err := master.AddWorker(worker)
+		err := manager.AddWorker(worker)
 		require.NoError(t, err)
 
 		// Manually transition to failed state using proper sequence
-		workerEntry, _, exists := master.getWorkerAndMasterState("failed-worker")
+		workerEntry, _, exists := manager.getWorkerAndManagerState("failed-worker")
 		require.True(t, exists)
 		// registered -> starting -> failed (start operation failed)
 		err = workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateStarting, "start", nil)
@@ -289,11 +289,11 @@ func TestMaster_RemoveWorker(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should be able to remove failed worker
-		err = master.RemoveWorker("failed-worker")
+		err = manager.RemoveWorker("failed-worker")
 		assert.NoError(t, err)
 
 		// Worker should be removed
-		_, err = master.GetWorkerState("failed-worker")
+		_, err = manager.GetWorkerState("failed-worker")
 		assert.Error(t, err)
 		assert.True(t, errors.IsNotFoundError(err))
 	})
@@ -323,64 +323,64 @@ func TestIsWorkerSafelyRemovable(t *testing.T) {
 	}
 }
 
-func TestMaster_StartWorker(t *testing.T) {
+func TestProcessManager_StartWorker(t *testing.T) {
 	t.Run("nil_context", func(t *testing.T) {
-		master := createTestMaster(t)
-		err := master.StartWorker(nil, "test-worker-1")
+		manager := createTestProcessManager(t)
+		err := manager.StartWorker(nil, "test-worker-1")
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsValidationError(err))
 	})
 
 	t.Run("invalid_worker_id", func(t *testing.T) {
-		master := createTestMaster(t)
+		manager := createTestProcessManager(t)
 		ctx := context.Background()
-		err := master.StartWorker(ctx, "")
+		err := manager.StartWorker(ctx, "")
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsValidationError(err))
 	})
 
 	t.Run("nonexistent_worker", func(t *testing.T) {
-		master := createTestMaster(t)
+		manager := createTestProcessManager(t)
 		ctx := context.Background()
-		err := master.StartWorker(ctx, "nonexistent-worker")
+		err := manager.StartWorker(ctx, "nonexistent-worker")
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsNotFoundError(err))
 	})
 }
 
-func TestMaster_StopWorker(t *testing.T) {
+func TestProcessManager_StopWorker(t *testing.T) {
 	t.Run("nil_context", func(t *testing.T) {
-		master := createTestMaster(t)
-		err := master.StopWorker(nil, "test-worker-1")
+		manager := createTestProcessManager(t)
+		err := manager.StopWorker(nil, "test-worker-1")
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsValidationError(err))
 	})
 
 	t.Run("invalid_worker_id", func(t *testing.T) {
-		master := createTestMaster(t)
+		manager := createTestProcessManager(t)
 		ctx := context.Background()
-		err := master.StopWorker(ctx, "")
+		err := manager.StopWorker(ctx, "")
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsValidationError(err))
 	})
 
 	t.Run("nonexistent_worker", func(t *testing.T) {
-		master := createTestMaster(t)
+		manager := createTestProcessManager(t)
 		ctx := context.Background()
-		err := master.StopWorker(ctx, "nonexistent-worker")
+		err := manager.StopWorker(ctx, "nonexistent-worker")
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsNotFoundError(err))
 	})
 }
 
-func TestMaster_ConcurrentOperations(t *testing.T) {
-	master := createTestMaster(t)
+func TestProcessManager_ConcurrentOperations(t *testing.T) {
+	manager := createTestProcessManager(t)
 
 	// Test concurrent AddWorker operations
 	done := make(chan bool)
@@ -389,7 +389,7 @@ func TestMaster_ConcurrentOperations(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func(id int) {
 			worker := createTestWorker(fmt.Sprintf("worker-%d", id))
-			err := master.AddWorker(worker)
+			err := manager.AddWorker(worker)
 			errors <- err
 			done <- true
 		}(i)
@@ -409,11 +409,11 @@ func TestMaster_ConcurrentOperations(t *testing.T) {
 	}
 
 	assert.Equal(t, 0, errorCount, "No errors should occur during concurrent AddWorker operations")
-	assert.Equal(t, 10, len(master.workers))
+	assert.Equal(t, 10, len(manager.workers))
 }
 
-func TestMaster_ContextCancellation(t *testing.T) {
-	master := createTestMaster(t)
+func TestProcessManager_ContextCancellation(t *testing.T) {
+	manager := createTestProcessManager(t)
 
 	// Create a context that we can cancel
 	ctx, cancel := context.WithCancel(context.Background())
@@ -422,15 +422,15 @@ func TestMaster_ContextCancellation(t *testing.T) {
 	cancel()
 
 	// Operations with cancelled context should handle it gracefully
-	err := master.StartWorker(ctx, "test-worker")
+	err := manager.StartWorker(ctx, "test-worker")
 	assert.Error(t, err)
 	// The actual error depends on whether the worker exists or not
 	// If worker doesn't exist, we get NotFoundError before checking context
 	assert.True(t, errors.IsNotFoundError(err) || errors.IsCancelledError(err))
 }
 
-func TestMaster_ContextTimeout(t *testing.T) {
-	master := createTestMaster(t)
+func TestProcessManager_ContextTimeout(t *testing.T) {
+	manager := createTestProcessManager(t)
 
 	// Create a context with a very short timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
@@ -440,7 +440,7 @@ func TestMaster_ContextTimeout(t *testing.T) {
 	time.Sleep(2 * time.Millisecond)
 
 	// Operations with timed out context should handle it gracefully
-	err := master.StartWorker(ctx, "test-worker")
+	err := manager.StartWorker(ctx, "test-worker")
 	assert.Error(t, err)
 	// The actual error depends on whether the worker exists or not
 	assert.True(t, errors.IsNotFoundError(err) || errors.IsCancelledError(err))
