@@ -109,7 +109,7 @@ func (l *LogCollectionIntegration) Stop() error {
 	return nil
 }
 
-// GetLogCollectionService returns the log collection service for use by workers
+// GetLogCollectionService returns the log collection service for use by managed processes
 func (l *LogCollectionIntegration) GetLogCollectionService() logcollection.LogCollectionService {
 	if !l.enabled {
 		return nil

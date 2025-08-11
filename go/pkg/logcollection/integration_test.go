@@ -155,8 +155,8 @@ func TestRealTimeLogProcessing(t *testing.T) {
 		},
 		DefaultWorker: config.DefaultWorkerLogConfig(),
 		System: config.SystemConfig{
-			MaxWorkers:    5,
-			FlushInterval: 100 * time.Millisecond,
+			MaxManagedProcesses: 5,
+			FlushInterval:       100 * time.Millisecond,
 		},
 	}
 

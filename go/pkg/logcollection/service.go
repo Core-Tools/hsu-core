@@ -118,7 +118,7 @@ func (s *logCollectionService) Start(ctx context.Context) error {
 
 	s.logger.WithFields(
 		String("component", "log_collection"),
-		Int("max_workers", s.config.System.MaxWorkers),
+		Int("max_managed_processes", s.config.System.MaxManagedProcesses),
 	).Infof("Log collection service started")
 
 	return nil
@@ -310,15 +310,15 @@ func (s *logCollectionService) GetSystemStatus() *SystemLogStatus {
 	}
 
 	return &SystemLogStatus{
-		Active:        atomic.LoadInt32(&s.running) == 1,
-		WorkersActive: activeWorkers,
-		TotalWorkers:  len(s.workers),
-		TotalLines:    atomic.LoadInt64(&s.totalLines),
-		TotalBytes:    atomic.LoadInt64(&s.totalBytes),
-		StartTime:     s.startTime,
-		LastActivity:  time.Now(), // TODO: Track actual last activity
-		Workers:       workers,
-		OutputTargets: outputTargets,
+		Active:           atomic.LoadInt32(&s.running) == 1,
+		WorkersActive:    activeWorkers,
+		TotalWorkers:     len(s.workers),
+		TotalLines:       atomic.LoadInt64(&s.totalLines),
+		TotalBytes:       atomic.LoadInt64(&s.totalBytes),
+		StartTime:        s.startTime,
+		LastActivity:     time.Now(), // TODO: Track actual last activity
+		ManagedProcesses: workers,
+		OutputTargets:    outputTargets,
 	}
 }
 

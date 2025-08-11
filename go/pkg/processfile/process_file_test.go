@@ -273,7 +273,7 @@ func TestProcessFileManager_MultipleWorkers(t *testing.T) {
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
 
-	// Generate paths for multiple workers
+	// Generate paths for multiple managed processes
 	worker1Path := manager.GeneratePIDFilePath("worker-1")
 	worker2Path := manager.GeneratePIDFilePath("worker-2")
 

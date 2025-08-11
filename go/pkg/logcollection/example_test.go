@@ -25,7 +25,7 @@ func ExampleUsage() {
 	// ===== 2. USE CLEAN API WITH OUR FIELD TYPES =====
 
 	// Simple logging (backwards compatible)
-	logger.Infof("Process manager starting with %d workers", 3)
+	logger.Infof("Process manager starting with %d managed processes", 3)
 
 	// Structured logging with OUR types - no backend exposure!
 	logger.LogWithFields(InfoLevel, "Worker operation completed",
@@ -94,7 +94,7 @@ func ExampleUsage() {
 		workerStatus.LinesProcessed, workerStatus.BytesProcessed)
 
 	systemStatus := service.GetSystemStatus()
-	fmt.Printf("System: %d active workers, %d total lines processed\n",
+	fmt.Printf("System: %d active managed processes, %d total lines processed\n",
 		systemStatus.WorkersActive, systemStatus.TotalLines)
 }
 
@@ -127,8 +127,8 @@ func TestPhase1Integration(t *testing.T) {
 		},
 		DefaultWorker: config.DefaultWorkerLogConfig(),
 		System: config.SystemConfig{
-			MaxWorkers:    10,
-			FlushInterval: 1 * time.Second,
+			MaxManagedProcesses: 10,
+			FlushInterval:       1 * time.Second,
 		},
 	}
 

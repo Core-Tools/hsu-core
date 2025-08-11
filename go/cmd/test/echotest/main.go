@@ -58,7 +58,7 @@ func main() {
 		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	}
 
-	fmt.Printf("Echotest is ready, starting workers...\n")
+	fmt.Printf("Echotest is ready, starting managed processes...\n")
 
 	var wg sync.WaitGroup
 	wg.Add(1)

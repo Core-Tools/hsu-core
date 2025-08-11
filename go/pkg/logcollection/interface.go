@@ -200,13 +200,13 @@ type WorkerLogStatus struct {
 
 // SystemLogStatus provides overall log collection system status
 type SystemLogStatus struct {
-	Active        bool                        `json:"active"`
-	WorkersActive int                         `json:"workers_active"`
-	TotalWorkers  int                         `json:"total_workers"`
-	TotalLines    int64                       `json:"total_lines_processed"`
-	TotalBytes    int64                       `json:"total_bytes_processed"`
-	StartTime     time.Time                   `json:"start_time"`
-	LastActivity  time.Time                   `json:"last_activity"`
-	Workers       map[string]*WorkerLogStatus `json:"workers"`
-	OutputTargets []string                    `json:"output_targets"`
+	Active           bool                        `json:"active"`
+	WorkersActive    int                         `json:"workers_active"`
+	TotalWorkers     int                         `json:"total_workers"`
+	TotalLines       int64                       `json:"total_lines_processed"`
+	TotalBytes       int64                       `json:"total_bytes_processed"`
+	StartTime        time.Time                   `json:"start_time"`
+	LastActivity     time.Time                   `json:"last_activity"`
+	ManagedProcesses map[string]*WorkerLogStatus `json:"managed_processes"`
+	OutputTargets    []string                    `json:"output_targets"`
 }

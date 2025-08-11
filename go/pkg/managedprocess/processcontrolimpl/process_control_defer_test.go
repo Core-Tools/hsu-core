@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
 	"github.com/core-tools/hsu-core/pkg/resourcelimits"
-	"github.com/core-tools/hsu-core/pkg/workers/processcontrol"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

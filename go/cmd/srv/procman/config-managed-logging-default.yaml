@@ -31,7 +31,7 @@ log_collection:
             format: "enhanced_plain"
             prefix: "[ERROR]"
 
-workers:
+managed_processes:
   - id: "test-managed-1"
     type: "managed"
     profile_type: "web"  # ✅ NEW: Echo gRPC server is a web service

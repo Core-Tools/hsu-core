@@ -10,14 +10,14 @@ import (
 	"github.com/core-tools/hsu-core/pkg/logcollection"
 	logconfig "github.com/core-tools/hsu-core/pkg/logcollection/config"
 	"github.com/core-tools/hsu-core/pkg/logging"
+	"github.com/core-tools/hsu-core/pkg/managedprocess"
+	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
+	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrolimpl"
 	"github.com/core-tools/hsu-core/pkg/processmanager/workerstatemachine"
-	"github.com/core-tools/hsu-core/pkg/workers"
-	"github.com/core-tools/hsu-core/pkg/workers/processcontrol"
-	"github.com/core-tools/hsu-core/pkg/workers/processcontrolimpl"
 )
 
 type ProcessRegistry interface {
-	AddWorker(worker workers.Worker) error
+	AddWorker(worker managedprocess.Worker) error
 	RemoveWorker(id string) error
 }
 
@@ -91,7 +91,7 @@ func NewProcessManager(options ProcessManagerOptions, logger logging.Logger) Pro
 	}
 }
 
-func (pm *processManager) AddWorker(worker workers.Worker) error {
+func (pm *processManager) AddWorker(worker managedprocess.Worker) error {
 	// Validate input
 	if worker == nil {
 		return errors.NewValidationError("worker cannot be nil", nil)
@@ -106,7 +106,7 @@ func (pm *processManager) AddWorker(worker workers.Worker) error {
 
 	// Validate worker options
 	options := worker.ProcessControlOptions()
-	if err := workers.ValidateProcessControlOptions(options); err != nil {
+	if err := managedprocess.ValidateProcessControlOptions(options); err != nil {
 		return errors.NewValidationError("invalid worker process control options", err).WithContext("worker_id", id)
 	}
 

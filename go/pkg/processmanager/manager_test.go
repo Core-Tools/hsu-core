@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/core-tools/hsu-core/pkg/errors"
+	"github.com/core-tools/hsu-core/pkg/managedprocess"
+	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
 	"github.com/core-tools/hsu-core/pkg/process"
 	"github.com/core-tools/hsu-core/pkg/processmanager/workerstatemachine"
-	"github.com/core-tools/hsu-core/pkg/workers"
-	"github.com/core-tools/hsu-core/pkg/workers/processcontrol"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -28,9 +28,9 @@ func (m *MockWorker) ID() string {
 	return args.String(0)
 }
 
-func (m *MockWorker) Metadata() workers.UnitMetadata {
+func (m *MockWorker) Metadata() managedprocess.UnitMetadata {
 	args := m.Called()
-	return args.Get(0).(workers.UnitMetadata)
+	return args.Get(0).(managedprocess.UnitMetadata)
 }
 
 func (m *MockWorker) ProcessControlOptions() processcontrol.ProcessControlOptions {
@@ -87,7 +87,7 @@ func createTestWorker(id string) *MockWorker {
 
 	worker := &MockWorker{}
 	worker.On("ID").Return(id)
-	worker.On("Metadata").Return(workers.UnitMetadata{
+	worker.On("Metadata").Return(managedprocess.UnitMetadata{
 		Name:        id,
 		Description: fmt.Sprintf("Test worker %s", id),
 	}).Maybe() // Make this optional since AddWorker doesn't call Metadata()

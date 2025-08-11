@@ -6,7 +6,7 @@ import (
 
 	"github.com/core-tools/hsu-core/pkg/errors"
 	"github.com/core-tools/hsu-core/pkg/logging"
-	"github.com/core-tools/hsu-core/pkg/workers/processcontrol"
+	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
 )
 
 type RestartFunc func() error

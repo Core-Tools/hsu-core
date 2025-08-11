@@ -178,7 +178,7 @@ func (m *ProcessFileManager) GenerateLogDirectoryPath() string {
 
 // GenerateWorkerLogDirectoryPath generates the log directory path for worker-specific logs
 func (m *ProcessFileManager) GenerateWorkerLogDirectoryPath() string {
-	return filepath.Join(m.GenerateLogDirectoryPath(), "workers")
+	return filepath.Join(m.GenerateLogDirectoryPath(), "managed_processes")
 }
 
 // GenerateLogFilePath generates a complete log file path from a relative template

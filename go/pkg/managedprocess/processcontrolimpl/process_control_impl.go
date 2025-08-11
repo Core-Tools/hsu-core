@@ -12,10 +12,10 @@ import (
 	"github.com/core-tools/hsu-core/pkg/errors"
 	"github.com/core-tools/hsu-core/pkg/logcollection"
 	"github.com/core-tools/hsu-core/pkg/logging"
+	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
 	"github.com/core-tools/hsu-core/pkg/monitoring"
 	"github.com/core-tools/hsu-core/pkg/process"
 	"github.com/core-tools/hsu-core/pkg/resourcelimits"
-	"github.com/core-tools/hsu-core/pkg/workers/processcontrol"
 )
 
 // shouldRestartBasedOnPolicy evaluates restart policy (moved from health monitor for better encapsulation)

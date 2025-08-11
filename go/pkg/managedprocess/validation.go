@@ -1,12 +1,12 @@
-package workers
+package managedprocess
 
 import (
 	"fmt"
 
 	"github.com/core-tools/hsu-core/pkg/errors"
+	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
 	"github.com/core-tools/hsu-core/pkg/monitoring"
 	"github.com/core-tools/hsu-core/pkg/process"
-	"github.com/core-tools/hsu-core/pkg/workers/processcontrol"
 )
 
 func ValidateManagedUnit(config ManagedUnit) error {

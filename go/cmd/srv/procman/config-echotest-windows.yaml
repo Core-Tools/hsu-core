@@ -30,7 +30,7 @@ log_collection:
             format: "enhanced_plain"
             prefix: "[ERROR]"
 
-workers:
+managed_processes:
   - id: "echotest"
     type: "managed"
     profile_type: "web"

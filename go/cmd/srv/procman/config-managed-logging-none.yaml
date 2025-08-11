@@ -1,7 +1,7 @@
 process_manager:
   port: 50055
 
-workers:
+managed_processes:
   - id: "test-managed-1"
     type: "managed"
     profile_type: "web"

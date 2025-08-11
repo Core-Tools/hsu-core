@@ -7,9 +7,9 @@ import (
 	"io"
 	"sync"
 
+	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
 	"github.com/core-tools/hsu-core/pkg/monitoring"
 	"github.com/core-tools/hsu-core/pkg/resourcelimits"
-	"github.com/core-tools/hsu-core/pkg/workers/processcontrol"
 
 	"github.com/stretchr/testify/mock"
 )

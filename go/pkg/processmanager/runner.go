@@ -12,7 +12,7 @@ import (
 
 	"github.com/core-tools/hsu-core/pkg/errors"
 	"github.com/core-tools/hsu-core/pkg/logging"
-	"github.com/core-tools/hsu-core/pkg/workers"
+	"github.com/core-tools/hsu-core/pkg/managedprocess"
 )
 
 func Run(runDuration int, configFile string, enableLogCollection bool, logger logging.Logger) error {
@@ -53,7 +53,7 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 	}
 
 	logger.Infof("Configuration loaded successfully from %s", configFile)
-	logger.Infof("Process manager port: %d, Workers: %d", config.ProcessManager.Port, len(config.Workers))
+	logger.Infof("Process manager port: %d, managed processes: %d", config.ProcessManager.Port, len(config.ManagedProcesses))
 
 	var logIntegration *LogCollectionIntegration
 	if enableLogCollection {
@@ -93,7 +93,7 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 	// Create process manager instance
 	processManager := NewProcessManager(processManagerOptions, logger)
 
-	var workers []workers.Worker
+	var workers []managedprocess.Worker
 	if logIntegration != nil {
 		// Set log collection service on process manager
 		if logIntegration.IsEnabled() {
@@ -217,10 +217,10 @@ func GetConfigSummary(config *ProcessManagerConfig) ConfigSummary {
 	summary := ConfigSummary{
 		ProcessManagerPort: config.ProcessManager.Port,
 		LogLevel:           config.ProcessManager.LogLevel,
-		Workers:            make([]WorkerSummary, 0, len(config.Workers)),
+		ManagedProcesses:   make([]WorkerSummary, 0, len(config.ManagedProcesses)),
 	}
 
-	for _, worker := range config.Workers {
+	for _, worker := range config.ManagedProcesses {
 		enabled := false
 		if worker.Enabled != nil {
 			enabled = *worker.Enabled
@@ -250,12 +250,12 @@ func GetConfigSummary(config *ProcessManagerConfig) ConfigSummary {
 			}
 		}
 
-		summary.Workers = append(summary.Workers, workerSummary)
+		summary.ManagedProcesses = append(summary.ManagedProcesses, workerSummary)
 	}
 
-	summary.TotalWorkers = len(summary.Workers)
+	summary.TotalWorkers = len(summary.ManagedProcesses)
 	summary.EnabledWorkers = 0
-	for _, worker := range summary.Workers {
+	for _, worker := range summary.ManagedProcesses {
 		if worker.Enabled {
 			summary.EnabledWorkers++
 		}
@@ -270,7 +270,7 @@ type ConfigSummary struct {
 	LogLevel           string          `json:"log_level"`
 	TotalWorkers       int             `json:"total_workers"`
 	EnabledWorkers     int             `json:"enabled_workers"`
-	Workers            []WorkerSummary `json:"workers"`
+	ManagedProcesses   []WorkerSummary `json:"managed_processes"`
 	Error              string          `json:"error,omitempty"`
 }
 

@@ -11,9 +11,9 @@ import (
 
 	"github.com/core-tools/hsu-core/pkg/logcollection"
 	"github.com/core-tools/hsu-core/pkg/logcollection/config"
+	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
+	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrolimpl"
 	"github.com/core-tools/hsu-core/pkg/processfile"
-	"github.com/core-tools/hsu-core/pkg/workers/processcontrol"
-	"github.com/core-tools/hsu-core/pkg/workers/processcontrolimpl"
 )
 
 // SimpleLogger implements the required logging interface for this demo

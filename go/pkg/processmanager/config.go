@@ -8,17 +8,17 @@ import (
 	"github.com/core-tools/hsu-core/pkg/errors"
 	logconfig "github.com/core-tools/hsu-core/pkg/logcollection/config"
 	"github.com/core-tools/hsu-core/pkg/logging"
-	"github.com/core-tools/hsu-core/pkg/workers"
-	"github.com/core-tools/hsu-core/pkg/workers/processcontrol"
+	"github.com/core-tools/hsu-core/pkg/managedprocess"
+	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
 
 	"gopkg.in/yaml.v3"
 )
 
 // ProcessManagerConfig represents the top-level configuration file structure
 type ProcessManagerConfig struct {
-	ProcessManager ProcessManagerConfigOptions    `yaml:"process_manager"`
-	Workers        []WorkerConfig                 `yaml:"workers"`
-	LogCollection  *logconfig.LogCollectionConfig `yaml:"log_collection,omitempty"` // Optional log collection configuration
+	ProcessManager   ProcessManagerConfigOptions    `yaml:"process_manager"`
+	ManagedProcesses []WorkerConfig                 `yaml:"managed_processes"`
+	LogCollection    *logconfig.LogCollectionConfig `yaml:"log_collection,omitempty"` // Optional log collection configuration
 }
 
 // ProcessManagerConfigOptions represents process manager-level configuration
@@ -61,9 +61,9 @@ const (
 // WorkerUnitConfig is a union type that holds configuration for different worker types
 type WorkerUnitConfig struct {
 	// Only one of these should be populated based on WorkerConfig.Type
-	Managed    *workers.ManagedUnit    `yaml:"managed,omitempty"`
-	Unmanaged  *workers.UnmanagedUnit  `yaml:"unmanaged,omitempty"`
-	Integrated *workers.IntegratedUnit `yaml:"integrated,omitempty"`
+	Managed    *managedprocess.ManagedUnit    `yaml:"managed,omitempty"`
+	Unmanaged  *managedprocess.UnmanagedUnit  `yaml:"unmanaged,omitempty"`
+	Integrated *managedprocess.IntegratedUnit `yaml:"integrated,omitempty"`
 }
 
 // LoadConfigFromFile loads process manager configuration from a YAML file
@@ -98,22 +98,22 @@ func ValidateConfig(config *ProcessManagerConfig) error {
 	}
 
 	// Validate workers
-	if err := validateWorkersConfig(config.Workers); err != nil {
-		return errors.NewValidationError("invalid workers configuration", err)
+	if err := validateWorkersConfig(config.ManagedProcesses); err != nil {
+		return errors.NewValidationError("invalid managed processes configuration", err)
 	}
 
 	return nil
 }
 
 // CreateWorkersFromConfig creates worker instances from configuration
-func CreateWorkersFromConfig(config *ProcessManagerConfig, logger logging.Logger) ([]workers.Worker, error) {
+func CreateWorkersFromConfig(config *ProcessManagerConfig, logger logging.Logger) ([]managedprocess.Worker, error) {
 	if config == nil {
 		return nil, errors.NewValidationError("configuration cannot be nil", nil)
 	}
 
-	var workers []workers.Worker
+	var workers []managedprocess.Worker
 
-	for i, workerConfig := range config.Workers {
+	for i, workerConfig := range config.ManagedProcesses {
 		// Skip disabled workers (only skip if explicitly set to false)
 		if workerConfig.Enabled != nil && !*workerConfig.Enabled {
 			logger.Infof("Skipping disabled worker, id: %s", workerConfig.ID)
@@ -135,25 +135,25 @@ func CreateWorkersFromConfig(config *ProcessManagerConfig, logger logging.Logger
 }
 
 // createWorkerFromConfig creates a single worker from its configuration
-func createWorkerFromConfig(config WorkerConfig, logger logging.Logger) (workers.Worker, error) {
+func createWorkerFromConfig(config WorkerConfig, logger logging.Logger) (managedprocess.Worker, error) {
 	switch config.Type {
 	case WorkerManagementTypeManaged:
 		if config.Unit.Managed == nil {
 			return nil, errors.NewValidationError("managed unit configuration is required for managed worker", nil)
 		}
-		return workers.NewManagedWorker(config.ID, config.Unit.Managed, logger), nil
+		return managedprocess.NewManagedWorker(config.ID, config.Unit.Managed, logger), nil
 
 	case WorkerManagementTypeUnmanaged:
 		if config.Unit.Unmanaged == nil {
 			return nil, errors.NewValidationError("unmanaged unit configuration is required for unmanaged worker", nil)
 		}
-		return workers.NewUnmanagedWorker(config.ID, config.Unit.Unmanaged, logger), nil
+		return managedprocess.NewUnmanagedWorker(config.ID, config.Unit.Unmanaged, logger), nil
 
 	case WorkerManagementTypeIntegrated:
 		if config.Unit.Integrated == nil {
 			return nil, errors.NewValidationError("integrated unit configuration is required for integrated worker", nil)
 		}
-		return workers.NewIntegratedWorker(config.ID, config.Unit.Integrated, logger), nil
+		return managedprocess.NewIntegratedWorker(config.ID, config.Unit.Integrated, logger), nil
 
 	default:
 		return nil, errors.NewValidationError(
@@ -174,8 +174,8 @@ func setConfigDefaults(config *ProcessManagerConfig) error {
 	}
 
 	// Set worker defaults
-	for i := range config.Workers {
-		worker := &config.Workers[i]
+	for i := range config.ManagedProcesses {
+		worker := &config.ManagedProcesses[i]
 
 		// Default enabled to true if not specified
 		if worker.Enabled == nil {
@@ -214,7 +214,7 @@ func setConfigDefaults(config *ProcessManagerConfig) error {
 	return nil
 }
 
-func setManagedUnitDefaults(config *workers.ManagedUnit) error {
+func setManagedUnitDefaults(config *managedprocess.ManagedUnit) error {
 	// Set execution defaults
 	if config.Control.Execution.WaitDelay == 0 {
 		config.Control.Execution.WaitDelay = 10 * time.Second
@@ -264,7 +264,7 @@ func setManagedUnitDefaults(config *workers.ManagedUnit) error {
 	return nil
 }
 
-func setUnmanagedUnitDefaults(config *workers.UnmanagedUnit) error {
+func setUnmanagedUnitDefaults(config *managedprocess.UnmanagedUnit) error {
 	// Set discovery defaults
 	if config.Discovery.CheckInterval == 0 {
 		config.Discovery.CheckInterval = 30 * time.Second
@@ -278,7 +278,7 @@ func setUnmanagedUnitDefaults(config *workers.UnmanagedUnit) error {
 	return nil
 }
 
-func setIntegratedUnitDefaults(config *workers.IntegratedUnit) error {
+func setIntegratedUnitDefaults(config *managedprocess.IntegratedUnit) error {
 	// Set execution defaults
 	if config.Control.Execution.WaitDelay == 0 {
 		config.Control.Execution.WaitDelay = 10 * time.Second
@@ -422,7 +422,7 @@ func validateWorkerUnitConfig(workerType WorkerManagementType, unitConfig Worker
 		if unitConfig.Unmanaged != nil || unitConfig.Integrated != nil {
 			return errors.NewValidationError("only managed unit configuration should be specified for managed worker", nil)
 		}
-		return workers.ValidateManagedUnit(*unitConfig.Managed)
+		return managedprocess.ValidateManagedUnit(*unitConfig.Managed)
 
 	case WorkerManagementTypeUnmanaged:
 		if unitConfig.Unmanaged == nil {
@@ -431,7 +431,7 @@ func validateWorkerUnitConfig(workerType WorkerManagementType, unitConfig Worker
 		if unitConfig.Managed != nil || unitConfig.Integrated != nil {
 			return errors.NewValidationError("only unmanaged unit configuration should be specified for unmanaged worker", nil)
 		}
-		return workers.ValidateUnmanagedUnit(*unitConfig.Unmanaged)
+		return managedprocess.ValidateUnmanagedUnit(*unitConfig.Unmanaged)
 
 	case WorkerManagementTypeIntegrated:
 		if unitConfig.Integrated == nil {
@@ -440,7 +440,7 @@ func validateWorkerUnitConfig(workerType WorkerManagementType, unitConfig Worker
 		if unitConfig.Managed != nil || unitConfig.Unmanaged != nil {
 			return errors.NewValidationError("only integrated unit configuration should be specified for integrated worker", nil)
 		}
-		return workers.ValidateIntegratedUnit(*unitConfig.Integrated)
+		return managedprocess.ValidateIntegratedUnit(*unitConfig.Integrated)
 
 	default:
 		return errors.NewValidationError(fmt.Sprintf("unsupported worker management type: %s", workerType), nil)
@@ -452,14 +452,14 @@ func CreateWorkersFromConfigWithLogCollection(
 	config *ProcessManagerConfig,
 	logger logging.Logger,
 	logIntegration *LogCollectionIntegration,
-) ([]workers.Worker, error) {
+) ([]managedprocess.Worker, error) {
 	if config == nil {
 		return nil, errors.NewValidationError("configuration cannot be nil", nil)
 	}
 
-	var workersResult []workers.Worker
+	var workersResult []managedprocess.Worker
 
-	for i, workerConfig := range config.Workers {
+	for i, workerConfig := range config.ManagedProcesses {
 		// Skip disabled workers
 		if workerConfig.Enabled != nil && !*workerConfig.Enabled {
 			logger.Infof("Skipping disabled worker, id: %s", workerConfig.ID)
@@ -486,7 +486,7 @@ func createWorkerFromConfigWithLogCollection(
 	config WorkerConfig,
 	logger logging.Logger,
 	logIntegration *LogCollectionIntegration,
-) (workers.Worker, error) {
+) (managedprocess.Worker, error) {
 
 	// Create the base worker first
 	baseWorker, err := createWorkerFromConfig(config, logger)
@@ -512,7 +512,7 @@ func createWorkerFromConfigWithLogCollection(
 
 // logCollectionEnabledWorker wraps a worker to add log collection capabilities
 type logCollectionEnabledWorker struct {
-	workers.Worker
+	managedprocess.Worker
 	logIntegration *LogCollectionIntegration
 	workerConfig   WorkerConfig
 }

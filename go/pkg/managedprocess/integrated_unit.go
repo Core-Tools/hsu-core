@@ -1,11 +1,11 @@
-package workers
+package managedprocess
 
 import (
+	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
 	"github.com/core-tools/hsu-core/pkg/monitoring"
-	"github.com/core-tools/hsu-core/pkg/workers/processcontrol"
 )
 
-type ManagedUnit struct {
+type IntegratedUnit struct {
 	// Metadata
 	Metadata UnitMetadata `yaml:"metadata"`
 
@@ -16,5 +16,5 @@ type ManagedUnit struct {
 	Control processcontrol.ManagedProcessControlConfig `yaml:"control"`
 
 	// Health monitoring
-	HealthCheck monitoring.HealthCheckConfig `yaml:"health_check,omitempty"`
+	HealthCheckRunOptions monitoring.HealthCheckRunOptions `yaml:"health_check_run_options,omitempty"`
 }

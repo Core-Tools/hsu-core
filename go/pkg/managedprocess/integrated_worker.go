@@ -1,4 +1,4 @@
-package workers
+package managedprocess
 
 import (
 	"context"
@@ -8,10 +8,10 @@ import (
 
 	"github.com/core-tools/hsu-core/pkg/errors"
 	"github.com/core-tools/hsu-core/pkg/logging"
+	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
 	"github.com/core-tools/hsu-core/pkg/monitoring"
 	"github.com/core-tools/hsu-core/pkg/process"
 	"github.com/core-tools/hsu-core/pkg/processfile"
-	"github.com/core-tools/hsu-core/pkg/workers/processcontrol"
 )
 
 type integratedWorker struct {

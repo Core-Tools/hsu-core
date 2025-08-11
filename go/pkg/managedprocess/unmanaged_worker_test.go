@@ -1,4 +1,4 @@
-package workers
+package managedprocess
 
 import (
 	"os"
@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
 	"github.com/core-tools/hsu-core/pkg/monitoring"
 	"github.com/core-tools/hsu-core/pkg/process"
-	"github.com/core-tools/hsu-core/pkg/workers/processcontrol"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

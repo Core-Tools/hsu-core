@@ -1,6 +1,6 @@
-package workers
+package managedprocess
 
-import "github.com/core-tools/hsu-core/pkg/workers/processcontrol"
+import "github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
 
 type Worker interface {
 	ID() string

@@ -24,7 +24,7 @@ type GlobalAggregationConfig struct {
 
 // ===== WORKER CONFIGURATION =====
 
-// WorkerLogConfig defines log collection settings for individual workers
+// WorkerLogConfig defines log collection settings for individual managed processes
 type WorkerLogConfig struct {
 	Enabled       bool             `yaml:"enabled"`
 	CaptureStdout bool             `yaml:"capture_stdout"`
@@ -139,11 +139,11 @@ type EnricherConfig struct {
 
 // SystemConfig defines system-level log collection settings
 type SystemConfig struct {
-	WorkerDirectory string        `yaml:"worker_directory"` // Base directory for worker log files
-	BufferSize      string        `yaml:"buffer_size"`      // Global buffer size
-	FlushInterval   time.Duration `yaml:"flush_interval"`   // Global flush interval
-	MaxWorkers      int           `yaml:"max_workers"`      // Maximum concurrent workers
-	Metrics         MetricsConfig `yaml:"metrics"`
+	WorkerDirectory     string        `yaml:"worker_directory"`      // Base directory for worker log files
+	BufferSize          string        `yaml:"buffer_size"`           // Global buffer size
+	FlushInterval       time.Duration `yaml:"flush_interval"`        // Global flush interval
+	MaxManagedProcesses int           `yaml:"max_managed_processes"` // Maximum concurrent managed processes
+	Metrics             MetricsConfig `yaml:"metrics"`
 }
 
 // MetricsConfig defines metrics collection for log system
@@ -256,8 +256,8 @@ func (o *OutputTargetConfig) Validate() error {
 
 // Validate checks if the system configuration is valid
 func (s *SystemConfig) Validate() error {
-	if s.MaxWorkers < 0 {
-		return fmt.Errorf("max_workers cannot be negative")
+	if s.MaxManagedProcesses < 0 {
+		return fmt.Errorf("max_managed_processes cannot be negative")
 	}
 
 	if s.FlushInterval < 0 {
@@ -295,10 +295,10 @@ func DefaultLogCollectionConfig() LogCollectionConfig {
 		},
 		DefaultWorker: DefaultWorkerLogConfig(),
 		System: SystemConfig{
-			WorkerDirectory: "workers", // Relative template - will be resolved at runtime
-			BufferSize:      "1MB",
-			FlushInterval:   5 * time.Second,
-			MaxWorkers:      100,
+			WorkerDirectory:     "managed_processes", // Relative template - will be resolved at runtime
+			BufferSize:          "1MB",
+			FlushInterval:       5 * time.Second,
+			MaxManagedProcesses: 100,
 			Metrics: MetricsConfig{
 				Enabled:  true,
 				Interval: 30 * time.Second,

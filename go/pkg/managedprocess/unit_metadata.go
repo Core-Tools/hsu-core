@@ -1,4 +1,4 @@
-package workers
+package managedprocess
 
 type UnitMetadata struct {
 	Name        string `yaml:"name"`

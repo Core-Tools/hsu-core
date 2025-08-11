@@ -1,9 +1,9 @@
-package workers
+package managedprocess
 
 import (
+	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
 	"github.com/core-tools/hsu-core/pkg/monitoring"
 	"github.com/core-tools/hsu-core/pkg/process"
-	"github.com/core-tools/hsu-core/pkg/workers/processcontrol"
 )
 
 type UnmanagedUnit struct {
