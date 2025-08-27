@@ -14,35 +14,49 @@ import (
 	"github.com/core-tools/hsu-core/pkg/processfile"
 )
 
-type integratedWorker struct {
+type IntegratedManagedProcessConfig struct {
+	// Metadata
+	Metadata ProcessMetadata `yaml:"metadata"`
+
+	// Discovery
+	// Always use process PID file discovery
+
+	// Process control
+	Control processcontrol.ManagedProcessControlConfig `yaml:"control"`
+
+	// Health monitoring
+	HealthCheckRunOptions monitoring.HealthCheckRunOptions `yaml:"health_check_run_options,omitempty"`
+}
+
+type integratedManagedProcessDescription struct {
 	id                    string
-	metadata              UnitMetadata
+	metadata              ProcessMetadata
 	processControlConfig  processcontrol.ManagedProcessControlConfig
 	healthCheckRunOptions monitoring.HealthCheckRunOptions
 	logger                logging.Logger
 	pidManager            *processfile.ProcessFileManager
 }
 
-func NewIntegratedWorker(id string, unit *IntegratedUnit, logger logging.Logger) Worker {
-	return &integratedWorker{
+func NewIntegratedManagedProcessDescription(id string, config *IntegratedManagedProcessConfig, logger logging.Logger) ProcessDescription {
+	return &integratedManagedProcessDescription{
 		id:                    id,
-		metadata:              unit.Metadata,
-		processControlConfig:  unit.Control,
-		healthCheckRunOptions: unit.HealthCheckRunOptions,
+		metadata:              config.Metadata,
+		processControlConfig:  config.Control,
+		healthCheckRunOptions: config.HealthCheckRunOptions,
 		logger:                logger,
-		pidManager:            processfile.NewProcessFileManager(unit.Control.ProcessFile, logger),
+		pidManager:            processfile.NewProcessFileManager(config.Control.ProcessFile, logger),
 	}
 }
 
-func (w *integratedWorker) ID() string {
+func (w *integratedManagedProcessDescription) ID() string {
 	return w.id
 }
 
-func (w *integratedWorker) Metadata() UnitMetadata {
+func (w *integratedManagedProcessDescription) Metadata() ProcessMetadata {
 	return w.metadata
 }
 
-func (w *integratedWorker) ProcessControlOptions() processcontrol.ProcessControlOptions {
+func (w *integratedManagedProcessDescription) ProcessControlOptions() processcontrol.ProcessControlOptions {
 	return processcontrol.ProcessControlOptions{
 		CanAttach:           true,
 		CanTerminate:        true,
@@ -58,7 +72,7 @@ func (w *integratedWorker) ProcessControlOptions() processcontrol.ProcessControl
 }
 
 // AttachCmd creates a dynamic gRPC health check configuration by reading the port file
-func (w *integratedWorker) AttachCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
+func (w *integratedManagedProcessDescription) AttachCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
 	w.logger.Infof("Attaching to integrated worker, id: %s", w.id)
 
 	pidFile := w.pidManager.GeneratePIDFilePath(w.id)
@@ -101,7 +115,7 @@ func (w *integratedWorker) AttachCmd(ctx context.Context) (*processcontrol.Comma
 	}, nil
 }
 
-func (w *integratedWorker) ExecuteCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
+func (w *integratedManagedProcessDescription) ExecuteCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
 	w.logger.Infof("Executing integrated worker command, id: %s", w.id)
 
 	// Get a free port for the gRPC server
@@ -158,7 +172,7 @@ func (w *integratedWorker) ExecuteCmd(ctx context.Context) (*processcontrol.Comm
 	}, nil
 }
 
-func (w *integratedWorker) newDynamicHealthCheckConfig(address string, pid int) *monitoring.HealthCheckConfig {
+func (w *integratedManagedProcessDescription) newDynamicHealthCheckConfig(address string, pid int) *monitoring.HealthCheckConfig {
 	healthCheckConfig := &monitoring.HealthCheckConfig{
 		Type: monitoring.HealthCheckTypeGRPC,
 		GRPC: monitoring.GRPCHealthCheckConfig{

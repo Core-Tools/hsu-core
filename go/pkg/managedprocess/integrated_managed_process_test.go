@@ -44,7 +44,7 @@ func (m *MockIntegratedLogger) Errorf(format string, args ...interface{}) {
 	m.Called(format, args)
 }
 
-func createTestIntegratedUnit() *IntegratedUnit {
+func createTestIntegratedManagedProcessConfig() *IntegratedManagedProcessConfig {
 	var executablePath string
 	var args []string
 	var workingDirectory string
@@ -60,8 +60,8 @@ func createTestIntegratedUnit() *IntegratedUnit {
 		workingDirectory = "/tmp"
 	}
 
-	return &IntegratedUnit{
-		Metadata: UnitMetadata{
+	return &IntegratedManagedProcessConfig{
+		Metadata: ProcessMetadata{
 			Name:        "test-integrated-service",
 			Description: "Test integrated service",
 		},
@@ -103,9 +103,9 @@ func createTestIntegratedUnit() *IntegratedUnit {
 
 func TestNewIntegratedWorker(t *testing.T) {
 	logger := &MockIntegratedLogger{}
-	unit := createTestIntegratedUnit()
+	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedWorker("test-integrated-1", unit, logger)
+	worker := NewIntegratedManagedProcessDescription("test-integrated-1", unit, logger)
 
 	require.NotNil(t, worker)
 	assert.Equal(t, "test-integrated-1", worker.ID())
@@ -113,18 +113,18 @@ func TestNewIntegratedWorker(t *testing.T) {
 
 func TestIntegratedWorker_ID(t *testing.T) {
 	logger := &MockIntegratedLogger{}
-	unit := createTestIntegratedUnit()
+	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedWorker("test-integrated-2", unit, logger)
+	worker := NewIntegratedManagedProcessDescription("test-integrated-2", unit, logger)
 
 	assert.Equal(t, "test-integrated-2", worker.ID())
 }
 
 func TestIntegratedWorker_Metadata(t *testing.T) {
 	logger := &MockIntegratedLogger{}
-	unit := createTestIntegratedUnit()
+	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedWorker("test-integrated-3", unit, logger)
+	worker := NewIntegratedManagedProcessDescription("test-integrated-3", unit, logger)
 
 	metadata := worker.Metadata()
 
@@ -134,9 +134,9 @@ func TestIntegratedWorker_Metadata(t *testing.T) {
 
 func TestIntegratedWorker_ProcessControlOptions(t *testing.T) {
 	logger := &MockIntegratedLogger{}
-	unit := createTestIntegratedUnit()
+	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedWorker("test-integrated-4", unit, logger)
+	worker := NewIntegratedManagedProcessDescription("test-integrated-4", unit, logger)
 
 	options := worker.ProcessControlOptions()
 
@@ -179,9 +179,9 @@ func TestIntegratedWorker_ExecuteCmd_NilContext(t *testing.T) {
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	logger.On("Errorf", mock.Anything, mock.Anything).Maybe()
 
-	unit := createTestIntegratedUnit()
+	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedWorker("test-integrated-5", unit, logger).(*integratedWorker)
+	worker := NewIntegratedManagedProcessDescription("test-integrated-5", unit, logger).(*integratedManagedProcessDescription)
 
 	cmdResult, err := worker.ExecuteCmd(nil)
 
@@ -197,9 +197,9 @@ func TestIntegratedWorker_ExecuteCmd_ValidContext(t *testing.T) {
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 
 	// Create a unit with a valid executable (use 'echo' which should exist on most systems)
-	unit := createTestIntegratedUnit()
+	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedWorker("test-integrated-6", unit, logger).(*integratedWorker)
+	worker := NewIntegratedManagedProcessDescription("test-integrated-6", unit, logger).(*integratedManagedProcessDescription)
 
 	ctx := context.Background()
 	cmdResult, err := worker.ExecuteCmd(ctx)
@@ -244,9 +244,9 @@ func TestIntegratedWorker_ExecuteCmd_PortAllocation(t *testing.T) {
 	logger.On("Infof", mock.Anything, mock.Anything).Maybe()
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 
-	unit := createTestIntegratedUnit()
+	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedWorker("test-integrated-7", unit, logger).(*integratedWorker)
+	worker := NewIntegratedManagedProcessDescription("test-integrated-7", unit, logger).(*integratedManagedProcessDescription)
 
 	ctx := context.Background()
 
@@ -289,9 +289,9 @@ func TestIntegratedWorker_ExecuteCmd_PortAllocation(t *testing.T) {
 
 func TestIntegratedWorker_IntegrationWithProcessControlOptions(t *testing.T) {
 	logger := &MockIntegratedLogger{}
-	unit := createTestIntegratedUnit()
+	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedWorker("test-integrated-8", unit, logger)
+	worker := NewIntegratedManagedProcessDescription("test-integrated-8", unit, logger)
 
 	options := worker.ProcessControlOptions()
 
@@ -302,10 +302,10 @@ func TestIntegratedWorker_IntegrationWithProcessControlOptions(t *testing.T) {
 
 func TestIntegratedWorker_MultipleInstances(t *testing.T) {
 	logger := &MockIntegratedLogger{}
-	unit := createTestIntegratedUnit()
+	unit := createTestIntegratedManagedProcessConfig()
 
-	worker1 := NewIntegratedWorker("worker-1", unit, logger)
-	worker2 := NewIntegratedWorker("worker-2", unit, logger)
+	worker1 := NewIntegratedManagedProcessDescription("worker-1", unit, logger)
+	worker2 := NewIntegratedManagedProcessDescription("worker-2", unit, logger)
 
 	// Test independence
 	assert.NotEqual(t, worker1.ID(), worker2.ID())
@@ -329,12 +329,12 @@ func TestIntegratedWorker_ConfigurationVariations(t *testing.T) {
 	logger := &MockIntegratedLogger{}
 
 	// Test with different configurations
-	unit := createTestIntegratedUnit()
+	unit := createTestIntegratedManagedProcessConfig()
 	unit.Control.GracefulTimeout = 60 * time.Second
 	unit.HealthCheckRunOptions.Interval = 60 * time.Second
 	unit.HealthCheckRunOptions.Timeout = 10 * time.Second
 
-	worker := NewIntegratedWorker("test-integrated-9", unit, logger)
+	worker := NewIntegratedManagedProcessDescription("test-integrated-9", unit, logger)
 
 	options := worker.ProcessControlOptions()
 
@@ -352,9 +352,9 @@ func TestIntegratedWorker_GetFreePort(t *testing.T) {
 	logger.On("Infof", mock.Anything, mock.Anything).Maybe()
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 
-	unit := createTestIntegratedUnit()
+	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedWorker("test-integrated-10", unit, logger).(*integratedWorker)
+	worker := NewIntegratedManagedProcessDescription("test-integrated-10", unit, logger).(*integratedManagedProcessDescription)
 
 	ctx := context.Background()
 	cmdResult, err := worker.ExecuteCmd(ctx)

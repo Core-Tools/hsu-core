@@ -60,7 +60,7 @@ func ValidateUnmanagedUnit(config UnmanagedUnit) error {
 	return nil
 }
 
-func ValidateIntegratedUnit(config IntegratedUnit) error {
+func ValidateIntegratedManagedProcessConfig(config IntegratedManagedProcessConfig) error {
 	// Validate metadata
 	if config.Metadata.Name == "" {
 		return errors.NewValidationError("unit name is required", nil)

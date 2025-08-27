@@ -67,7 +67,7 @@ func NewLogCollectionIntegration(logConfig *config.LogCollectionConfig, logger l
 	logger.Infof("  - Global aggregation enabled: %t", logConfig.GlobalAggregation.Enabled)
 	logger.Infof("  - Default worker capture stdout: %t", logConfig.DefaultWorker.CaptureStdout)
 	logger.Infof("  - Default worker capture stderr: %t", logConfig.DefaultWorker.CaptureStderr)
-	logger.Infof("  - Worker directory template: %s", logConfig.System.WorkerDirectory)
+	logger.Infof("  - Managed process directory template: %s", logConfig.System.WorkerDirectory)
 	if len(logConfig.GlobalAggregation.Targets) > 0 {
 		logger.Infof("  - Global aggregation targets: %d configured", len(logConfig.GlobalAggregation.Targets))
 		for i, target := range logConfig.GlobalAggregation.Targets {

@@ -55,7 +55,7 @@ func TestCrossPlatformLogPaths(t *testing.T) {
 			workerLogDir := pathManager.GenerateWorkerLogDirectoryPath()
 
 			fmt.Printf("   📂 Log Directory: %s\n", logDir)
-			fmt.Printf("   📂 Worker Log Directory: %s\n", workerLogDir)
+			fmt.Printf("   📂 Managed Process Log Directory: %s\n", workerLogDir)
 
 			// Verify paths are OS-appropriate
 			switch runtime.GOOS {
@@ -97,7 +97,7 @@ func TestCrossPlatformLogPaths(t *testing.T) {
 				resolvedWorkerPath := serviceImpl.resolveWorkerOutputPath(output, "test-worker")
 
 				fmt.Printf("   📄 Template: %-25s → %s\n", output.Path, resolvedPath)
-				fmt.Printf("   📄 Worker Template: %-25s → %s\n", output.Path, resolvedWorkerPath)
+				fmt.Printf("   📄 Managed Process Template: %-25s → %s\n", output.Path, resolvedWorkerPath)
 
 				if output.Type == "file" {
 					// For file outputs, paths should be absolute
@@ -108,10 +108,10 @@ func TestCrossPlatformLogPaths(t *testing.T) {
 						t.Errorf("Resolved worker file path should be absolute: %s", resolvedWorkerPath)
 					}
 
-					// Worker-specific paths should contain worker ID
+					// Managed process-specific paths should contain worker ID
 					if strings.Contains(output.Path, "{worker_id}") {
 						if !strings.Contains(resolvedWorkerPath, "test-worker") {
-							t.Errorf("Worker path should contain worker ID: %s", resolvedWorkerPath)
+							t.Errorf("Managed process path should contain worker ID: %s", resolvedWorkerPath)
 						}
 					}
 				}
@@ -140,9 +140,9 @@ func TestLogConfigTemplates(t *testing.T) {
 
 	// Verify worker directory is relative
 	if filepath.IsAbs(defaultConfig.System.WorkerDirectory) {
-		t.Errorf("Worker directory should be relative: %s", defaultConfig.System.WorkerDirectory)
+		t.Errorf("Managed process directory should be relative: %s", defaultConfig.System.WorkerDirectory)
 	}
-	fmt.Printf("   ✅ Worker directory: %s (relative)\n", defaultConfig.System.WorkerDirectory)
+	fmt.Printf("   ✅ Managed process directory: %s (relative)\n", defaultConfig.System.WorkerDirectory)
 
 	// Test default worker configuration
 	workerConfig := config.DefaultWorkerLogConfig()
@@ -150,16 +150,16 @@ func TestLogConfigTemplates(t *testing.T) {
 	// Verify worker output paths are relative
 	for i, target := range workerConfig.Outputs.Separate.Stdout {
 		if filepath.IsAbs(target.Path) {
-			t.Errorf("Worker stdout target %d should use relative path: %s", i, target.Path)
+			t.Errorf("Managed process stdout target %d should use relative path: %s", i, target.Path)
 		}
-		fmt.Printf("   ✅ Worker stdout target: %s (relative)\n", target.Path)
+		fmt.Printf("   ✅ Managed process stdout target: %s (relative)\n", target.Path)
 	}
 
 	for i, target := range workerConfig.Outputs.Separate.Stderr {
 		if filepath.IsAbs(target.Path) {
-			t.Errorf("Worker stderr target %d should use relative path: %s", i, target.Path)
+			t.Errorf("Managed process stderr target %d should use relative path: %s", i, target.Path)
 		}
-		fmt.Printf("   ✅ Worker stderr target: %s (relative)\n", target.Path)
+		fmt.Printf("   ✅ Managed process stderr target: %s (relative)\n", target.Path)
 	}
 
 	fmt.Println("   ✅ All config templates are platform-agnostic!")

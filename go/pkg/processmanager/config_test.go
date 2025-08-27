@@ -154,7 +154,7 @@ managed_processes:
     unit:
       managed:
         metadata:
-          name: "Simple Worker"
+          name: "Simple Managed Process"
         control:
           execution:
             executable_path: "` + escapeForYAML(executablePath) + `"
@@ -247,8 +247,8 @@ func TestValidateConfig(t *testing.T) {
 						Enabled: func() *bool { b := true; return &b }(),
 						Unit: WorkerUnitConfig{
 							Managed: &managedprocess.ManagedUnit{
-								Metadata: managedprocess.UnitMetadata{
-									Name: "Test Worker",
+								Metadata: managedprocess.ProcessMetadata{
+									Name: "Test Managed Process",
 								},
 								Control: processcontrol.ManagedProcessControlConfig{
 									Execution: process.ExecutionConfig{
@@ -286,7 +286,7 @@ func TestValidateConfig(t *testing.T) {
 						Type: WorkerManagementTypeManaged,
 						Unit: WorkerUnitConfig{
 							Managed: &managedprocess.ManagedUnit{
-								Metadata: managedprocess.UnitMetadata{Name: "Test"},
+								Metadata: managedprocess.ProcessMetadata{Name: "Test"},
 								Control: processcontrol.ManagedProcessControlConfig{
 									Execution: process.ExecutionConfig{ExecutablePath: executablePath},
 									ContextAwareRestart: processcontrol.ContextAwareRestartConfig{
@@ -332,7 +332,7 @@ func TestCreateWorkersFromConfig(t *testing.T) {
 				Enabled: func() *bool { b := true; return &b }(),
 				Unit: WorkerUnitConfig{
 					Managed: &managedprocess.ManagedUnit{
-						Metadata: managedprocess.UnitMetadata{Name: "Managed Test"},
+						Metadata: managedprocess.ProcessMetadata{Name: "Managed Test"},
 						Control: processcontrol.ManagedProcessControlConfig{
 							Execution: process.ExecutionConfig{ExecutablePath: executablePath},
 							ContextAwareRestart: processcontrol.ContextAwareRestartConfig{
@@ -352,7 +352,7 @@ func TestCreateWorkersFromConfig(t *testing.T) {
 				Enabled: func() *bool { b := false; return &b }(), // Disabled
 				Unit: WorkerUnitConfig{
 					Managed: &managedprocess.ManagedUnit{
-						Metadata: managedprocess.UnitMetadata{Name: "Disabled Test"},
+						Metadata: managedprocess.ProcessMetadata{Name: "Disabled Test"},
 						Control: processcontrol.ManagedProcessControlConfig{
 							Execution: process.ExecutionConfig{ExecutablePath: executablePath},
 							ContextAwareRestart: processcontrol.ContextAwareRestartConfig{
@@ -392,7 +392,7 @@ func TestConfigDefaults(t *testing.T) {
 				// Enabled not set - should default to true
 				Unit: WorkerUnitConfig{
 					Managed: &managedprocess.ManagedUnit{
-						Metadata: managedprocess.UnitMetadata{Name: "Test"},
+						Metadata: managedprocess.ProcessMetadata{Name: "Test"},
 						Control: processcontrol.ManagedProcessControlConfig{
 							Execution: process.ExecutionConfig{
 								ExecutablePath: executablePath,
@@ -443,7 +443,7 @@ func TestGetConfigSummary(t *testing.T) {
 				Enabled: func() *bool { b := true; return &b }(),
 				Unit: WorkerUnitConfig{
 					Managed: &managedprocess.ManagedUnit{
-						Metadata: managedprocess.UnitMetadata{Name: "Web Service"},
+						Metadata: managedprocess.ProcessMetadata{Name: "Web Service"},
 						Control: processcontrol.ManagedProcessControlConfig{
 							Execution:     process.ExecutionConfig{ExecutablePath: executablePath},
 							RestartPolicy: processcontrol.RestartAlways,
@@ -460,7 +460,7 @@ func TestGetConfigSummary(t *testing.T) {
 				Enabled: func() *bool { b := false; return &b }(),
 				Unit: WorkerUnitConfig{
 					Unmanaged: &managedprocess.UnmanagedUnit{
-						Metadata:    managedprocess.UnitMetadata{Name: "DB Monitor"},
+						Metadata:    managedprocess.ProcessMetadata{Name: "DB Monitor"},
 						Discovery:   process.DiscoveryConfig{Method: process.DiscoveryMethodPIDFile},
 						HealthCheck: monitoring.HealthCheckConfig{Type: monitoring.HealthCheckTypeTCP},
 					},
@@ -508,7 +508,7 @@ managed_processes:
     unit:
       managed:
         metadata:
-          name: "Test Worker"
+          name: "Test Managed Process"
         control:
           execution:
             executable_path: "` + escapeForYAML(executablePath) + `"

@@ -28,8 +28,8 @@ func ExampleUsage() {
 	logger.Infof("Process manager starting with %d managed processes", 3)
 
 	// Structured logging with OUR types - no backend exposure!
-	logger.LogWithFields(InfoLevel, "Worker operation completed",
-		Worker("web-server"),                // Our field constructor
+	logger.LogWithFields(InfoLevel, "Managed process operation completed",
+		ManagedProcess("web-server"),        // Our field constructor
 		String("operation", "restart"),      // Our field constructor
 		Duration("duration", 2*time.Second), // Our field constructor
 		Int("attempt", 3),                   // Our field constructor
@@ -90,7 +90,7 @@ func ExampleUsage() {
 		panic(err)
 	}
 
-	fmt.Printf("Worker processed %d lines, %d bytes\n",
+	fmt.Printf("Managed process processed %d lines, %d bytes\n",
 		workerStatus.LinesProcessed, workerStatus.BytesProcessed)
 
 	systemStatus := service.GetSystemStatus()

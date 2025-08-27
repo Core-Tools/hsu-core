@@ -78,7 +78,7 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 				logger.Infof("Log collection directory: %s", logDir)
 
 				workerLogDir := pathManager.GenerateWorkerLogDirectoryPath()
-				logger.Infof("Worker logs directory: %s", workerLogDir)
+				logger.Infof("Managed process logs directory: %s", workerLogDir)
 			}
 		} else {
 			logger.Infof("Log collection is disabled")
@@ -93,7 +93,7 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 	// Create process manager instance
 	processManager := NewProcessManager(processManagerOptions, logger)
 
-	var workers []managedprocess.Worker
+	var workers []managedprocess.ProcessDescription
 	if logIntegration != nil {
 		// Set log collection service on process manager
 		if logIntegration.IsEnabled() {

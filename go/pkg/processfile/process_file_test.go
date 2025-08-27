@@ -312,7 +312,7 @@ func TestProcessFileManager_WorkerIDValidation(t *testing.T) {
 		"simple-worker",
 		"worker_with_underscores",
 		"worker123",
-		"Worker-With-Mixed-Case",
+		"Managed-Process-With-Mixed-Case",
 	}
 
 	for _, workerID := range testCases {

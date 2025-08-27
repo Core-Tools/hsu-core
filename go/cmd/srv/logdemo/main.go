@@ -67,7 +67,7 @@ func DemoCrossPlatformPaths() {
 		workerLogDir := pathManager.GenerateWorkerLogDirectoryPath()
 
 		fmt.Printf("   📂 Log Directory: %s\n", logDir)
-		fmt.Printf("   📂 Worker Log Directory: %s\n", workerLogDir)
+		fmt.Printf("   📂 Managed Process Log Directory: %s\n", workerLogDir)
 
 		// Show path resolution examples
 		templates := []string{
@@ -81,7 +81,7 @@ func DemoCrossPlatformPaths() {
 			workerResolved := pathManager.GenerateWorkerLogFilePath(template, "my-worker")
 
 			fmt.Printf("   📄 Template: %-30s → %s\n", template, resolved)
-			fmt.Printf("   📄 Worker Template: %-30s → %s\n", template, workerResolved)
+			fmt.Printf("   📄 Managed Process Template: %-30s → %s\n", template, workerResolved)
 		}
 	}
 
@@ -93,9 +93,9 @@ func DemoCrossPlatformPaths() {
 	workerConfig := config.DefaultWorkerLogConfig()
 
 	fmt.Printf("   ✅ Global aggregation target: %s (relative)\n", defaultConfig.GlobalAggregation.Targets[0].Path)
-	fmt.Printf("   ✅ Worker directory: %s (relative)\n", defaultConfig.System.WorkerDirectory)
-	fmt.Printf("   ✅ Worker stdout target: %s (relative)\n", workerConfig.Outputs.Separate.Stdout[0].Path)
-	fmt.Printf("   ✅ Worker stderr target: %s (relative)\n", workerConfig.Outputs.Separate.Stderr[0].Path)
+	fmt.Printf("   ✅ Managed process directory: %s (relative)\n", defaultConfig.System.WorkerDirectory)
+	fmt.Printf("   ✅ Managed process stdout target: %s (relative)\n", workerConfig.Outputs.Separate.Stdout[0].Path)
+	fmt.Printf("   ✅ Managed process stderr target: %s (relative)\n", workerConfig.Outputs.Separate.Stderr[0].Path)
 
 	fmt.Println("\n✨ Cross-platform log path resolution is working perfectly!")
 }

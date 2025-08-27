@@ -180,10 +180,10 @@ func (s *logCollectionService) RegisterWorker(workerID string, workerConfig conf
 	s.workers[workerID] = worker
 
 	s.logger.WithFields(
-		Worker(workerID),
+		ManagedProcess(workerID),
 		Bool("capture_stdout", workerConfig.CaptureStdout),
 		Bool("capture_stderr", workerConfig.CaptureStderr),
-	).Infof("Worker registered for log collection")
+	).Infof("Managed process registered for log collection")
 
 	return nil
 }
@@ -204,7 +204,7 @@ func (s *logCollectionService) UnregisterWorker(workerID string) error {
 
 	delete(s.workers, workerID)
 
-	s.logger.WithWorker(workerID).Infof("Worker unregistered from log collection")
+	s.logger.WithWorker(workerID).Infof("Managed process unregistered from log collection")
 
 	return nil
 }
@@ -536,8 +536,8 @@ func (w *workerLogCollector) writeToOutputs(entry LogEntry) error {
 		}
 	}
 
-	// Note: Worker-specific log files planned for Phase 4
-	// Feature: Individual log files per worker with configurable rotation and retention
+	// Note: Managed process-specific log files planned for Phase 4
+	// Feature: Individual log files per managed process with configurable rotation and retention
 
 	return nil
 }

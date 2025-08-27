@@ -64,7 +64,7 @@ type processControl struct {
 	// Process lifecycle state management
 	state processcontrol.ProcessState
 
-	// Worker profile type for context-aware restart decisions
+	// Managed process profile type for context-aware restart decisions
 	workerProfileType string
 
 	// Error tracking for diagnostics

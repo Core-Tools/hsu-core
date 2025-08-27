@@ -117,8 +117,8 @@ func Array(key string, value interface{}) LogField {
 
 // ===== WORKER-SPECIFIC CONVENIENCE FIELDS =====
 
-// Worker creates a worker_id field
-func Worker(workerID string) LogField {
+// Managed process creates a worker_id field
+func ManagedProcess(workerID string) LogField {
 	return String("worker_id", workerID)
 }
 
@@ -253,9 +253,9 @@ func (f *Fields) AddError(err error) *Fields {
 	return f.Add(Error(err))
 }
 
-// AddWorker adds a worker field
-func (f *Fields) AddWorker(workerID string) *Fields {
-	return f.Add(Worker(workerID))
+// AddManagedProcess adds a managed process field
+func (f *Fields) AddManagedProcess(workerID string) *Fields {
+	return f.Add(ManagedProcess(workerID))
 }
 
 // ToSlice returns the fields as a slice

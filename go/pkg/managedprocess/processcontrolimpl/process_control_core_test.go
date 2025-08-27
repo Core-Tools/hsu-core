@@ -630,7 +630,7 @@ func TestProcessControl_ConfigurationValidation(t *testing.T) {
 			pc := NewProcessControl(config, workerID, logger)
 			impl := pc.(*processControl)
 
-			assert.Equal(t, workerID, impl.workerID, "Worker ID should be preserved")
+			assert.Equal(t, workerID, impl.workerID, "Managed process ID should be preserved")
 		}
 	})
 }

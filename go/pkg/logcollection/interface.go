@@ -50,7 +50,7 @@ type LogCollector interface {
 type LogCollectionService interface {
 	LogCollector
 
-	// Worker management
+	// Managed process management
 	RegisterWorker(workerID string, workerConfig config.WorkerLogConfig) error
 	UnregisterWorker(workerID string) error
 

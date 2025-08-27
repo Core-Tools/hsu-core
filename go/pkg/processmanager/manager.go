@@ -17,7 +17,7 @@ import (
 )
 
 type ProcessRegistry interface {
-	AddWorker(worker managedprocess.Worker) error
+	AddWorker(worker managedprocess.ProcessDescription) error
 	RemoveWorker(id string) error
 }
 
@@ -91,7 +91,7 @@ func NewProcessManager(options ProcessManagerOptions, logger logging.Logger) Pro
 	}
 }
 
-func (pm *processManager) AddWorker(worker managedprocess.Worker) error {
+func (pm *processManager) AddWorker(worker managedprocess.ProcessDescription) error {
 	// Validate input
 	if worker == nil {
 		return errors.NewValidationError("worker cannot be nil", nil)
@@ -143,7 +143,7 @@ func (pm *processManager) AddWorker(worker managedprocess.Worker) error {
 		StateMachine:   stateMachine,
 	}
 
-	pm.logger.Infof("Worker added successfully, id: %s, state: %s", id, stateMachine.GetCurrentState())
+	pm.logger.Infof("Managed process added successfully, id: %s, state: %s", id, stateMachine.GetCurrentState())
 	return nil
 }
 
@@ -185,7 +185,7 @@ func (pm *processManager) RemoveWorker(id string) error {
 	// Remove worker and state machine
 	delete(pm.workers, id)
 
-	pm.logger.Infof("Worker removed successfully, id: %s", id)
+	pm.logger.Infof("Managed process removed successfully, id: %s", id)
 	return nil
 }
 
@@ -267,7 +267,7 @@ func (pm *processManager) StartWorker(ctx context.Context, id string) error {
 		// Note: Process is actually running, but state tracking failed
 	}
 
-	pm.logger.Infof("Worker started successfully, id: %s, state: %s", id, workerEntry.StateMachine.GetCurrentState())
+	pm.logger.Infof("Managed process started successfully, id: %s, state: %s", id, workerEntry.StateMachine.GetCurrentState())
 	return nil
 }
 
@@ -335,7 +335,7 @@ func (pm *processManager) StopWorker(ctx context.Context, id string) error {
 		// Note: Process is actually stopped, but state tracking failed
 	}
 
-	pm.logger.Infof("Worker stopped successfully, id: %s, state: %s", id, workerEntry.StateMachine.GetCurrentState())
+	pm.logger.Infof("Managed process stopped successfully, id: %s, state: %s", id, workerEntry.StateMachine.GetCurrentState())
 	return nil
 }
 

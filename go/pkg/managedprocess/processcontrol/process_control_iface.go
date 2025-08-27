@@ -70,8 +70,8 @@ type ProcessControlOptions struct {
 	ContextAwareRestart *ContextAwareRestartConfig // nil if not restartable
 	RestartPolicy       RestartPolicy              // Policy for health monitor
 
-	// Worker profile type for context-aware restart decisions
-	WorkerProfileType string // "batch", "web", "database", etc. - worker's load/resource profile for restart policies
+	// Managed process profile type for context-aware restart decisions
+	WorkerProfileType string // "batch", "web", "database", etc. - managed process's load/resource profile for restart policies
 
 	// Log collection
 	LogCollectionService logcollection.LogCollectionService // Log collection service

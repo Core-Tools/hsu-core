@@ -148,10 +148,10 @@ func (wsm *WorkerStateMachine) Transition(to WorkerState, operation string, err 
 
 	// Log state transition
 	if err != nil {
-		wsm.logger.Warnf("Worker state transition failed, worker: %s, %s->%s, operation: %s, error: %v",
+		wsm.logger.Warnf("Managed process state transition failed, managed process: %s, %s->%s, operation: %s, error: %v",
 			wsm.workerID, from, to, operation, err)
 	} else {
-		wsm.logger.Infof("Worker state transition, worker: %s, %s->%s, operation: %s",
+		wsm.logger.Infof("Managed process state transition, managed process: %s, %s->%s, operation: %s",
 			wsm.workerID, from, to, operation)
 	}
 

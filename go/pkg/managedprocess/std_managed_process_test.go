@@ -62,7 +62,7 @@ func createTestManagedUnit() *ManagedUnit {
 	}
 
 	return &ManagedUnit{
-		Metadata: UnitMetadata{
+		Metadata: ProcessMetadata{
 			Name:        "test-managed-unit",
 			Description: "Test managed unit",
 		},
@@ -109,7 +109,7 @@ func TestNewManagedWorker(t *testing.T) {
 	logger := &MockManagedLogger{}
 	unit := createTestManagedUnit()
 
-	worker := NewManagedWorker("test-managed-1", unit, logger)
+	worker := NewStandardManagedProcessDescription("test-managed-1", unit, logger)
 
 	assert.NotNil(t, worker)
 	assert.Equal(t, "test-managed-1", worker.ID())
@@ -119,7 +119,7 @@ func TestManagedWorker_ID(t *testing.T) {
 	logger := &MockManagedLogger{}
 	unit := createTestManagedUnit()
 
-	worker := NewManagedWorker("test-managed-2", unit, logger)
+	worker := NewStandardManagedProcessDescription("test-managed-2", unit, logger)
 
 	assert.Equal(t, "test-managed-2", worker.ID())
 }
@@ -128,7 +128,7 @@ func TestManagedWorker_Metadata(t *testing.T) {
 	logger := &MockManagedLogger{}
 	unit := createTestManagedUnit()
 
-	worker := NewManagedWorker("test-managed-3", unit, logger)
+	worker := NewStandardManagedProcessDescription("test-managed-3", unit, logger)
 
 	metadata := worker.Metadata()
 	assert.Equal(t, "test-managed-unit", metadata.Name)
@@ -139,7 +139,7 @@ func TestManagedWorker_ProcessControlOptions(t *testing.T) {
 	logger := &MockManagedLogger{}
 	unit := createTestManagedUnit()
 
-	worker := NewManagedWorker("test-managed-4", unit, logger)
+	worker := NewStandardManagedProcessDescription("test-managed-4", unit, logger)
 
 	options := worker.ProcessControlOptions()
 
@@ -184,7 +184,7 @@ func TestManagedWorker_ExecuteCmd_NilContext(t *testing.T) {
 
 	unit := createTestManagedUnit()
 
-	worker := NewManagedWorker("test-managed-6", unit, logger).(*managedWorker)
+	worker := NewStandardManagedProcessDescription("test-managed-6", unit, logger).(*standardManagedProcessDescription)
 
 	cmdResult, err := worker.ExecuteCmd(nil)
 
@@ -202,7 +202,7 @@ func TestManagedWorker_ExecuteCmd_ValidContext(t *testing.T) {
 	// Create a unit with platform-appropriate executable (handled by createTestManagedUnit)
 	unit := createTestManagedUnit()
 
-	worker := NewManagedWorker("test-managed-7", unit, logger).(*managedWorker)
+	worker := NewStandardManagedProcessDescription("test-managed-7", unit, logger).(*standardManagedProcessDescription)
 
 	ctx := context.Background()
 	cmdResult, err := worker.ExecuteCmd(ctx)
@@ -257,9 +257,9 @@ func TestManagedWorker_ExecuteCmd_PIDFileWriting(t *testing.T) {
 
 	// Create test unit with PID file configuration
 	unit := &ManagedUnit{
-		Metadata: UnitMetadata{
-			Name:        "Test Worker",
-			Description: "Test worker for PID file testing",
+		Metadata: ProcessMetadata{
+			Name:        "Test managed process",
+			Description: "Test managed process for PID file testing",
 		},
 		Control: processcontrol.ManagedProcessControlConfig{
 			Execution: process.ExecutionConfig{
@@ -307,7 +307,7 @@ func TestManagedWorker_ExecuteCmd_PIDFileWriting(t *testing.T) {
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	logger.On("Errorf", mock.Anything, mock.Anything).Maybe()
 
-	worker := NewManagedWorker("test-worker", unit, logger).(*managedWorker)
+	worker := NewStandardManagedProcessDescription("test-worker", unit, logger).(*standardManagedProcessDescription)
 
 	// Execute command
 	ctx := context.Background()
@@ -344,7 +344,7 @@ func TestManagedWorker_IntegrationWithProcessControlOptions(t *testing.T) {
 	logger := &MockManagedLogger{}
 	unit := createTestManagedUnit()
 
-	worker := NewManagedWorker("test-managed-8", unit, logger)
+	worker := NewStandardManagedProcessDescription("test-managed-8", unit, logger)
 
 	options := worker.ProcessControlOptions()
 
@@ -357,8 +357,8 @@ func TestManagedWorker_MultipleInstances(t *testing.T) {
 	logger := &MockManagedLogger{}
 	unit := createTestManagedUnit()
 
-	worker1 := NewManagedWorker("worker-1", unit, logger)
-	worker2 := NewManagedWorker("worker-2", unit, logger)
+	worker1 := NewStandardManagedProcessDescription("worker-1", unit, logger)
+	worker2 := NewStandardManagedProcessDescription("worker-2", unit, logger)
 
 	// Test independence
 	assert.NotEqual(t, worker1.ID(), worker2.ID())

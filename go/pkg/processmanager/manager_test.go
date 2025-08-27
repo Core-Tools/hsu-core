@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// MockWorker is a mock implementation of Worker for testing
+// MockWorker is a mock implementation of ProcessDescription for testing
 type MockWorker struct {
 	mock.Mock
 }
@@ -28,9 +28,9 @@ func (m *MockWorker) ID() string {
 	return args.String(0)
 }
 
-func (m *MockWorker) Metadata() managedprocess.UnitMetadata {
+func (m *MockWorker) Metadata() managedprocess.ProcessMetadata {
 	args := m.Called()
-	return args.Get(0).(managedprocess.UnitMetadata)
+	return args.Get(0).(managedprocess.ProcessMetadata)
 }
 
 func (m *MockWorker) ProcessControlOptions() processcontrol.ProcessControlOptions {
@@ -87,7 +87,7 @@ func createTestWorker(id string) *MockWorker {
 
 	worker := &MockWorker{}
 	worker.On("ID").Return(id)
-	worker.On("Metadata").Return(managedprocess.UnitMetadata{
+	worker.On("Metadata").Return(managedprocess.ProcessMetadata{
 		Name:        id,
 		Description: fmt.Sprintf("Test worker %s", id),
 	}).Maybe() // Make this optional since AddWorker doesn't call Metadata()
@@ -184,7 +184,7 @@ func TestProcessManager_RemoveWorker(t *testing.T) {
 		err := manager.AddWorker(worker)
 		require.NoError(t, err)
 
-		// Worker should be in 'registered' state, which is safe to remove
+		// Managed process should be in 'registered' state, which is safe to remove
 		err = manager.RemoveWorker("test-worker-1")
 		assert.NoError(t, err)
 
@@ -234,7 +234,7 @@ func TestProcessManager_RemoveWorker(t *testing.T) {
 		assert.Contains(t, err.Error(), "cannot remove worker in state 'running'")
 		assert.Contains(t, err.Error(), "worker must be stopped before removal")
 
-		// Worker should still exist
+		// Managed process should still exist
 		state, err := manager.GetWorkerState("running-worker")
 		assert.NoError(t, err)
 		assert.Equal(t, workerstatemachine.WorkerStateRunning, state)
@@ -265,7 +265,7 @@ func TestProcessManager_RemoveWorker(t *testing.T) {
 		err = manager.RemoveWorker("stopped-worker")
 		assert.NoError(t, err)
 
-		// Worker should be removed
+		// Managed process should be removed
 		_, err = manager.GetWorkerState("stopped-worker")
 		assert.Error(t, err)
 		assert.True(t, errors.IsNotFoundError(err))
@@ -292,7 +292,7 @@ func TestProcessManager_RemoveWorker(t *testing.T) {
 		err = manager.RemoveWorker("failed-worker")
 		assert.NoError(t, err)
 
-		// Worker should be removed
+		// Managed process should be removed
 		_, err = manager.GetWorkerState("failed-worker")
 		assert.Error(t, err)
 		assert.True(t, errors.IsNotFoundError(err))

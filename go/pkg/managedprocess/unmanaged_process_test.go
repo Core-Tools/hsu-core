@@ -50,7 +50,7 @@ func createTestUnmanagedUnit() *UnmanagedUnit {
 	}
 
 	return &UnmanagedUnit{
-		Metadata: UnitMetadata{
+		Metadata: ProcessMetadata{
 			Name:        "test-unmanaged-unit",
 			Description: "Test unmanaged unit",
 		},
@@ -82,7 +82,7 @@ func createTestUnmanagedUnit() *UnmanagedUnit {
 
 func createTestUnmanagedUnitWithPortDiscovery() *UnmanagedUnit {
 	return &UnmanagedUnit{
-		Metadata: UnitMetadata{
+		Metadata: ProcessMetadata{
 			Name:        "test-unmanaged-port-unit",
 			Description: "Test unmanaged unit with port discovery",
 		},
@@ -122,7 +122,7 @@ func TestNewUnmanagedWorker(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
 	unit := createTestUnmanagedUnit()
 
-	worker := NewUnmanagedWorker("test-unmanaged-1", unit, logger)
+	worker := NewUnmanagedProcessDescription("test-unmanaged-1", unit, logger)
 
 	assert.NotNil(t, worker)
 	assert.Equal(t, "test-unmanaged-1", worker.ID())
@@ -132,7 +132,7 @@ func TestUnmanagedWorker_ID(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
 	unit := createTestUnmanagedUnit()
 
-	worker := NewUnmanagedWorker("test-unmanaged-2", unit, logger)
+	worker := NewUnmanagedProcessDescription("test-unmanaged-2", unit, logger)
 
 	assert.Equal(t, "test-unmanaged-2", worker.ID())
 }
@@ -141,7 +141,7 @@ func TestUnmanagedWorker_Metadata(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
 	unit := createTestUnmanagedUnit()
 
-	worker := NewUnmanagedWorker("test-unmanaged-3", unit, logger)
+	worker := NewUnmanagedProcessDescription("test-unmanaged-3", unit, logger)
 
 	metadata := worker.Metadata()
 	assert.Equal(t, "test-unmanaged-unit", metadata.Name)
@@ -153,7 +153,7 @@ func TestUnmanagedWorker_ProcessControlOptions_PIDFile(t *testing.T) {
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	unit := createTestUnmanagedUnit()
 
-	worker := NewUnmanagedWorker("test-unmanaged-4", unit, logger)
+	worker := NewUnmanagedProcessDescription("test-unmanaged-4", unit, logger)
 
 	options := worker.ProcessControlOptions()
 
@@ -194,7 +194,7 @@ func TestUnmanagedWorker_ProcessControlOptions_Port(t *testing.T) {
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	unit := createTestUnmanagedUnitWithPortDiscovery()
 
-	worker := NewUnmanagedWorker("test-unmanaged-5", unit, logger)
+	worker := NewUnmanagedProcessDescription("test-unmanaged-5", unit, logger)
 
 	options := worker.ProcessControlOptions()
 
@@ -226,7 +226,7 @@ func TestUnmanagedWorker_IntegrationWithProcessControlOptions(t *testing.T) {
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	unit := createTestUnmanagedUnit()
 
-	worker := NewUnmanagedWorker("test-unmanaged-6", unit, logger)
+	worker := NewUnmanagedProcessDescription("test-unmanaged-6", unit, logger)
 
 	options := worker.ProcessControlOptions()
 
@@ -240,7 +240,7 @@ func TestUnmanagedWorker_IntegrationWithProcessControlOptions_Port(t *testing.T)
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	unit := createTestUnmanagedUnitWithPortDiscovery()
 
-	worker := NewUnmanagedWorker("test-unmanaged-7", unit, logger)
+	worker := NewUnmanagedProcessDescription("test-unmanaged-7", unit, logger)
 
 	options := worker.ProcessControlOptions()
 
@@ -258,8 +258,8 @@ func TestUnmanagedWorker_MultipleInstances(t *testing.T) {
 	unit1 := createTestUnmanagedUnit()
 	unit2 := createTestUnmanagedUnitWithPortDiscovery()
 
-	worker1 := NewUnmanagedWorker("test-unmanaged-7", unit1, logger1)
-	worker2 := NewUnmanagedWorker("test-unmanaged-8", unit2, logger2)
+	worker1 := NewUnmanagedProcessDescription("test-unmanaged-7", unit1, logger1)
+	worker2 := NewUnmanagedProcessDescription("test-unmanaged-8", unit2, logger2)
 
 	// Test independence
 	assert.NotEqual(t, worker1.ID(), worker2.ID())
@@ -279,8 +279,8 @@ func TestUnmanagedWorker_DifferentCapabilities(t *testing.T) {
 	unit2.Control.CanTerminate = false
 	unit2.Control.CanRestart = false
 
-	worker1 := NewUnmanagedWorker("worker-1", unit1, logger)
-	worker2 := NewUnmanagedWorker("worker-2", unit2, logger)
+	worker1 := NewUnmanagedProcessDescription("worker-1", unit1, logger)
+	worker2 := NewUnmanagedProcessDescription("worker-2", unit2, logger)
 
 	options1 := worker1.ProcessControlOptions()
 	options2 := worker2.ProcessControlOptions()
