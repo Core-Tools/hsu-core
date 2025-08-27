@@ -5,10 +5,10 @@ managed_processes:
   - id: "test-managed-1"
     type: "standard_managed"
     profile_type: "web"
-    unit:
+    management:
       standard_managed:
         metadata:
-          name: "Echo gRPC server as managed unit"
+          name: "Echo gRPC server as standard managed process"
         control:
           execution:
             executable_path: "..\\..\\..\\..\\hsu-example1-go\\cmd\\srv\\echogrpcsrv\\echogrpcsrv.exe"
@@ -30,10 +30,10 @@ managed_processes:
   - id: "test-managed-2"
     type: "standard_managed"
     profile_type: "web"
-    unit:
+    management:
       standard_managed:
         metadata:
-          name: "Echo gRPC server as managed unit"
+          name: "Echo gRPC server as standard managed process"
         control:
           execution:
             executable_path: "..\\..\\..\\..\\hsu-example1-go\\cmd\\srv\\echogrpcsrv\\echogrpcsrv.exe"

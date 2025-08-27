@@ -72,7 +72,7 @@ managed_processes:
   - id: "test-managed"
     type: "standard_managed"
     enabled: true
-    unit:
+    management:
       standard_managed:
         metadata:
           name: "Test Managed Service"
@@ -100,7 +100,7 @@ managed_processes:
 
   - id: "test-integrated"
     type: "integrated_managed"
-    unit:
+    management:
       integrated_managed:
         metadata:
           name: "Test Integrated Service"
@@ -128,18 +128,18 @@ managed_processes:
 				assert.Equal(t, "test-managed", managed.ID)
 				assert.Equal(t, ProcessManagementTypeStandard, managed.Type)
 				assert.True(t, *managed.Enabled)
-				assert.NotNil(t, managed.Unit.StandardManaged)
-				assert.Equal(t, "Test Managed Service", managed.Unit.StandardManaged.Metadata.Name)
-				assert.Equal(t, executablePath, managed.Unit.StandardManaged.Control.Execution.ExecutablePath)
-				assert.Equal(t, args, managed.Unit.StandardManaged.Control.Execution.Args)
-				assert.Equal(t, processcontrol.RestartAlways, managed.Unit.StandardManaged.Control.RestartPolicy)
+				assert.NotNil(t, managed.Management.StandardManaged)
+				assert.Equal(t, "Test Managed Service", managed.Management.StandardManaged.Metadata.Name)
+				assert.Equal(t, executablePath, managed.Management.StandardManaged.Control.Execution.ExecutablePath)
+				assert.Equal(t, args, managed.Management.StandardManaged.Control.Execution.Args)
+				assert.Equal(t, processcontrol.RestartAlways, managed.Management.StandardManaged.Control.RestartPolicy)
 
 				// Check integrated managed process
 				integrated := config.ManagedProcesses[1]
 				assert.Equal(t, "test-integrated", integrated.ID)
 				assert.Equal(t, ProcessManagementTypeIntegrated, integrated.Type)
 				assert.True(t, *integrated.Enabled) // Should default to true
-				assert.NotNil(t, integrated.Unit.IntegratedManaged)
+				assert.NotNil(t, integrated.Management.IntegratedManaged)
 			},
 		},
 		{
@@ -151,7 +151,7 @@ process_manager:
 managed_processes:
   - id: "simple-process"
     type: "standard_managed"
-    unit:
+    management:
       standard_managed:
         metadata:
           name: "Simple Managed Process"
@@ -245,7 +245,7 @@ func TestValidateConfig(t *testing.T) {
 						ID:      "test-process",
 						Type:    ProcessManagementTypeStandard,
 						Enabled: func() *bool { b := true; return &b }(),
-						Unit: ProcessUnitConfig{
+						Management: ProcessManagementConfig{
 							StandardManaged: &managedprocess.StandardManagedProcessConfig{
 								Metadata: managedprocess.ProcessMetadata{
 									Name: "Test Managed Process",
@@ -284,7 +284,7 @@ func TestValidateConfig(t *testing.T) {
 					{
 						ID:   "test-process",
 						Type: ProcessManagementTypeStandard,
-						Unit: ProcessUnitConfig{
+						Management: ProcessManagementConfig{
 							StandardManaged: &managedprocess.StandardManagedProcessConfig{
 								Metadata: managedprocess.ProcessMetadata{Name: "Test"},
 								Control: processcontrol.ManagedProcessControlConfig{
@@ -330,7 +330,7 @@ func TestCreateProcessessFromConfig(t *testing.T) {
 				ID:      "managed-process",
 				Type:    ProcessManagementTypeStandard,
 				Enabled: func() *bool { b := true; return &b }(),
-				Unit: ProcessUnitConfig{
+				Management: ProcessManagementConfig{
 					StandardManaged: &managedprocess.StandardManagedProcessConfig{
 						Metadata: managedprocess.ProcessMetadata{Name: "Managed Test"},
 						Control: processcontrol.ManagedProcessControlConfig{
@@ -350,7 +350,7 @@ func TestCreateProcessessFromConfig(t *testing.T) {
 				ID:      "disabled-process",
 				Type:    ProcessManagementTypeStandard,
 				Enabled: func() *bool { b := false; return &b }(), // Disabled
-				Unit: ProcessUnitConfig{
+				Management: ProcessManagementConfig{
 					StandardManaged: &managedprocess.StandardManagedProcessConfig{
 						Metadata: managedprocess.ProcessMetadata{Name: "Disabled Test"},
 						Control: processcontrol.ManagedProcessControlConfig{
@@ -390,7 +390,7 @@ func TestConfigDefaults(t *testing.T) {
 				ID:   "test-process",
 				Type: ProcessManagementTypeStandard,
 				// Enabled not set - should default to true
-				Unit: ProcessUnitConfig{
+				Management: ProcessManagementConfig{
 					StandardManaged: &managedprocess.StandardManagedProcessConfig{
 						Metadata: managedprocess.ProcessMetadata{Name: "Test"},
 						Control: processcontrol.ManagedProcessControlConfig{
@@ -421,11 +421,11 @@ func TestConfigDefaults(t *testing.T) {
 	// Check process defaults
 	process := config.ManagedProcesses[0]
 	assert.True(t, *process.Enabled) // Now checking pointer
-	assert.Equal(t, 10*time.Second, process.Unit.StandardManaged.Control.Execution.WaitDelay)
-	assert.Equal(t, processcontrol.RestartOnFailure, process.Unit.StandardManaged.Control.RestartPolicy)
-	assert.Equal(t, 3, process.Unit.StandardManaged.Control.ContextAwareRestart.Default.MaxRetries)
-	assert.Equal(t, 5*time.Second, process.Unit.StandardManaged.Control.ContextAwareRestart.Default.RetryDelay)
-	assert.Equal(t, 1.5, process.Unit.StandardManaged.Control.ContextAwareRestart.Default.BackoffRate)
+	assert.Equal(t, 10*time.Second, process.Management.StandardManaged.Control.Execution.WaitDelay)
+	assert.Equal(t, processcontrol.RestartOnFailure, process.Management.StandardManaged.Control.RestartPolicy)
+	assert.Equal(t, 3, process.Management.StandardManaged.Control.ContextAwareRestart.Default.MaxRetries)
+	assert.Equal(t, 5*time.Second, process.Management.StandardManaged.Control.ContextAwareRestart.Default.RetryDelay)
+	assert.Equal(t, 1.5, process.Management.StandardManaged.Control.ContextAwareRestart.Default.BackoffRate)
 }
 
 func TestGetConfigSummary(t *testing.T) {
@@ -441,7 +441,7 @@ func TestGetConfigSummary(t *testing.T) {
 				ID:      "web-service",
 				Type:    ProcessManagementTypeStandard,
 				Enabled: func() *bool { b := true; return &b }(),
-				Unit: ProcessUnitConfig{
+				Management: ProcessManagementConfig{
 					StandardManaged: &managedprocess.StandardManagedProcessConfig{
 						Metadata: managedprocess.ProcessMetadata{Name: "Web Service"},
 						Control: processcontrol.ManagedProcessControlConfig{
@@ -458,7 +458,7 @@ func TestGetConfigSummary(t *testing.T) {
 				ID:      "db-monitor",
 				Type:    ProcessManagementTypeUnmanaged,
 				Enabled: func() *bool { b := false; return &b }(),
-				Unit: ProcessUnitConfig{
+				Management: ProcessManagementConfig{
 					Unmanaged: &managedprocess.UnmanagedProcessConfig{
 						Metadata:    managedprocess.ProcessMetadata{Name: "DB Monitor"},
 						Discovery:   process.DiscoveryConfig{Method: process.DiscoveryMethodPIDFile},
@@ -505,7 +505,7 @@ process_manager:
 managed_processes:
   - id: "test-process"
     type: "standard_managed"
-    unit:
+    management:
       standard_managed:
         metadata:
           name: "Test Managed Process"

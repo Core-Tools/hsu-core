@@ -7,7 +7,7 @@ type ProcessMetadata struct {
 	Description string `yaml:"description,omitempty"`
 }
 
-type ProcessDescription interface {
+type ProcessOptions interface {
 	ID() string
 	Metadata() ProcessMetadata
 	ProcessControlOptions() processcontrol.ProcessControlOptions

@@ -70,17 +70,17 @@ log_collection:
 managed_processes:
   - id: "test-managed-1"
     type: "standard_managed"
-    profile_type: "web"  # ✅ NEW: Echo gRPC server is a web service
-    unit:
+    profile_type: "web"  # Echo gRPC server is a web service
+    management:
       standard_managed:
         metadata:
-          name: "Echo gRPC server as managed unit"
+          name: "Echo gRPC server as standard managed process"
         control:
           execution:
             executable_path: "..\\..\\..\\..\\hsu-example1-go\\cmd\\srv\\echogrpcsrv\\echogrpcsrv.exe"
             args: ["--port", "50051"]
-          restart_policy: "on-failure"  # ✅ NEW: Separated restart policy
-          context_aware_restart:        # ✅ NEW: Context-aware restart configuration
+          restart_policy: "on-failure"  # Separated restart policy
+          context_aware_restart:        # Context-aware restart configuration
             default:
               max_retries: 3
               retry_delay: "5s"
@@ -115,10 +115,10 @@ managed_processes:
             retries: 2
   - id: "test-managed-2"
     type: "standard_managed"
-    unit:
+    management:
       standard_managed:
         metadata:
-          name: "Echo gRPC server as managed unit"
+          name: "Echo gRPC server as standard managed process"
         control:
           execution:
             executable_path: "..\\..\\..\\..\\hsu-example1-go\\cmd\\srv\\echogrpcsrv\\echogrpcsrv.exe"

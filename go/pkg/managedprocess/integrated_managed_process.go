@@ -28,7 +28,7 @@ type IntegratedManagedProcessConfig struct {
 	HealthCheckRunOptions monitoring.HealthCheckRunOptions `yaml:"health_check_run_options,omitempty"`
 }
 
-type integratedManagedProcessDescription struct {
+type integratedManagedProcessOptions struct {
 	id                    string
 	metadata              ProcessMetadata
 	processControlConfig  processcontrol.ManagedProcessControlConfig
@@ -37,8 +37,8 @@ type integratedManagedProcessDescription struct {
 	pidManager            *processfile.ProcessFileManager
 }
 
-func NewIntegratedManagedProcessDescription(id string, config *IntegratedManagedProcessConfig, logger logging.Logger) ProcessDescription {
-	return &integratedManagedProcessDescription{
+func NewIntegratedManagedProcessOptions(id string, config *IntegratedManagedProcessConfig, logger logging.Logger) ProcessOptions {
+	return &integratedManagedProcessOptions{
 		id:                    id,
 		metadata:              config.Metadata,
 		processControlConfig:  config.Control,
@@ -48,15 +48,15 @@ func NewIntegratedManagedProcessDescription(id string, config *IntegratedManaged
 	}
 }
 
-func (w *integratedManagedProcessDescription) ID() string {
+func (w *integratedManagedProcessOptions) ID() string {
 	return w.id
 }
 
-func (w *integratedManagedProcessDescription) Metadata() ProcessMetadata {
+func (w *integratedManagedProcessOptions) Metadata() ProcessMetadata {
 	return w.metadata
 }
 
-func (w *integratedManagedProcessDescription) ProcessControlOptions() processcontrol.ProcessControlOptions {
+func (w *integratedManagedProcessOptions) ProcessControlOptions() processcontrol.ProcessControlOptions {
 	return processcontrol.ProcessControlOptions{
 		CanAttach:           true,
 		CanTerminate:        true,
@@ -72,7 +72,7 @@ func (w *integratedManagedProcessDescription) ProcessControlOptions() processcon
 }
 
 // AttachCmd creates a dynamic gRPC health check configuration by reading the port file
-func (w *integratedManagedProcessDescription) AttachCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
+func (w *integratedManagedProcessOptions) AttachCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
 	w.logger.Infof("Attaching to integrated managedprocess, id: %s", w.id)
 
 	pidFile := w.pidManager.GeneratePIDFilePath(w.id)
@@ -115,7 +115,7 @@ func (w *integratedManagedProcessDescription) AttachCmd(ctx context.Context) (*p
 	}, nil
 }
 
-func (w *integratedManagedProcessDescription) ExecuteCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
+func (w *integratedManagedProcessOptions) ExecuteCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
 	w.logger.Infof("Executing integrated managed process command, id: %s", w.id)
 
 	// Get a free port for the gRPC server
@@ -172,7 +172,7 @@ func (w *integratedManagedProcessDescription) ExecuteCmd(ctx context.Context) (*
 	}, nil
 }
 
-func (w *integratedManagedProcessDescription) newDynamicHealthCheckConfig(address string, pid int) *monitoring.HealthCheckConfig {
+func (w *integratedManagedProcessOptions) newDynamicHealthCheckConfig(address string, pid int) *monitoring.HealthCheckConfig {
 	healthCheckConfig := &monitoring.HealthCheckConfig{
 		Type: monitoring.HealthCheckTypeGRPC,
 		GRPC: monitoring.GRPCHealthCheckConfig{

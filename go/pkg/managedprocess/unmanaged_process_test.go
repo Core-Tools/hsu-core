@@ -40,7 +40,7 @@ func (m *MockUnmanagedLogger) Errorf(format string, args ...interface{}) {
 	m.Called(format, args)
 }
 
-func createTestUnmanagedUnit() *UnmanagedProcessConfig {
+func createTestUnmanagedProcessConfig() *UnmanagedProcessConfig {
 	// Use OS-dependent path for PID file
 	var pidFile string
 	if runtime.GOOS == "windows" {
@@ -51,8 +51,8 @@ func createTestUnmanagedUnit() *UnmanagedProcessConfig {
 
 	return &UnmanagedProcessConfig{
 		Metadata: ProcessMetadata{
-			Name:        "test-unmanaged-unit",
-			Description: "Test unmanaged unit",
+			Name:        "test-unmanaged-process",
+			Description: "Test unmanaged process",
 		},
 		Discovery: process.DiscoveryConfig{
 			Method:        process.DiscoveryMethodPIDFile,
@@ -80,11 +80,11 @@ func createTestUnmanagedUnit() *UnmanagedProcessConfig {
 	}
 }
 
-func createTestUnmanagedUnitWithPortDiscovery() *UnmanagedProcessConfig {
+func createTestUnmanagedProcessConfigWithPortDiscovery() *UnmanagedProcessConfig {
 	return &UnmanagedProcessConfig{
 		Metadata: ProcessMetadata{
-			Name:        "test-unmanaged-port-unit",
-			Description: "Test unmanaged unit with port discovery",
+			Name:        "test-unmanaged-port-process",
+			Description: "Test unmanaged process with port discovery",
 		},
 		Discovery: process.DiscoveryConfig{
 			Method:        process.DiscoveryMethodPort,
@@ -120,9 +120,9 @@ func createTestUnmanagedUnitWithPortDiscovery() *UnmanagedProcessConfig {
 
 func TestNewUnmanagedProcess(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
-	unit := createTestUnmanagedUnit()
+	processConfig := createTestUnmanagedProcessConfig()
 
-	process := NewUnmanagedProcessDescription("test-unmanaged-1", unit, logger)
+	process := NewUnmanagedProcessOptions("test-unmanaged-1", processConfig, logger)
 
 	assert.NotNil(t, process)
 	assert.Equal(t, "test-unmanaged-1", process.ID())
@@ -130,30 +130,30 @@ func TestNewUnmanagedProcess(t *testing.T) {
 
 func TestUnmanagedProcess_ID(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
-	unit := createTestUnmanagedUnit()
+	processConfig := createTestUnmanagedProcessConfig()
 
-	process := NewUnmanagedProcessDescription("test-unmanaged-2", unit, logger)
+	process := NewUnmanagedProcessOptions("test-unmanaged-2", processConfig, logger)
 
 	assert.Equal(t, "test-unmanaged-2", process.ID())
 }
 
 func TestUnmanagedProcess_Metadata(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
-	unit := createTestUnmanagedUnit()
+	processConfig := createTestUnmanagedProcessConfig()
 
-	process := NewUnmanagedProcessDescription("test-unmanaged-3", unit, logger)
+	process := NewUnmanagedProcessOptions("test-unmanaged-3", processConfig, logger)
 
 	metadata := process.Metadata()
-	assert.Equal(t, "test-unmanaged-unit", metadata.Name)
-	assert.Equal(t, "Test unmanaged unit", metadata.Description)
+	assert.Equal(t, "test-unmanaged-process", metadata.Name)
+	assert.Equal(t, "Test unmanaged process", metadata.Description)
 }
 
 func TestUnmanagedProcess_ProcessControlOptions_PIDFile(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
-	unit := createTestUnmanagedUnit()
+	processConfig := createTestUnmanagedProcessConfig()
 
-	process := NewUnmanagedProcessDescription("test-unmanaged-4", unit, logger)
+	process := NewUnmanagedProcessOptions("test-unmanaged-4", processConfig, logger)
 
 	options := process.ProcessControlOptions()
 
@@ -179,7 +179,7 @@ func TestUnmanagedProcess_ProcessControlOptions_PIDFile(t *testing.T) {
 	assert.NotNil(t, options.AttachCmd, "UnmanagedProcess should provide AttachCmd")
 
 	// Test that AttachCmd would return the correct health check configuration
-	// Note: This is a unit test, so we can't actually test attachment without a real process
+	// Note: This is a test, so we can't actually test attachment without a real process
 	// In a real scenario, AttachCmd would be called by ProcessControl
 
 	// Test allowed signals
@@ -192,9 +192,9 @@ func TestUnmanagedProcess_ProcessControlOptions_PIDFile(t *testing.T) {
 func TestUnmanagedProcess_ProcessControlOptions_Port(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
-	unit := createTestUnmanagedUnitWithPortDiscovery()
+	processConfig := createTestUnmanagedProcessConfigWithPortDiscovery()
 
-	process := NewUnmanagedProcessDescription("test-unmanaged-5", unit, logger)
+	process := NewUnmanagedProcessOptions("test-unmanaged-5", processConfig, logger)
 
 	options := process.ProcessControlOptions()
 
@@ -214,7 +214,7 @@ func TestUnmanagedProcess_ProcessControlOptions_Port(t *testing.T) {
 	assert.NotNil(t, options.AttachCmd, "UnmanagedProcess should provide AttachCmd")
 
 	// Test that AttachCmd would return the correct health check configuration
-	// Note: This is a unit test, so we can't actually test attachment without a real process
+	// Note: This is a test, so we can't actually test attachment without a real process
 	// In a real scenario, AttachCmd would be called by ProcessControl
 
 	// Test allowed signals (empty in this case)
@@ -224,9 +224,9 @@ func TestUnmanagedProcess_ProcessControlOptions_Port(t *testing.T) {
 func TestUnmanagedProcess_IntegrationWithProcessControlOptions(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
-	unit := createTestUnmanagedUnit()
+	processConfig := createTestUnmanagedProcessConfig()
 
-	process := NewUnmanagedProcessDescription("test-unmanaged-6", unit, logger)
+	process := NewUnmanagedProcessOptions("test-unmanaged-6", processConfig, logger)
 
 	options := process.ProcessControlOptions()
 
@@ -238,9 +238,9 @@ func TestUnmanagedProcess_IntegrationWithProcessControlOptions(t *testing.T) {
 func TestUnmanagedProcess_IntegrationWithProcessControlOptions_Port(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
-	unit := createTestUnmanagedUnitWithPortDiscovery()
+	processConfig := createTestUnmanagedProcessConfigWithPortDiscovery()
 
-	process := NewUnmanagedProcessDescription("test-unmanaged-7", unit, logger)
+	process := NewUnmanagedProcessOptions("test-unmanaged-7", processConfig, logger)
 
 	options := process.ProcessControlOptions()
 
@@ -255,32 +255,32 @@ func TestUnmanagedProcess_MultipleInstances(t *testing.T) {
 	logger2 := &MockUnmanagedLogger{}
 	logger2.On("Debugf", mock.Anything, mock.Anything).Maybe()
 
-	unit1 := createTestUnmanagedUnit()
-	unit2 := createTestUnmanagedUnitWithPortDiscovery()
+	processConfig1 := createTestUnmanagedProcessConfig()
+	processConfig2 := createTestUnmanagedProcessConfigWithPortDiscovery()
 
-	process1 := NewUnmanagedProcessDescription("test-unmanaged-7", unit1, logger1)
-	process2 := NewUnmanagedProcessDescription("test-unmanaged-8", unit2, logger2)
+	process1 := NewUnmanagedProcessOptions("test-unmanaged-7", processConfig1, logger1)
+	process2 := NewUnmanagedProcessOptions("test-unmanaged-8", processConfig2, logger2)
 
 	// Test independence
 	assert.NotEqual(t, process1.ID(), process2.ID())
-	assert.NotEqual(t, process1.Metadata(), process2.Metadata()) // Different units, different metadata
+	assert.NotEqual(t, process1.Metadata(), process2.Metadata())
 }
 
 func TestUnmanagedProcess_DifferentCapabilities(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 
-	// Create unit with different capabilities
-	unit1 := createTestUnmanagedUnit()
-	unit1.Control.CanTerminate = true
-	unit1.Control.CanRestart = true
+	// Create process configs with different capabilities
+	processConfig1 := createTestUnmanagedProcessConfig()
+	processConfig1.Control.CanTerminate = true
+	processConfig1.Control.CanRestart = true
 
-	unit2 := createTestUnmanagedUnit()
-	unit2.Control.CanTerminate = false
-	unit2.Control.CanRestart = false
+	processConfig2 := createTestUnmanagedProcessConfig()
+	processConfig2.Control.CanTerminate = false
+	processConfig2.Control.CanRestart = false
 
-	process1 := NewUnmanagedProcessDescription("process-1", unit1, logger)
-	process2 := NewUnmanagedProcessDescription("process-2", unit2, logger)
+	process1 := NewUnmanagedProcessOptions("process-1", processConfig1, logger)
+	process2 := NewUnmanagedProcessOptions("process-2", processConfig2, logger)
 
 	options1 := process1.ProcessControlOptions()
 	options2 := process2.ProcessControlOptions()

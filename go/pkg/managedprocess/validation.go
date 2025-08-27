@@ -12,7 +12,7 @@ import (
 func ValidateStandardManagedProcessConfig(config StandardManagedProcessConfig) error {
 	// Validate metadata
 	if config.Metadata.Name == "" {
-		return errors.NewValidationError("unit name is required", nil)
+		return errors.NewValidationError("process name is required", nil)
 	}
 
 	// Validate execution config
@@ -42,7 +42,7 @@ func ValidateStandardManagedProcessConfig(config StandardManagedProcessConfig) e
 func ValidateUnmanagedProcessConfig(config UnmanagedProcessConfig) error {
 	// Validate metadata
 	if config.Metadata.Name == "" {
-		return errors.NewValidationError("unit name is required", nil)
+		return errors.NewValidationError("process name is required", nil)
 	}
 
 	// Validate discovery config
@@ -63,7 +63,7 @@ func ValidateUnmanagedProcessConfig(config UnmanagedProcessConfig) error {
 func ValidateIntegratedManagedProcessConfig(config IntegratedManagedProcessConfig) error {
 	// Validate metadata
 	if config.Metadata.Name == "" {
-		return errors.NewValidationError("unit name is required", nil)
+		return errors.NewValidationError("process name is required", nil)
 	}
 
 	// Validate execution config

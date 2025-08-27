@@ -35,7 +35,7 @@ managed_processes:
   - id: "test-managed-1"
     type: "standard_managed"
     profile_type: "web"  # ✅ NEW: Echo gRPC server is a web service
-    unit:
+    management:
       standard_managed:
         metadata:
           name: "Echo gRPC server with logging"
@@ -70,7 +70,7 @@ managed_processes:
   - id: "test-managed-2"
     type: "standard_managed"
     profile_type: "web"  # ✅ NEW: Echo gRPC server is a web service
-    unit:
+    management:
       standard_managed:
         metadata:
           name: "Echo gRPC server with default logging"

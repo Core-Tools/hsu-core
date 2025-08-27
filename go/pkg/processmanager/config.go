@@ -30,11 +30,11 @@ type ProcessManagerConfigOptions struct {
 
 // ProcessConfig represents a single process configuration
 type ProcessConfig struct {
-	ID          string                `yaml:"id"`
-	Type        ProcessManagementType `yaml:"type"`              // How the process is managed
-	ProfileType string                `yaml:"profile_type"`      // Managed process load/resource profile for restart policies
-	Enabled     *bool                 `yaml:"enabled,omitempty"` // Pointer to distinguish unset from false
-	Unit        ProcessUnitConfig     `yaml:"unit"`
+	ID          string                  `yaml:"id"`
+	Type        ProcessManagementType   `yaml:"type"`              // How the process is managed
+	ProfileType string                  `yaml:"profile_type"`      // Managed process load/resource profile for restart policies
+	Enabled     *bool                   `yaml:"enabled,omitempty"` // Pointer to distinguish unset from false
+	Management  ProcessManagementConfig `yaml:"management"`
 }
 
 // ProcessManagementType represents how the process is managed
@@ -58,8 +58,8 @@ const (
 	ProcessProfileTypeDefault   ProcessProfileType = "default"   // Unknown or generic services
 )
 
-// ProcessUnitConfig is a union type that holds configuration for different process types
-type ProcessUnitConfig struct {
+// ProcessManagementConfig is a union type that holds configuration for different process types
+type ProcessManagementConfig struct {
 	// Only one of these should be populated based on ProcessConfig.Type
 	StandardManaged   *managedprocess.StandardManagedProcessConfig   `yaml:"standard_managed,omitempty"`
 	IntegratedManaged *managedprocess.IntegratedManagedProcessConfig `yaml:"integrated_managed,omitempty"`
@@ -106,12 +106,12 @@ func ValidateConfig(config *ProcessManagerConfig) error {
 }
 
 // CreateProcessesFromConfig creates process instances from configuration
-func CreateProcessesFromConfig(config *ProcessManagerConfig, logger logging.Logger) ([]managedprocess.ProcessDescription, error) {
+func CreateProcessesFromConfig(config *ProcessManagerConfig, logger logging.Logger) ([]managedprocess.ProcessOptions, error) {
 	if config == nil {
 		return nil, errors.NewValidationError("configuration cannot be nil", nil)
 	}
 
-	var processes []managedprocess.ProcessDescription
+	var processes []managedprocess.ProcessOptions
 
 	for i, processConfig := range config.ManagedProcesses {
 		// Skip disabled processes (only skip if explicitly set to false)
@@ -135,25 +135,25 @@ func CreateProcessesFromConfig(config *ProcessManagerConfig, logger logging.Logg
 }
 
 // createProcessFromConfig creates a single process from its configuration
-func createProcessFromConfig(config ProcessConfig, logger logging.Logger) (managedprocess.ProcessDescription, error) {
+func createProcessFromConfig(config ProcessConfig, logger logging.Logger) (managedprocess.ProcessOptions, error) {
 	switch config.Type {
 	case ProcessManagementTypeStandard:
-		if config.Unit.StandardManaged == nil {
-			return nil, errors.NewValidationError("standard managed unit configuration is required for standard managed process", nil)
+		if config.Management.StandardManaged == nil {
+			return nil, errors.NewValidationError("standard managed process configuration is required for standard managed process", nil)
 		}
-		return managedprocess.NewStandardManagedProcessDescription(config.ID, config.Unit.StandardManaged, logger), nil
-
-	case ProcessManagementTypeUnmanaged:
-		if config.Unit.Unmanaged == nil {
-			return nil, errors.NewValidationError("unmanaged unit configuration is required for unmanaged process", nil)
-		}
-		return managedprocess.NewUnmanagedProcessDescription(config.ID, config.Unit.Unmanaged, logger), nil
+		return managedprocess.NewStandardManagedProcessOptions(config.ID, config.Management.StandardManaged, logger), nil
 
 	case ProcessManagementTypeIntegrated:
-		if config.Unit.IntegratedManaged == nil {
-			return nil, errors.NewValidationError("integrated managed unit configuration is required for integrated managed process", nil)
+		if config.Management.IntegratedManaged == nil {
+			return nil, errors.NewValidationError("integrated managed process configuration is required for integrated managed process", nil)
 		}
-		return managedprocess.NewIntegratedManagedProcessDescription(config.ID, config.Unit.IntegratedManaged, logger), nil
+		return managedprocess.NewIntegratedManagedProcessOptions(config.ID, config.Management.IntegratedManaged, logger), nil
+
+	case ProcessManagementTypeUnmanaged:
+		if config.Management.Unmanaged == nil {
+			return nil, errors.NewValidationError("unmanaged process configuration is required for unmanaged process", nil)
+		}
+		return managedprocess.NewUnmanagedProcessOptions(config.ID, config.Management.Unmanaged, logger), nil
 
 	default:
 		return nil, errors.NewValidationError(
@@ -191,20 +191,20 @@ func setConfigDefaults(config *ProcessManagerConfig) error {
 		// Apply type-specific defaults
 		switch process.Type {
 		case ProcessManagementTypeStandard:
-			if process.Unit.StandardManaged != nil {
-				if err := setStandardManagedProcessConfigDefaults(process.Unit.StandardManaged); err != nil {
+			if process.Management.StandardManaged != nil {
+				if err := setStandardManagedProcessConfigDefaults(process.Management.StandardManaged); err != nil {
 					return err
 				}
 			}
 		case ProcessManagementTypeUnmanaged:
-			if process.Unit.Unmanaged != nil {
-				if err := setUnmanagedUnitDefaults(process.Unit.Unmanaged); err != nil {
+			if process.Management.Unmanaged != nil {
+				if err := setUnmanagedProcessConfigDefaults(process.Management.Unmanaged); err != nil {
 					return err
 				}
 			}
 		case ProcessManagementTypeIntegrated:
-			if process.Unit.IntegratedManaged != nil {
-				if err := setIntegratedManagedProcessConfigDefaults(process.Unit.IntegratedManaged); err != nil {
+			if process.Management.IntegratedManaged != nil {
+				if err := setIntegratedManagedProcessConfigDefaults(process.Management.IntegratedManaged); err != nil {
 					return err
 				}
 			}
@@ -264,7 +264,7 @@ func setStandardManagedProcessConfigDefaults(config *managedprocess.StandardMana
 	return nil
 }
 
-func setUnmanagedUnitDefaults(config *managedprocess.UnmanagedProcessConfig) error {
+func setUnmanagedProcessConfigDefaults(config *managedprocess.UnmanagedProcessConfig) error {
 	// Set discovery defaults
 	if config.Discovery.CheckInterval == 0 {
 		config.Discovery.CheckInterval = 30 * time.Second
@@ -364,10 +364,10 @@ func validateProcessesConfig(processes []ProcessConfig) error {
 			).WithContext("process_id", process.ID)
 		}
 
-		// Validate unit configuration matches type
-		if err := validateProcessUnitConfig(process.Type, process.Unit); err != nil {
+		// Validate process management configuration matches type
+		if err := validateProcessManagementConfig(process.Type, process.Management); err != nil {
 			return errors.NewValidationError(
-				fmt.Sprintf("invalid unit configuration for process at index %d", i),
+				fmt.Sprintf("invalid process management configuration for process at index %d", i),
 				err,
 			).WithContext("process_id", process.ID).WithContext("process_type", string(process.Type))
 		}
@@ -413,34 +413,34 @@ func validateProcessProfileType(profileType string) error {
 	).WithContext("supported_types", "batch, web, database, worker, scheduler, default")
 }
 
-func validateProcessUnitConfig(processType ProcessManagementType, unitConfig ProcessUnitConfig) error {
+func validateProcessManagementConfig(processType ProcessManagementType, processConfig ProcessManagementConfig) error {
 	switch processType {
 	case ProcessManagementTypeStandard:
-		if unitConfig.StandardManaged == nil {
-			return errors.NewValidationError("standard managed unit configuration is required for standard managed process", nil)
+		if processConfig.StandardManaged == nil {
+			return errors.NewValidationError("standard managed process configuration is required for standard managed process", nil)
 		}
-		if unitConfig.Unmanaged != nil || unitConfig.IntegratedManaged != nil {
-			return errors.NewValidationError("only standard managed unit configuration should be specified for standard managed process", nil)
+		if processConfig.Unmanaged != nil || processConfig.IntegratedManaged != nil {
+			return errors.NewValidationError("only standard managed process configuration should be specified for standard managed process", nil)
 		}
-		return managedprocess.ValidateStandardManagedProcessConfig(*unitConfig.StandardManaged)
+		return managedprocess.ValidateStandardManagedProcessConfig(*processConfig.StandardManaged)
 
 	case ProcessManagementTypeUnmanaged:
-		if unitConfig.Unmanaged == nil {
-			return errors.NewValidationError("unmanaged unit configuration is required for unmanaged process", nil)
+		if processConfig.Unmanaged == nil {
+			return errors.NewValidationError("unmanaged process configuration is required for unmanaged process", nil)
 		}
-		if unitConfig.StandardManaged != nil || unitConfig.IntegratedManaged != nil {
-			return errors.NewValidationError("only unmanaged unit configuration should be specified for unmanaged process", nil)
+		if processConfig.StandardManaged != nil || processConfig.IntegratedManaged != nil {
+			return errors.NewValidationError("only unmanaged process configuration should be specified for unmanaged process", nil)
 		}
-		return managedprocess.ValidateUnmanagedProcessConfig(*unitConfig.Unmanaged)
+		return managedprocess.ValidateUnmanagedProcessConfig(*processConfig.Unmanaged)
 
 	case ProcessManagementTypeIntegrated:
-		if unitConfig.IntegratedManaged == nil {
-			return errors.NewValidationError("integrated managed unit configuration is required for integrated managed process", nil)
+		if processConfig.IntegratedManaged == nil {
+			return errors.NewValidationError("integrated managed process configuration is required for integrated managed process", nil)
 		}
-		if unitConfig.StandardManaged != nil || unitConfig.Unmanaged != nil {
-			return errors.NewValidationError("only integrated managed unit configuration should be specified for integrated managed process", nil)
+		if processConfig.StandardManaged != nil || processConfig.Unmanaged != nil {
+			return errors.NewValidationError("only integrated managed process configuration should be specified for integrated managed process", nil)
 		}
-		return managedprocess.ValidateIntegratedManagedProcessConfig(*unitConfig.IntegratedManaged)
+		return managedprocess.ValidateIntegratedManagedProcessConfig(*processConfig.IntegratedManaged)
 
 	default:
 		return errors.NewValidationError(fmt.Sprintf("unsupported process management type: %s", processType), nil)
@@ -452,12 +452,12 @@ func CreateProcessesFromConfigWithLogCollection(
 	config *ProcessManagerConfig,
 	logger logging.Logger,
 	logIntegration *LogCollectionIntegration,
-) ([]managedprocess.ProcessDescription, error) {
+) ([]managedprocess.ProcessOptions, error) {
 	if config == nil {
 		return nil, errors.NewValidationError("configuration cannot be nil", nil)
 	}
 
-	var processesResult []managedprocess.ProcessDescription
+	var processesResult []managedprocess.ProcessOptions
 
 	for i, processConfig := range config.ManagedProcesses {
 		// Skip disabled processes
@@ -486,7 +486,7 @@ func createProcessFromConfigWithLogCollection(
 	config ProcessConfig,
 	logger logging.Logger,
 	logIntegration *LogCollectionIntegration,
-) (managedprocess.ProcessDescription, error) {
+) (managedprocess.ProcessOptions, error) {
 
 	// Create the base process first
 	baseProcess, err := createProcessFromConfig(config, logger)
@@ -501,9 +501,9 @@ func createProcessFromConfigWithLogCollection(
 
 	// Enhance process with log collection
 	enhancedProcess := &logCollectionEnabledProcess{
-		ProcessDescription: baseProcess,
-		logIntegration:     logIntegration,
-		processConfig:      config,
+		ProcessOptions: baseProcess,
+		logIntegration: logIntegration,
+		processConfig:  config,
 	}
 
 	logger.Infof("Managed process %s created with log collection support", config.ID)
@@ -512,7 +512,7 @@ func createProcessFromConfigWithLogCollection(
 
 // logCollectionEnabledProcess wraps a process to add log collection capabilities
 type logCollectionEnabledProcess struct {
-	managedprocess.ProcessDescription
+	managedprocess.ProcessOptions
 	logIntegration *LogCollectionIntegration
 	processConfig  ProcessConfig
 }
@@ -520,11 +520,11 @@ type logCollectionEnabledProcess struct {
 // ProcessControlOptions enhances the base process's process control options with log collection
 func (p *logCollectionEnabledProcess) ProcessControlOptions() processcontrol.ProcessControlOptions {
 	// Get base options from the wrapped process
-	baseOptions := p.ProcessDescription.ProcessControlOptions()
+	baseOptions := p.ProcessOptions.ProcessControlOptions()
 
 	// Add log collection service and config
 	baseOptions.LogCollectionService = p.logIntegration.GetLogCollectionService()
-	baseOptions.LogConfig = p.logIntegration.GetProcessLogConfig(p.ProcessDescription.ID(), p.processConfig)
+	baseOptions.LogConfig = p.logIntegration.GetProcessLogConfig(p.ProcessOptions.ID(), p.processConfig)
 
 	// Pass process profile type from configuration
 	baseOptions.ProcessProfileType = p.processConfig.ProfileType

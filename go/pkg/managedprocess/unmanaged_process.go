@@ -23,7 +23,7 @@ type UnmanagedProcessConfig struct {
 	HealthCheck monitoring.HealthCheckConfig `yaml:"health_check,omitempty"`
 }
 
-type unmanagedProcessDescription struct {
+type unmanagedProcessOptions struct {
 	id                   string
 	metadata             ProcessMetadata
 	discoveryConfig      process.DiscoveryConfig
@@ -32,26 +32,26 @@ type unmanagedProcessDescription struct {
 	logger               logging.Logger
 }
 
-func NewUnmanagedProcessDescription(id string, unit *UnmanagedProcessConfig, logger logging.Logger) ProcessDescription {
-	return &unmanagedProcessDescription{
+func NewUnmanagedProcessOptions(id string, processConfig *UnmanagedProcessConfig, logger logging.Logger) ProcessOptions {
+	return &unmanagedProcessOptions{
 		id:                   id,
-		metadata:             unit.Metadata,
-		discoveryConfig:      unit.Discovery,
-		processControlConfig: unit.Control,
-		healthCheckConfig:    unit.HealthCheck,
+		metadata:             processConfig.Metadata,
+		discoveryConfig:      processConfig.Discovery,
+		processControlConfig: processConfig.Control,
+		healthCheckConfig:    processConfig.HealthCheck,
 		logger:               logger,
 	}
 }
 
-func (pd *unmanagedProcessDescription) ID() string {
+func (pd *unmanagedProcessOptions) ID() string {
 	return pd.id
 }
 
-func (pd *unmanagedProcessDescription) Metadata() ProcessMetadata {
+func (pd *unmanagedProcessOptions) Metadata() ProcessMetadata {
 	return pd.metadata
 }
 
-func (pd *unmanagedProcessDescription) ProcessControlOptions() processcontrol.ProcessControlOptions {
+func (pd *unmanagedProcessOptions) ProcessControlOptions() processcontrol.ProcessControlOptions {
 	pd.logger.Debugf("Preparing process control options for unmanaged process, id: %s, discovery: %s, can_terminate: %t, can_restart: %t",
 		pd.id, pd.discoveryConfig.Method, pd.processControlConfig.CanTerminate, pd.processControlConfig.CanRestart)
 
@@ -60,7 +60,7 @@ func (pd *unmanagedProcessDescription) ProcessControlOptions() processcontrol.Pr
 		CanTerminate:        pd.processControlConfig.CanTerminate,    // Based on system control config
 		CanRestart:          pd.processControlConfig.CanRestart,      // Based on system control config
 		ExecuteCmd:          nil,                                     // Cannot execute new processes
-		AttachCmd:           pd.AttachCmd,                            // Use unit's health check config with logging
+		AttachCmd:           pd.AttachCmd,                            // Use health check config with logging
 		ContextAwareRestart: nil,                                     // No context-aware restart configuration for unmanaged
 		RestartPolicy:       processcontrol.RestartNever,             // Unmanaged processes should not auto-restart
 		Limits:              nil,                                     // No resource limits for unmanaged
@@ -70,7 +70,7 @@ func (pd *unmanagedProcessDescription) ProcessControlOptions() processcontrol.Pr
 	}
 }
 
-func (pd *unmanagedProcessDescription) AttachCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
+func (pd *unmanagedProcessOptions) AttachCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
 	pd.logger.Infof("Attaching to unmanaged process, id: %s", pd.id)
 
 	stdAttachCmd := process.NewStdAttachCmd(pd.discoveryConfig, pd.id, pd.logger)

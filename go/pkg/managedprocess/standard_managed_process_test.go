@@ -45,7 +45,7 @@ func (m *mockLogger) Errorf(format string, args ...interface{}) {
 	m.Called(format, args)
 }
 
-func createTestManagedUnit() *StandardManagedProcessConfig {
+func createTestStandardManagedProcessConfig() *StandardManagedProcessConfig {
 	var executablePath string
 	var args []string
 	var workingDirectory string
@@ -63,8 +63,8 @@ func createTestManagedUnit() *StandardManagedProcessConfig {
 
 	return &StandardManagedProcessConfig{
 		Metadata: ProcessMetadata{
-			Name:        "test-managed-unit",
-			Description: "Test managed unit",
+			Name:        "test-managed-process",
+			Description: "Test managed process",
 		},
 		Control: processcontrol.ManagedProcessControlConfig{
 			Execution: process.ExecutionConfig{
@@ -107,9 +107,9 @@ func createTestManagedUnit() *StandardManagedProcessConfig {
 
 func TestNewStandardManagedProcess(t *testing.T) {
 	logger := &mockLogger{}
-	unit := createTestManagedUnit()
+	processConfig := createTestStandardManagedProcessConfig()
 
-	process := NewStandardManagedProcessDescription("test-managed-1", unit, logger)
+	process := NewStandardManagedProcessOptions("test-managed-1", processConfig, logger)
 
 	assert.NotNil(t, process)
 	assert.Equal(t, "test-managed-1", process.ID())
@@ -117,29 +117,29 @@ func TestNewStandardManagedProcess(t *testing.T) {
 
 func TestStandardManagedProcess_ID(t *testing.T) {
 	logger := &mockLogger{}
-	unit := createTestManagedUnit()
+	processConfig := createTestStandardManagedProcessConfig()
 
-	process := NewStandardManagedProcessDescription("test-managed-2", unit, logger)
+	process := NewStandardManagedProcessOptions("test-managed-2", processConfig, logger)
 
 	assert.Equal(t, "test-managed-2", process.ID())
 }
 
 func TestStandardManagedProcess_Metadata(t *testing.T) {
 	logger := &mockLogger{}
-	unit := createTestManagedUnit()
+	processConfig := createTestStandardManagedProcessConfig()
 
-	process := NewStandardManagedProcessDescription("test-managed-3", unit, logger)
+	process := NewStandardManagedProcessOptions("test-managed-3", processConfig, logger)
 
 	metadata := process.Metadata()
-	assert.Equal(t, "test-managed-unit", metadata.Name)
-	assert.Equal(t, "Test managed unit", metadata.Description)
+	assert.Equal(t, "test-managed-process", metadata.Name)
+	assert.Equal(t, "Test managed process", metadata.Description)
 }
 
 func TestStandardManagedProcess_ProcessControlOptions(t *testing.T) {
 	logger := &mockLogger{}
-	unit := createTestManagedUnit()
+	processConfig := createTestStandardManagedProcessConfig()
 
-	process := NewStandardManagedProcessDescription("test-managed-4", unit, logger)
+	process := NewStandardManagedProcessOptions("test-managed-4", processConfig, logger)
 
 	options := process.ProcessControlOptions()
 
@@ -182,9 +182,9 @@ func TestStandardManagedProcess_ExecuteCmd_NilContext(t *testing.T) {
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	logger.On("Errorf", mock.Anything, mock.Anything).Maybe()
 
-	unit := createTestManagedUnit()
+	processConfig := createTestStandardManagedProcessConfig()
 
-	process := NewStandardManagedProcessDescription("test-managed-6", unit, logger).(*standardManagedProcessDescription)
+	process := NewStandardManagedProcessOptions("test-managed-6", processConfig, logger).(*standardManagedProcessOptions)
 
 	cmdResult, err := process.ExecuteCmd(nil)
 
@@ -199,10 +199,10 @@ func TestStandardManagedProcess_ExecuteCmd_ValidContext(t *testing.T) {
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	logger.On("Errorf", mock.Anything, mock.Anything).Maybe()
 
-	// Create a unit with platform-appropriate executable (handled by createTestManagedUnit)
-	unit := createTestManagedUnit()
+	// Create a process with platform-appropriate executable (handled by createTestStandardManagedProcessConfig)
+	processConfig := createTestStandardManagedProcessConfig()
 
-	process := NewStandardManagedProcessDescription("test-managed-7", unit, logger).(*standardManagedProcessDescription)
+	process := NewStandardManagedProcessOptions("test-managed-7", processConfig, logger).(*standardManagedProcessOptions)
 
 	ctx := context.Background()
 	cmdResult, err := process.ExecuteCmd(ctx)
@@ -255,8 +255,8 @@ func TestStandardManagedProcess_ExecuteCmd_PIDFileWriting(t *testing.T) {
 		workingDirectory = "/tmp"
 	}
 
-	// Create test unit with PID file configuration
-	unit := &StandardManagedProcessConfig{
+	// Create test process with PID file configuration
+	processConfig := &StandardManagedProcessConfig{
 		Metadata: ProcessMetadata{
 			Name:        "Test managed process",
 			Description: "Test managed process for PID file testing",
@@ -307,7 +307,7 @@ func TestStandardManagedProcess_ExecuteCmd_PIDFileWriting(t *testing.T) {
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	logger.On("Errorf", mock.Anything, mock.Anything).Maybe()
 
-	process := NewStandardManagedProcessDescription("test-process", unit, logger).(*standardManagedProcessDescription)
+	process := NewStandardManagedProcessOptions("test-process", processConfig, logger).(*standardManagedProcessOptions)
 
 	// Execute command
 	ctx := context.Background()
@@ -338,9 +338,9 @@ func TestStandardManagedProcess_ExecuteCmd_PIDFileWriting(t *testing.T) {
 
 func TestStandardManagedProcess_IntegrationWithProcessControlOptions(t *testing.T) {
 	logger := &mockLogger{}
-	unit := createTestManagedUnit()
+	processConfig := createTestStandardManagedProcessConfig()
 
-	process := NewStandardManagedProcessDescription("test-managed-8", unit, logger)
+	process := NewStandardManagedProcessOptions("test-managed-8", processConfig, logger)
 
 	options := process.ProcessControlOptions()
 
@@ -351,12 +351,12 @@ func TestStandardManagedProcess_IntegrationWithProcessControlOptions(t *testing.
 
 func TestStandardManagedProcess_MultipleInstances(t *testing.T) {
 	logger := &mockLogger{}
-	unit := createTestManagedUnit()
+	processConfig := createTestStandardManagedProcessConfig()
 
-	process1 := NewStandardManagedProcessDescription("process-1", unit, logger)
-	process2 := NewStandardManagedProcessDescription("process-2", unit, logger)
+	process1 := NewStandardManagedProcessOptions("process-1", processConfig, logger)
+	process2 := NewStandardManagedProcessOptions("process-2", processConfig, logger)
 
 	// Test independence
 	assert.NotEqual(t, process1.ID(), process2.ID())
-	assert.Equal(t, process1.Metadata(), process2.Metadata()) // Same unit, same metadata
+	assert.Equal(t, process1.Metadata(), process2.Metadata())
 }

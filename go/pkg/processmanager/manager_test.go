@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockProcess is a mock implementation of ProcessDescription for testing
+// mockProcess is a mock implementation of ProcessOptions for testing
 type mockProcess struct {
 	mock.Mock
 }

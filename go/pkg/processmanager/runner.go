@@ -93,7 +93,7 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 	// Create process manager instance
 	processManager := NewProcessManager(processManagerOptions, logger)
 
-	var processes []managedprocess.ProcessDescription
+	var processes []managedprocess.ProcessOptions
 	if logIntegration != nil {
 		// Set log collection service on process manager
 		if logIntegration.IsEnabled() {
@@ -235,18 +235,18 @@ func GetConfigSummary(config *ProcessManagerConfig) ConfigSummary {
 		// Add type-specific information
 		switch process.Type {
 		case ProcessManagementTypeStandard:
-			if process.Unit.StandardManaged != nil {
-				processSummary.ExecutablePath = process.Unit.StandardManaged.Control.Execution.ExecutablePath
-				processSummary.HealthCheckType = string(process.Unit.StandardManaged.HealthCheck.Type)
+			if process.Management.StandardManaged != nil {
+				processSummary.ExecutablePath = process.Management.StandardManaged.Control.Execution.ExecutablePath
+				processSummary.HealthCheckType = string(process.Management.StandardManaged.HealthCheck.Type)
 			}
 		case ProcessManagementTypeIntegrated:
-			if process.Unit.IntegratedManaged != nil {
-				processSummary.ExecutablePath = process.Unit.IntegratedManaged.Control.Execution.ExecutablePath
+			if process.Management.IntegratedManaged != nil {
+				processSummary.ExecutablePath = process.Management.IntegratedManaged.Control.Execution.ExecutablePath
 			}
 		case ProcessManagementTypeUnmanaged:
-			if process.Unit.Unmanaged != nil {
-				processSummary.DiscoveryMethod = string(process.Unit.Unmanaged.Discovery.Method)
-				processSummary.HealthCheckType = string(process.Unit.Unmanaged.HealthCheck.Type)
+			if process.Management.Unmanaged != nil {
+				processSummary.DiscoveryMethod = string(process.Management.Unmanaged.Discovery.Method)
+				processSummary.HealthCheckType = string(process.Management.Unmanaged.HealthCheck.Type)
 			}
 		}
 

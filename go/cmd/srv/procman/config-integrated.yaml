@@ -6,10 +6,10 @@ managed_processes:
   - id: "test-integrated"
     type: "integrated_managed"
     profile_type: "web"  # ✅ NEW: Echo gRPC server is a web service
-    unit:
+    management:
       integrated_managed:
         metadata:
-          name: "Echo gRPC server as integrated unit"
+          name: "Echo gRPC server as integrated managed process"
         control:
           execution:
             executable_path: "..\\..\\..\\..\\hsu-example1-go\\cmd\\srv\\echogrpcsrv\\echogrpcsrv.exe"

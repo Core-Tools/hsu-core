@@ -34,7 +34,7 @@ managed_processes:
   - id: "echotest"
     type: "standard_managed"
     profile_type: "web"
-    unit:
+    management:
       standard_managed:
         metadata:
           name: "Echo Test"

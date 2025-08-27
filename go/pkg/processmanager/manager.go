@@ -17,7 +17,7 @@ import (
 )
 
 type ProcessRegistry interface {
-	AddProcess(process managedprocess.ProcessDescription) error
+	AddProcess(process managedprocess.ProcessOptions) error
 	RemoveProcess(id string) error
 }
 
@@ -91,7 +91,7 @@ func NewProcessManager(options ProcessManagerOptions, logger logging.Logger) Pro
 	}
 }
 
-func (pm *processManager) AddProcess(process managedprocess.ProcessDescription) error {
+func (pm *processManager) AddProcess(process managedprocess.ProcessOptions) error {
 	// Validate input
 	if process == nil {
 		return errors.NewValidationError("process cannot be nil", nil)

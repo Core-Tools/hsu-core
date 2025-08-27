@@ -103,9 +103,9 @@ func createTestIntegratedManagedProcessConfig() *IntegratedManagedProcessConfig 
 
 func TestNewIntegratedManagedProcess(t *testing.T) {
 	logger := &MockIntegratedLogger{}
-	unit := createTestIntegratedManagedProcessConfig()
+	processConfig := createTestIntegratedManagedProcessConfig()
 
-	process := NewIntegratedManagedProcessDescription("test-integrated-1", unit, logger)
+	process := NewIntegratedManagedProcessOptions("test-integrated-1", processConfig, logger)
 
 	require.NotNil(t, process)
 	assert.Equal(t, "test-integrated-1", process.ID())
@@ -113,18 +113,18 @@ func TestNewIntegratedManagedProcess(t *testing.T) {
 
 func TestIntegratedManagedProcess_ID(t *testing.T) {
 	logger := &MockIntegratedLogger{}
-	unit := createTestIntegratedManagedProcessConfig()
+	processConfig := createTestIntegratedManagedProcessConfig()
 
-	process := NewIntegratedManagedProcessDescription("test-integrated-2", unit, logger)
+	process := NewIntegratedManagedProcessOptions("test-integrated-2", processConfig, logger)
 
 	assert.Equal(t, "test-integrated-2", process.ID())
 }
 
 func TestIntegratedManagedProcess_Metadata(t *testing.T) {
 	logger := &MockIntegratedLogger{}
-	unit := createTestIntegratedManagedProcessConfig()
+	processConfig := createTestIntegratedManagedProcessConfig()
 
-	process := NewIntegratedManagedProcessDescription("test-integrated-3", unit, logger)
+	process := NewIntegratedManagedProcessOptions("test-integrated-3", processConfig, logger)
 
 	metadata := process.Metadata()
 
@@ -134,9 +134,9 @@ func TestIntegratedManagedProcess_Metadata(t *testing.T) {
 
 func TestIntegratedManagedProcess_ProcessControlOptions(t *testing.T) {
 	logger := &MockIntegratedLogger{}
-	unit := createTestIntegratedManagedProcessConfig()
+	processConfig := createTestIntegratedManagedProcessConfig()
 
-	process := NewIntegratedManagedProcessDescription("test-integrated-4", unit, logger)
+	process := NewIntegratedManagedProcessOptions("test-integrated-4", processConfig, logger)
 
 	options := process.ProcessControlOptions()
 
@@ -179,9 +179,9 @@ func TestIntegratedManagedProcess_ExecuteCmd_NilContext(t *testing.T) {
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	logger.On("Errorf", mock.Anything, mock.Anything).Maybe()
 
-	unit := createTestIntegratedManagedProcessConfig()
+	processConfig := createTestIntegratedManagedProcessConfig()
 
-	process := NewIntegratedManagedProcessDescription("test-integrated-5", unit, logger).(*integratedManagedProcessDescription)
+	process := NewIntegratedManagedProcessOptions("test-integrated-5", processConfig, logger).(*integratedManagedProcessOptions)
 
 	cmdResult, err := process.ExecuteCmd(nil)
 
@@ -196,10 +196,10 @@ func TestIntegratedManagedProcess_ExecuteCmd_ValidContext(t *testing.T) {
 	logger.On("Infof", mock.Anything, mock.Anything).Maybe()
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 
-	// Create a unit with a valid executable (use 'echo' which should exist on most systems)
-	unit := createTestIntegratedManagedProcessConfig()
+	// Create a process config with a valid executable (use 'echo' which should exist on most systems)
+	processConfig := createTestIntegratedManagedProcessConfig()
 
-	process := NewIntegratedManagedProcessDescription("test-integrated-6", unit, logger).(*integratedManagedProcessDescription)
+	process := NewIntegratedManagedProcessOptions("test-integrated-6", processConfig, logger).(*integratedManagedProcessOptions)
 
 	ctx := context.Background()
 	cmdResult, err := process.ExecuteCmd(ctx)
@@ -230,7 +230,7 @@ func TestIntegratedManagedProcess_ExecuteCmd_ValidContext(t *testing.T) {
 		assert.NotEmpty(t, addressAndPort[1])
 		assert.Equal(t, "CoreService", healthCheck.GRPC.Service)
 		assert.Equal(t, "Ping", healthCheck.GRPC.Method)
-		assert.Equal(t, unit.HealthCheckRunOptions, healthCheck.RunOptions)
+		assert.Equal(t, processConfig.HealthCheckRunOptions, healthCheck.RunOptions)
 	} else {
 		// If execution fails, error should be properly formatted
 		assert.True(t, errors.IsProcessError(err) || errors.IsValidationError(err) || errors.IsPermissionError(err) || errors.IsIOError(err) || errors.IsNetworkError(err))
@@ -244,9 +244,9 @@ func TestIntegratedManagedProcess_ExecuteCmd_PortAllocation(t *testing.T) {
 	logger.On("Infof", mock.Anything, mock.Anything).Maybe()
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 
-	unit := createTestIntegratedManagedProcessConfig()
+	processConfig := createTestIntegratedManagedProcessConfig()
 
-	process := NewIntegratedManagedProcessDescription("test-integrated-7", unit, logger).(*integratedManagedProcessDescription)
+	process := NewIntegratedManagedProcessOptions("test-integrated-7", processConfig, logger).(*integratedManagedProcessOptions)
 
 	ctx := context.Background()
 
@@ -277,7 +277,7 @@ func TestIntegratedManagedProcess_ExecuteCmd_PortAllocation(t *testing.T) {
 	}
 
 	// Should have at least 1 successful port allocation
-	// Note: This test might fail if the executable doesn't exist, but that's okay for unit testing
+	// Note: This test might fail if the executable doesn't exist, but that's okay for testing
 	if successCount > 0 {
 		assert.True(t, len(ports) >= 1, "Should have at least one successful port allocation")
 	} else {
@@ -289,9 +289,9 @@ func TestIntegratedManagedProcess_ExecuteCmd_PortAllocation(t *testing.T) {
 
 func TestIntegratedManagedProcess_IntegrationWithProcessControlOptions(t *testing.T) {
 	logger := &MockIntegratedLogger{}
-	unit := createTestIntegratedManagedProcessConfig()
+	processConfig := createTestIntegratedManagedProcessConfig()
 
-	process := NewIntegratedManagedProcessDescription("test-integrated-8", unit, logger)
+	process := NewIntegratedManagedProcessOptions("test-integrated-8", processConfig, logger)
 
 	options := process.ProcessControlOptions()
 
@@ -302,16 +302,16 @@ func TestIntegratedManagedProcess_IntegrationWithProcessControlOptions(t *testin
 
 func TestIntegratedManagedProcess_MultipleInstances(t *testing.T) {
 	logger := &MockIntegratedLogger{}
-	unit := createTestIntegratedManagedProcessConfig()
+	processConfig := createTestIntegratedManagedProcessConfig()
 
-	process1 := NewIntegratedManagedProcessDescription("process-1", unit, logger)
-	process2 := NewIntegratedManagedProcessDescription("process-2", unit, logger)
+	process1 := NewIntegratedManagedProcessOptions("process-1", processConfig, logger)
+	process2 := NewIntegratedManagedProcessOptions("process-2", processConfig, logger)
 
 	// Test independence
 	assert.NotEqual(t, process1.ID(), process2.ID())
-	assert.Equal(t, process1.Metadata(), process2.Metadata()) // Same unit, same metadata
+	assert.Equal(t, process1.Metadata(), process2.Metadata())
 
-	// Test same ProcessControlOptions configuration (since they share the same unit)
+	// Test same ProcessControlOptions configuration
 	options1 := process1.ProcessControlOptions()
 	options2 := process2.ProcessControlOptions()
 
@@ -329,12 +329,12 @@ func TestIntegratedManagedProcess_ConfigurationVariations(t *testing.T) {
 	logger := &MockIntegratedLogger{}
 
 	// Test with different configurations
-	unit := createTestIntegratedManagedProcessConfig()
-	unit.Control.GracefulTimeout = 60 * time.Second
-	unit.HealthCheckRunOptions.Interval = 60 * time.Second
-	unit.HealthCheckRunOptions.Timeout = 10 * time.Second
+	processConfig := createTestIntegratedManagedProcessConfig()
+	processConfig.Control.GracefulTimeout = 60 * time.Second
+	processConfig.HealthCheckRunOptions.Interval = 60 * time.Second
+	processConfig.HealthCheckRunOptions.Timeout = 10 * time.Second
 
-	process := NewIntegratedManagedProcessDescription("test-integrated-9", unit, logger)
+	process := NewIntegratedManagedProcessOptions("test-integrated-9", processConfig, logger)
 
 	options := process.ProcessControlOptions()
 
@@ -352,9 +352,9 @@ func TestIntegratedManagedProcess_GetFreePort(t *testing.T) {
 	logger.On("Infof", mock.Anything, mock.Anything).Maybe()
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 
-	unit := createTestIntegratedManagedProcessConfig()
+	processConfig := createTestIntegratedManagedProcessConfig()
 
-	process := NewIntegratedManagedProcessDescription("test-integrated-10", unit, logger).(*integratedManagedProcessDescription)
+	process := NewIntegratedManagedProcessOptions("test-integrated-10", processConfig, logger).(*integratedManagedProcessOptions)
 
 	ctx := context.Background()
 	cmdResult, err := process.ExecuteCmd(ctx)

@@ -26,7 +26,7 @@ type StandardManagedProcessConfig struct {
 	HealthCheck monitoring.HealthCheckConfig `yaml:"health_check,omitempty"`
 }
 
-type standardManagedProcessDescription struct {
+type standardManagedProcessOptions struct {
 	id                   string
 	metadata             ProcessMetadata
 	processControlConfig processcontrol.ManagedProcessControlConfig
@@ -35,26 +35,26 @@ type standardManagedProcessDescription struct {
 	pidManager           *processfile.ProcessFileManager
 }
 
-func NewStandardManagedProcessDescription(id string, unit *StandardManagedProcessConfig, logger logging.Logger) ProcessDescription {
-	return &standardManagedProcessDescription{
+func NewStandardManagedProcessOptions(id string, processConfig *StandardManagedProcessConfig, logger logging.Logger) ProcessOptions {
+	return &standardManagedProcessOptions{
 		id:                   id,
-		metadata:             unit.Metadata,
-		processControlConfig: unit.Control,
-		healthCheckConfig:    unit.HealthCheck,
+		metadata:             processConfig.Metadata,
+		processControlConfig: processConfig.Control,
+		healthCheckConfig:    processConfig.HealthCheck,
 		logger:               logger,
-		pidManager:           processfile.NewProcessFileManager(unit.Control.ProcessFile, logger),
+		pidManager:           processfile.NewProcessFileManager(processConfig.Control.ProcessFile, logger),
 	}
 }
 
-func (pd *standardManagedProcessDescription) ID() string {
+func (pd *standardManagedProcessOptions) ID() string {
 	return pd.id
 }
 
-func (pd *standardManagedProcessDescription) Metadata() ProcessMetadata {
+func (pd *standardManagedProcessOptions) Metadata() ProcessMetadata {
 	return pd.metadata
 }
 
-func (pd *standardManagedProcessDescription) ProcessControlOptions() processcontrol.ProcessControlOptions {
+func (pd *standardManagedProcessOptions) ProcessControlOptions() processcontrol.ProcessControlOptions {
 	return processcontrol.ProcessControlOptions{
 		CanAttach:           true, // Can attach to existing processes as fallback
 		CanTerminate:        true, // Can terminate processes
@@ -69,7 +69,7 @@ func (pd *standardManagedProcessDescription) ProcessControlOptions() processcont
 	}
 }
 
-func (pd *standardManagedProcessDescription) AttachCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
+func (pd *standardManagedProcessOptions) AttachCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
 	pd.logger.Infof("Attaching to standard managed process, id: %s", pd.id)
 
 	pidFile := pd.pidManager.GeneratePIDFilePath(pd.id)
@@ -95,7 +95,7 @@ func (pd *standardManagedProcessDescription) AttachCmd(ctx context.Context) (*pr
 	}, nil
 }
 
-func (pd *standardManagedProcessDescription) ExecuteCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
+func (pd *standardManagedProcessOptions) ExecuteCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
 	pd.logger.Infof("Executing standard managed process command, id: %s", pd.id)
 
 	// Create the standard execute command

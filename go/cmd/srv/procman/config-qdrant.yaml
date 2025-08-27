@@ -34,7 +34,7 @@ managed_processes:
   - id: "qdrant"
     type: "standard_managed"
     profile_type: "database"
-    unit:
+    management:
       standard_managed:
         metadata:
           name: "Qdrant"
