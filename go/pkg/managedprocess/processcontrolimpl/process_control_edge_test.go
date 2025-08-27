@@ -27,7 +27,7 @@ func TestProcessControl_BoundaryConditions(t *testing.T) {
 			GracefulTimeout: 0, // Zero timeout
 		}
 
-		pc := NewProcessControl(config, "zero-timeout-worker", logger)
+		pc := NewProcessControl(config, "zero-timeout-process", logger)
 		require.NotNil(t, pc)
 
 		impl := pc.(*processControl)
@@ -40,7 +40,7 @@ func TestProcessControl_BoundaryConditions(t *testing.T) {
 			GracefulTimeout: -5 * time.Second, // Negative timeout
 		}
 
-		pc := NewProcessControl(config, "negative-timeout-worker", logger)
+		pc := NewProcessControl(config, "negative-timeout-process", logger)
 		require.NotNil(t, pc)
 
 		impl := pc.(*processControl)
@@ -53,7 +53,7 @@ func TestProcessControl_BoundaryConditions(t *testing.T) {
 			GracefulTimeout: 24 * time.Hour, // Very large timeout
 		}
 
-		pc := NewProcessControl(config, "large-timeout-worker", logger)
+		pc := NewProcessControl(config, "large-timeout-process", logger)
 		require.NotNil(t, pc)
 
 		impl := pc.(*processControl)
@@ -65,7 +65,7 @@ func TestProcessControl_BoundaryConditions(t *testing.T) {
 			CanTerminate: true,
 		}
 
-		pc := NewProcessControl(config, "extreme-pid-worker", logger)
+		pc := NewProcessControl(config, "extreme-pid-process", logger)
 		impl := pc.(*processControl)
 
 		// Test with maximum possible PID
@@ -84,20 +84,20 @@ func TestProcessControl_BoundaryConditions(t *testing.T) {
 		assert.Equal(t, 1, safeProcess.Pid, "Should handle system PID values")
 	})
 
-	t.Run("empty_worker_id", func(t *testing.T) {
+	t.Run("empty_process_id", func(t *testing.T) {
 		config := processcontrol.ProcessControlOptions{
 			CanTerminate: true,
 		}
 
-		pc := NewProcessControl(config, "", logger) // Empty worker ID
+		pc := NewProcessControl(config, "", logger) // Empty process ID
 		require.NotNil(t, pc)
 
 		impl := pc.(*processControl)
-		assert.Equal(t, "", impl.workerID, "Empty worker ID should be preserved")
+		assert.Equal(t, "", impl.processID, "Empty process ID should be preserved")
 	})
 
-	t.Run("very_long_worker_id", func(t *testing.T) {
-		longID := string(make([]byte, 10000)) // 10KB worker ID
+	t.Run("very_long_process_id", func(t *testing.T) {
+		longID := string(make([]byte, 10000)) // 10KB process ID
 		for i := range longID {
 			longID = longID[:i] + "a" + longID[i+1:]
 		}
@@ -110,7 +110,7 @@ func TestProcessControl_BoundaryConditions(t *testing.T) {
 		require.NotNil(t, pc)
 
 		impl := pc.(*processControl)
-		assert.Equal(t, longID, impl.workerID, "Very long worker ID should be preserved")
+		assert.Equal(t, longID, impl.processID, "Very long process ID should be preserved")
 	})
 }
 
@@ -122,7 +122,7 @@ func TestProcessControl_ErrorRecoveryScenarios(t *testing.T) {
 			CanTerminate: true,
 		}
 
-		pc := NewProcessControl(config, "recovery-worker", logger)
+		pc := NewProcessControl(config, "recovery-process", logger)
 		impl := pc.(*processControl)
 
 		// Manually create invalid state combinations
@@ -144,7 +144,7 @@ func TestProcessControl_ErrorRecoveryScenarios(t *testing.T) {
 			CanTerminate: true,
 		}
 
-		pc := NewProcessControl(config, "corrupted-worker", logger)
+		pc := NewProcessControl(config, "corrupted-process", logger)
 		impl := pc.(*processControl)
 
 		// Create a process with invalid/corrupted data
@@ -161,7 +161,7 @@ func TestProcessControl_ErrorRecoveryScenarios(t *testing.T) {
 			CanTerminate: true,
 		}
 
-		pc := NewProcessControl(config, "panic-recovery-worker", logger)
+		pc := NewProcessControl(config, "panic-recovery-process", logger)
 		impl := pc.(*processControl)
 
 		impl.state = processcontrol.ProcessStateRunning
@@ -188,7 +188,7 @@ func TestProcessControl_ErrorRecoveryScenarios(t *testing.T) {
 			CanTerminate: true,
 		}
 
-		pc := NewProcessControl(config, "interference-worker", logger)
+		pc := NewProcessControl(config, "interference-process", logger)
 		impl := pc.(*processControl)
 
 		impl.state = processcontrol.ProcessStateRunning
@@ -231,7 +231,7 @@ func TestProcessControl_ResourceExhaustionHandling(t *testing.T) {
 
 		// Test with nil logger - should not panic
 		assert.NotPanics(t, func() {
-			pc := NewProcessControl(config, "nil-logger-worker", nil)
+			pc := NewProcessControl(config, "nil-logger-process", nil)
 			assert.NotNil(t, pc, "Should create ProcessControl even with nil logger")
 		}, "Should handle nil logger gracefully")
 	})
@@ -242,7 +242,7 @@ func TestProcessControl_ResourceExhaustionHandling(t *testing.T) {
 			// No ExecuteCmd or AttachCmd provided
 		}
 
-		pc := NewProcessControl(config, "no-commands-worker", logger)
+		pc := NewProcessControl(config, "no-commands-process", logger)
 		impl := pc.(*processControl)
 
 		ctx := context.Background()
@@ -263,7 +263,7 @@ func TestProcessControl_ResourceExhaustionHandling(t *testing.T) {
 			},
 		}
 
-		pc := NewProcessControl(config, "no-manager-worker", logger)
+		pc := NewProcessControl(config, "no-manager-process", logger)
 		impl := pc.(*processControl)
 
 		// Resource manager should be nil initially
@@ -285,7 +285,7 @@ func TestProcessControl_ResourceExhaustionHandling(t *testing.T) {
 			CanTerminate: true,
 		}
 
-		pc := NewProcessControl(config, "load-test-worker", logger)
+		pc := NewProcessControl(config, "load-test-process", logger)
 		impl := pc.(*processControl)
 
 		impl.state = processcontrol.ProcessStateRunning
@@ -327,7 +327,7 @@ func TestProcessControl_UnusualSystemConditions(t *testing.T) {
 			CanTerminate: true,
 		}
 
-		pc := NewProcessControl(config, "oscillation-worker", logger)
+		pc := NewProcessControl(config, "oscillation-process", logger)
 		impl := pc.(*processControl)
 
 		// Rapidly oscillate between different states
@@ -364,7 +364,7 @@ func TestProcessControl_UnusualSystemConditions(t *testing.T) {
 			},
 		}
 
-		pc := NewProcessControl(config, "timeout-worker", logger)
+		pc := NewProcessControl(config, "timeout-process", logger)
 		impl := pc.(*processControl)
 
 		// Test with very short timeout
@@ -381,7 +381,7 @@ func TestProcessControl_UnusualSystemConditions(t *testing.T) {
 			CanTerminate: true,
 		}
 
-		pc := NewProcessControl(config, "memory-pressure-worker", logger)
+		pc := NewProcessControl(config, "memory-pressure-process", logger)
 		impl := pc.(*processControl)
 
 		// Simulate memory pressure by creating many objects
@@ -412,13 +412,13 @@ func TestProcessControl_UnusualSystemConditions(t *testing.T) {
 			AllowedSignals: []os.Signal{}, // Empty signal list
 		}
 
-		pc := NewProcessControl(config, "signal-edge-worker", logger)
+		pc := NewProcessControl(config, "signal-edge-process", logger)
 		impl := pc.(*processControl)
 
 		assert.Equal(t, 0, len(impl.config.AllowedSignals), "Should preserve empty signal list")
 	})
 
-	t.Run("unicode_worker_id_handling", func(t *testing.T) {
+	t.Run("unicode_process_id_handling", func(t *testing.T) {
 		unicodeIDs := []string{
 			"测试工作者",      // Chinese
 			"العامل",     // Arabic
@@ -433,10 +433,10 @@ func TestProcessControl_UnusualSystemConditions(t *testing.T) {
 			}
 
 			pc := NewProcessControl(config, id, logger)
-			require.NotNil(t, pc, "Should handle unicode worker ID: %s", id)
+			require.NotNil(t, pc, "Should handle unicode process ID: %s", id)
 
 			impl := pc.(*processControl)
-			assert.Equal(t, id, impl.workerID, "Should preserve unicode worker ID: %s", id)
+			assert.Equal(t, id, impl.processID, "Should preserve unicode process ID: %s", id)
 		}
 	})
 }
@@ -449,7 +449,7 @@ func TestProcessControl_StateConsistencyEdgeCases(t *testing.T) {
 			CanTerminate: true,
 		}
 
-		pc := NewProcessControl(config, "atomicity-worker", logger)
+		pc := NewProcessControl(config, "atomicity-process", logger)
 		impl := pc.(*processControl)
 
 		impl.state = processcontrol.ProcessStateRunning
@@ -495,7 +495,7 @@ func TestProcessControl_StateConsistencyEdgeCases(t *testing.T) {
 			CanTerminate: true,
 		}
 
-		pc := NewProcessControl(config, "observation-worker", logger)
+		pc := NewProcessControl(config, "observation-process", logger)
 		impl := pc.(*processControl)
 
 		impl.state = processcontrol.ProcessStateRunning
@@ -547,7 +547,7 @@ func TestProcessControl_ExtremeConfigurationScenarios(t *testing.T) {
 			// All capabilities disabled
 		}
 
-		pc := NewProcessControl(config, "disabled-worker", logger)
+		pc := NewProcessControl(config, "disabled-process", logger)
 		require.NotNil(t, pc)
 
 		impl := pc.(*processControl)
@@ -563,7 +563,7 @@ func TestProcessControl_ExtremeConfigurationScenarios(t *testing.T) {
 			// This is potentially conflicting
 		}
 
-		pc := NewProcessControl(config, "conflicting-worker", logger)
+		pc := NewProcessControl(config, "conflicting-process", logger)
 		require.NotNil(t, pc)
 
 		impl := pc.(*processControl)
@@ -584,7 +584,7 @@ func TestProcessControl_ExtremeConfigurationScenarios(t *testing.T) {
 			},
 		}
 
-		pc := NewProcessControl(config, "extreme-restart-worker", logger)
+		pc := NewProcessControl(config, "extreme-restart-process", logger)
 		require.NotNil(t, pc)
 
 		impl := pc.(*processControl)

@@ -9,25 +9,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestValidateWorkerID(t *testing.T) {
+func TestValidateProcessID(t *testing.T) {
 	tests := []struct {
 		name      string
 		id        string
 		shouldErr bool
 		errorType errors.ErrorType
 	}{
-		{"valid_simple", "worker-1", false, ""},
-		{"valid_with_underscore", "worker_1", false, ""},
-		{"valid_alphanumeric", "worker123", false, ""},
+		{"valid_simple", "process-1", false, ""},
+		{"valid_with_underscore", "process_1", false, ""},
+		{"valid_alphanumeric", "process123", false, ""},
 		{"empty_id", "", true, errors.ErrorTypeValidation},
 		{"too_long", "a" + string(make([]byte, 65)), true, errors.ErrorTypeValidation},
-		{"invalid_chars", "worker@1", true, errors.ErrorTypeValidation},
-		{"invalid_space", "worker 1", true, errors.ErrorTypeValidation},
+		{"invalid_chars", "process@1", true, errors.ErrorTypeValidation},
+		{"invalid_space", "process 1", true, errors.ErrorTypeValidation},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateWorkerID(tt.id)
+			err := ValidateProcessID(tt.id)
 
 			if tt.shouldErr {
 				assert.Error(t, err)

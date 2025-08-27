@@ -13,17 +13,17 @@ import (
 
 type gatewayFactory struct {
 	factoryInfoReader modules.GatewayFactoryInfoReader
-	workerLifecycle   processmanager.ProcessLifecycle
+	processLifecycle  processmanager.ProcessLifecycle
 	logger            logging.Logger
 }
 
-func NewGatewayFactory(factoryInfoReader modules.GatewayFactoryInfoReader, workerLifecycle processmanager.ProcessLifecycle, logger logging.Logger) modules.GatewayFactory {
+func NewGatewayFactory(factoryInfoReader modules.GatewayFactoryInfoReader, processLifecycle processmanager.ProcessLifecycle, logger logging.Logger) modules.GatewayFactory {
 	gf := &gatewayFactory{
 		factoryInfoReader: factoryInfoReader,
-		workerLifecycle:   workerLifecycle,
+		processLifecycle:  processLifecycle,
 		logger:            logger,
 	}
-	logger.Infof("Gateway factory created (has worker lifecycle: %t)", workerLifecycle != nil)
+	logger.Infof("Gateway factory created (has process lifecycle: %t)", processLifecycle != nil)
 	return gf
 }
 
@@ -63,8 +63,8 @@ func (gf *gatewayFactory) NewGateway(ctx context.Context, moduleID, endpointID s
 }
 
 func (gf *gatewayFactory) safeNewGRPCGateway(ctx context.Context, moduleID string, gatewayConfig *modules.GRPCGatewayFactory) (interface{}, error) {
-	if gf.workerLifecycle == nil {
-		return nil, errors.NewInternalError("worker lifecycle is not configured for gRPC gateway creation", nil).
+	if gf.processLifecycle == nil {
+		return nil, errors.NewInternalError("process lifecycle is not configured for gRPC gateway creation", nil).
 			WithContext("module_id", moduleID)
 	}
 
@@ -78,22 +78,22 @@ func (gf *gatewayFactory) safeNewGRPCGateway(ctx context.Context, moduleID strin
 			WithContext("module_id", moduleID)
 	}
 
-	// Get worker context to determine server address
-	workerContext, err := gf.workerLifecycle.GetWorkerContext(moduleID)
+	// Get process context to determine server address
+	processContext, err := gf.processLifecycle.GetProcessContext(moduleID)
 	if err != nil {
-		return nil, errors.NewProcessError("failed to get worker context", err).
+		return nil, errors.NewProcessError("failed to get process context", err).
 			WithContext("module_id", moduleID)
 	}
 
 	var address string
-	if workerContext != nil {
-		address = workerContext["server_address"]
+	if processContext != nil {
+		address = processContext["server_address"]
 	}
 
 	if address == "" {
-		return nil, errors.NewProcessError("server address not available in worker context", nil).
+		return nil, errors.NewProcessError("server address not available in process context", nil).
 			WithContext("module_id", moduleID).
-			WithContext("worker_context_nil", workerContext == nil)
+			WithContext("process_context_nil", processContext == nil)
 	}
 
 	gf.logger.Debugf("Connecting to gRPC server for module %s at address: %s", moduleID, address)

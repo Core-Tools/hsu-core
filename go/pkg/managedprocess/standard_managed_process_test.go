@@ -21,31 +21,31 @@ import (
 )
 
 // MockLogger for testing
-type MockManagedLogger struct {
+type mockLogger struct {
 	mock.Mock
 }
 
-func (m *MockManagedLogger) LogLevelf(level int, format string, args ...interface{}) {
+func (m *mockLogger) LogLevelf(level int, format string, args ...interface{}) {
 	m.Called(format, args)
 }
 
-func (m *MockManagedLogger) Debugf(format string, args ...interface{}) {
+func (m *mockLogger) Debugf(format string, args ...interface{}) {
 	m.Called(format, args)
 }
 
-func (m *MockManagedLogger) Infof(format string, args ...interface{}) {
+func (m *mockLogger) Infof(format string, args ...interface{}) {
 	m.Called(format, args)
 }
 
-func (m *MockManagedLogger) Warnf(format string, args ...interface{}) {
+func (m *mockLogger) Warnf(format string, args ...interface{}) {
 	m.Called(format, args)
 }
 
-func (m *MockManagedLogger) Errorf(format string, args ...interface{}) {
+func (m *mockLogger) Errorf(format string, args ...interface{}) {
 	m.Called(format, args)
 }
 
-func createTestManagedUnit() *ManagedUnit {
+func createTestManagedUnit() *StandardManagedProcessConfig {
 	var executablePath string
 	var args []string
 	var workingDirectory string
@@ -61,7 +61,7 @@ func createTestManagedUnit() *ManagedUnit {
 		workingDirectory = "/tmp"
 	}
 
-	return &ManagedUnit{
+	return &StandardManagedProcessConfig{
 		Metadata: ProcessMetadata{
 			Name:        "test-managed-unit",
 			Description: "Test managed unit",
@@ -105,54 +105,54 @@ func createTestManagedUnit() *ManagedUnit {
 	}
 }
 
-func TestNewManagedWorker(t *testing.T) {
-	logger := &MockManagedLogger{}
+func TestNewStandardManagedProcess(t *testing.T) {
+	logger := &mockLogger{}
 	unit := createTestManagedUnit()
 
-	worker := NewStandardManagedProcessDescription("test-managed-1", unit, logger)
+	process := NewStandardManagedProcessDescription("test-managed-1", unit, logger)
 
-	assert.NotNil(t, worker)
-	assert.Equal(t, "test-managed-1", worker.ID())
+	assert.NotNil(t, process)
+	assert.Equal(t, "test-managed-1", process.ID())
 }
 
-func TestManagedWorker_ID(t *testing.T) {
-	logger := &MockManagedLogger{}
+func TestStandardManagedProcess_ID(t *testing.T) {
+	logger := &mockLogger{}
 	unit := createTestManagedUnit()
 
-	worker := NewStandardManagedProcessDescription("test-managed-2", unit, logger)
+	process := NewStandardManagedProcessDescription("test-managed-2", unit, logger)
 
-	assert.Equal(t, "test-managed-2", worker.ID())
+	assert.Equal(t, "test-managed-2", process.ID())
 }
 
-func TestManagedWorker_Metadata(t *testing.T) {
-	logger := &MockManagedLogger{}
+func TestStandardManagedProcess_Metadata(t *testing.T) {
+	logger := &mockLogger{}
 	unit := createTestManagedUnit()
 
-	worker := NewStandardManagedProcessDescription("test-managed-3", unit, logger)
+	process := NewStandardManagedProcessDescription("test-managed-3", unit, logger)
 
-	metadata := worker.Metadata()
+	metadata := process.Metadata()
 	assert.Equal(t, "test-managed-unit", metadata.Name)
 	assert.Equal(t, "Test managed unit", metadata.Description)
 }
 
-func TestManagedWorker_ProcessControlOptions(t *testing.T) {
-	logger := &MockManagedLogger{}
+func TestStandardManagedProcess_ProcessControlOptions(t *testing.T) {
+	logger := &mockLogger{}
 	unit := createTestManagedUnit()
 
-	worker := NewStandardManagedProcessDescription("test-managed-4", unit, logger)
+	process := NewStandardManagedProcessDescription("test-managed-4", unit, logger)
 
-	options := worker.ProcessControlOptions()
+	options := process.ProcessControlOptions()
 
 	// Test basic capabilities
-	assert.True(t, options.CanAttach, "ManagedWorker should support attachment")
-	assert.True(t, options.CanTerminate, "ManagedWorker should support termination")
-	assert.True(t, options.CanRestart, "ManagedWorker should support restart")
+	assert.True(t, options.CanAttach, "StandardManagedProcess should support attachment")
+	assert.True(t, options.CanTerminate, "StandardManagedProcess should support termination")
+	assert.True(t, options.CanRestart, "StandardManagedProcess should support restart")
 
 	// Test ExecuteCmd is present
-	assert.NotNil(t, options.ExecuteCmd, "ManagedWorker should provide ExecuteCmd")
+	assert.NotNil(t, options.ExecuteCmd, "StandardManagedProcess should provide ExecuteCmd")
 
 	// Test AttachCmd is present
-	assert.NotNil(t, options.AttachCmd, "ManagedWorker should provide AttachCmd")
+	assert.NotNil(t, options.AttachCmd, "StandardManagedProcess should provide AttachCmd")
 
 	// Test restart configuration
 	require.NotNil(t, options.ContextAwareRestart)
@@ -173,28 +173,28 @@ func TestManagedWorker_ProcessControlOptions(t *testing.T) {
 	assert.Equal(t, 30*time.Second, options.GracefulTimeout)
 
 	// Test health check is provided by ExecuteCmd or AttachCmd
-	assert.Nil(t, options.HealthCheck, "ManagedWorker should provide health check via ExecuteCmd or AttachCmd")
+	assert.Nil(t, options.HealthCheck, "StandardManagedProcess should provide health check via ExecuteCmd or AttachCmd")
 }
 
-func TestManagedWorker_ExecuteCmd_NilContext(t *testing.T) {
-	logger := &MockManagedLogger{}
+func TestStandardManagedProcess_ExecuteCmd_NilContext(t *testing.T) {
+	logger := &mockLogger{}
 	logger.On("Infof", mock.Anything, mock.Anything).Maybe()
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	logger.On("Errorf", mock.Anything, mock.Anything).Maybe()
 
 	unit := createTestManagedUnit()
 
-	worker := NewStandardManagedProcessDescription("test-managed-6", unit, logger).(*standardManagedProcessDescription)
+	process := NewStandardManagedProcessDescription("test-managed-6", unit, logger).(*standardManagedProcessDescription)
 
-	cmdResult, err := worker.ExecuteCmd(nil)
+	cmdResult, err := process.ExecuteCmd(nil)
 
 	assert.Nil(t, cmdResult)
 	assert.Error(t, err)
 	assert.True(t, errors.IsValidationError(err.(*errors.DomainError).Unwrap()))
 }
 
-func TestManagedWorker_ExecuteCmd_ValidContext(t *testing.T) {
-	logger := &MockManagedLogger{}
+func TestStandardManagedProcess_ExecuteCmd_ValidContext(t *testing.T) {
+	logger := &mockLogger{}
 	logger.On("Infof", mock.Anything, mock.Anything).Maybe()
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	logger.On("Errorf", mock.Anything, mock.Anything).Maybe()
@@ -202,10 +202,10 @@ func TestManagedWorker_ExecuteCmd_ValidContext(t *testing.T) {
 	// Create a unit with platform-appropriate executable (handled by createTestManagedUnit)
 	unit := createTestManagedUnit()
 
-	worker := NewStandardManagedProcessDescription("test-managed-7", unit, logger).(*standardManagedProcessDescription)
+	process := NewStandardManagedProcessDescription("test-managed-7", unit, logger).(*standardManagedProcessDescription)
 
 	ctx := context.Background()
-	cmdResult, err := worker.ExecuteCmd(ctx)
+	cmdResult, err := process.ExecuteCmd(ctx)
 
 	// Note: This test might fail if the executable doesn't exist or isn't executable
 	// But the structure should be correct
@@ -229,7 +229,7 @@ func TestManagedWorker_ExecuteCmd_ValidContext(t *testing.T) {
 	logger.AssertExpectations(t)
 }
 
-func TestManagedWorker_ExecuteCmd_PIDFileWriting(t *testing.T) {
+func TestStandardManagedProcess_ExecuteCmd_PIDFileWriting(t *testing.T) {
 	// Create a temporary directory for PID files
 	tempDir := t.TempDir()
 
@@ -256,7 +256,7 @@ func TestManagedWorker_ExecuteCmd_PIDFileWriting(t *testing.T) {
 	}
 
 	// Create test unit with PID file configuration
-	unit := &ManagedUnit{
+	unit := &StandardManagedProcessConfig{
 		Metadata: ProcessMetadata{
 			Name:        "Test managed process",
 			Description: "Test managed process for PID file testing",
@@ -301,66 +301,62 @@ func TestManagedWorker_ExecuteCmd_PIDFileWriting(t *testing.T) {
 		},
 	}
 
-	// Create worker
-	logger := &MockManagedLogger{}
+	// Create process
+	logger := &mockLogger{}
 	logger.On("Infof", mock.Anything, mock.Anything).Maybe()
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	logger.On("Errorf", mock.Anything, mock.Anything).Maybe()
 
-	worker := NewStandardManagedProcessDescription("test-worker", unit, logger).(*standardManagedProcessDescription)
+	process := NewStandardManagedProcessDescription("test-process", unit, logger).(*standardManagedProcessDescription)
 
 	// Execute command
 	ctx := context.Background()
-	cmdResult, err := worker.ExecuteCmd(ctx)
+	cmdResult, err := process.ExecuteCmd(ctx)
 
 	// Verify command execution
 	assert.NoError(t, err)
 	require.NotNil(t, cmdResult)
 
-	process := cmdResult.Process
-	stdout := cmdResult.Stdout
-	healthCheck := cmdResult.HealthCheckConfig
-
-	assert.NotNil(t, process)
-	assert.NotNil(t, stdout)
-	assert.NotNil(t, healthCheck)
+	assert.NotNil(t, cmdResult.Process)
+	assert.NotNil(t, cmdResult.Stdout)
+	assert.NotNil(t, cmdResult.HealthCheckConfig)
 
 	// Verify PID file was created
-	pidFilePath := worker.pidManager.GeneratePIDFilePath("test-worker")
+	pidFilePath := process.pidManager.GeneratePIDFilePath("test-process")
 	assert.FileExists(t, pidFilePath)
 
 	// Verify PID file content
 	content, err := os.ReadFile(pidFilePath)
 	assert.NoError(t, err)
-	expectedContent := fmt.Sprintf("%d\n", process.Pid)
+	expectedContent := fmt.Sprintf("%d\n", cmdResult.Process.Pid)
 	assert.Equal(t, expectedContent, string(content))
 
 	// Clean up
-	process.Kill()
-	stdout.Close()
+	cmdResult.Process.Kill()
+	cmdResult.Stdout.Close()
 }
 
-func TestManagedWorker_IntegrationWithProcessControlOptions(t *testing.T) {
-	logger := &MockManagedLogger{}
+func TestStandardManagedProcess_IntegrationWithProcessControlOptions(t *testing.T) {
+	logger := &mockLogger{}
 	unit := createTestManagedUnit()
 
-	worker := NewStandardManagedProcessDescription("test-managed-8", unit, logger)
+	process := NewStandardManagedProcessDescription("test-managed-8", unit, logger)
 
-	options := worker.ProcessControlOptions()
+	options := process.ProcessControlOptions()
 
 	// Test that options pass validation
 	err := ValidateProcessControlOptions(options)
-	assert.NoError(t, err, "ManagedWorker options should pass validation")
+	assert.NoError(t, err, "StandardManagedProcess options should pass validation")
 }
 
-func TestManagedWorker_MultipleInstances(t *testing.T) {
-	logger := &MockManagedLogger{}
+func TestStandardManagedProcess_MultipleInstances(t *testing.T) {
+	logger := &mockLogger{}
 	unit := createTestManagedUnit()
 
-	worker1 := NewStandardManagedProcessDescription("worker-1", unit, logger)
-	worker2 := NewStandardManagedProcessDescription("worker-2", unit, logger)
+	process1 := NewStandardManagedProcessDescription("process-1", unit, logger)
+	process2 := NewStandardManagedProcessDescription("process-2", unit, logger)
 
 	// Test independence
-	assert.NotEqual(t, worker1.ID(), worker2.ID())
-	assert.Equal(t, worker1.Metadata(), worker2.Metadata()) // Same unit, same metadata
+	assert.NotEqual(t, process1.ID(), process2.ID())
+	assert.Equal(t, process1.Metadata(), process2.Metadata()) // Same unit, same metadata
 }

@@ -22,10 +22,10 @@ func TestDomainError_Creation(t *testing.T) {
 func TestDomainError_WithContext(t *testing.T) {
 	err := NewProcessError("test error", nil)
 
-	err = err.WithContext("worker_id", "test-worker")
+	err = err.WithContext("process_id", "test-process")
 	err = err.WithContext("pid", 12345)
 
-	assert.Equal(t, "test-worker", err.Context["worker_id"])
+	assert.Equal(t, "test-process", err.Context["process_id"])
 	assert.Equal(t, 12345, err.Context["pid"])
 }
 

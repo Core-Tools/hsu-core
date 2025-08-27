@@ -65,9 +65,9 @@ func NewLogCollectionIntegration(logConfig *config.LogCollectionConfig, logger l
 	// Log configuration summary for debugging
 	logger.Infof("Log collection config summary:")
 	logger.Infof("  - Global aggregation enabled: %t", logConfig.GlobalAggregation.Enabled)
-	logger.Infof("  - Default worker capture stdout: %t", logConfig.DefaultWorker.CaptureStdout)
-	logger.Infof("  - Default worker capture stderr: %t", logConfig.DefaultWorker.CaptureStderr)
-	logger.Infof("  - Managed process directory template: %s", logConfig.System.WorkerDirectory)
+	logger.Infof("  - Default process capture stdout: %t", logConfig.Default.CaptureStdout)
+	logger.Infof("  - Default process capture stderr: %t", logConfig.Default.CaptureStderr)
+	logger.Infof("  - Managed process directory template: %s", logConfig.System.ProcessDirectory)
 	if len(logConfig.GlobalAggregation.Targets) > 0 {
 		logger.Infof("  - Global aggregation targets: %d configured", len(logConfig.GlobalAggregation.Targets))
 		for i, target := range logConfig.GlobalAggregation.Targets {
@@ -117,18 +117,18 @@ func (l *LogCollectionIntegration) GetLogCollectionService() logcollection.LogCo
 	return l.service
 }
 
-// GetWorkerLogConfig returns the appropriate log configuration for a worker
-func (l *LogCollectionIntegration) GetWorkerLogConfig(workerID string, workerConfig WorkerConfig) *config.WorkerLogConfig {
+// GetProcessLogConfig returns the appropriate log configuration for a process
+func (l *LogCollectionIntegration) GetProcessLogConfig(processID string, processConfig ProcessConfig) *config.ProcessLogConfig {
 	if !l.enabled {
 		return nil
 	}
 
-	// Check if worker has specific log collection configuration
-	// For now, we'll look for this in the worker config structure
-	// TODO: Add worker-specific log config parsing when needed
+	// Check if process has specific log collection configuration
+	// For now, we'll look for this in the process config structure
+	// TODO: Add process-specific log config parsing when needed
 
-	// Use default worker log configuration
-	defaultConfig := config.DefaultWorkerLogConfig()
+	// Use default process log configuration
+	defaultConfig := config.DefaultProcessLogConfig()
 	return &defaultConfig
 }
 

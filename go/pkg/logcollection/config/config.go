@@ -12,7 +12,7 @@ type LogCollectionConfig struct {
 	Enabled           bool                    `yaml:"enabled"`
 	GlobalAggregation GlobalAggregationConfig `yaml:"global_aggregation"`
 	Enhancement       EnhancementConfig       `yaml:"enhancement"`
-	DefaultWorker     WorkerLogConfig         `yaml:"default_worker"`
+	Default           ProcessLogConfig        `yaml:"default"`
 	System            SystemConfig            `yaml:"system"`
 }
 
@@ -22,10 +22,10 @@ type GlobalAggregationConfig struct {
 	Targets []OutputTargetConfig `yaml:"targets"`
 }
 
-// ===== WORKER CONFIGURATION =====
+// ===== PROCESS CONFIGURATION =====
 
-// WorkerLogConfig defines log collection settings for individual managed processes
-type WorkerLogConfig struct {
+// ProcessLogConfig defines log collection settings for individual managed processes
+type ProcessLogConfig struct {
 	Enabled       bool             `yaml:"enabled"`
 	CaptureStdout bool             `yaml:"capture_stdout"`
 	CaptureStderr bool             `yaml:"capture_stderr"`
@@ -125,7 +125,7 @@ type MetadataConfig struct {
 	AddHostname         bool `yaml:"add_hostname"`
 	AddTimestamp        bool `yaml:"add_timestamp"`
 	AddSequence         bool `yaml:"add_sequence"`    // Sequential log numbering
-	AddLineNumber       bool `yaml:"add_line_number"` // Line number within worker stream
+	AddLineNumber       bool `yaml:"add_line_number"` // Line number within stream
 }
 
 // EnricherConfig defines log enrichment rules
@@ -139,7 +139,7 @@ type EnricherConfig struct {
 
 // SystemConfig defines system-level log collection settings
 type SystemConfig struct {
-	WorkerDirectory     string        `yaml:"worker_directory"`      // Base directory for worker log files
+	ProcessDirectory    string        `yaml:"process_directory"`     // Base directory for process log files
 	BufferSize          string        `yaml:"buffer_size"`           // Global buffer size
 	FlushInterval       time.Duration `yaml:"flush_interval"`        // Global flush interval
 	MaxManagedProcesses int           `yaml:"max_managed_processes"` // Maximum concurrent managed processes
@@ -196,9 +196,9 @@ func (c *LogCollectionConfig) Validate() error {
 		}
 	}
 
-	// Validate default worker config
-	if err := c.DefaultWorker.Validate(); err != nil {
-		return fmt.Errorf("default worker config: %w", err)
+	// Validate default process config
+	if err := c.Default.Validate(); err != nil {
+		return fmt.Errorf("default process config: %w", err)
 	}
 
 	// Validate system config
@@ -209,8 +209,8 @@ func (c *LogCollectionConfig) Validate() error {
 	return nil
 }
 
-// Validate checks if the worker configuration is valid
-func (w *WorkerLogConfig) Validate() error {
+// Validate checks if the process configuration is valid
+func (w *ProcessLogConfig) Validate() error {
 	if !w.Enabled {
 		return nil
 	}
@@ -293,9 +293,9 @@ func DefaultLogCollectionConfig() LogCollectionConfig {
 				AddLineNumber:       true,
 			},
 		},
-		DefaultWorker: DefaultWorkerLogConfig(),
+		Default: DefaultProcessLogConfig(),
 		System: SystemConfig{
-			WorkerDirectory:     "managed_processes", // Relative template - will be resolved at runtime
+			ProcessDirectory:    "managed_processes", // Relative template - will be resolved at runtime
 			BufferSize:          "1MB",
 			FlushInterval:       5 * time.Second,
 			MaxManagedProcesses: 100,
@@ -307,9 +307,9 @@ func DefaultLogCollectionConfig() LogCollectionConfig {
 	}
 }
 
-// DefaultWorkerLogConfig returns a sensible default worker configuration
-func DefaultWorkerLogConfig() WorkerLogConfig {
-	return WorkerLogConfig{
+// DefaultProcessLogConfig returns a sensible default process configuration
+func DefaultProcessLogConfig() ProcessLogConfig {
+	return ProcessLogConfig{
 		Enabled:       true,
 		CaptureStdout: true,
 		CaptureStderr: true,
@@ -330,7 +330,7 @@ func DefaultWorkerLogConfig() WorkerLogConfig {
 				Stdout: []OutputTargetConfig{
 					{
 						Type:   "file",
-						Path:   "{worker_id}-stdout.log", // Relative template - will be resolved at runtime
+						Path:   "{process_id}-stdout.log", // Relative template - will be resolved at runtime
 						Format: "enhanced_plain",
 						Rotation: RotationConfig{
 							MaxSize:  "100MB",
@@ -342,7 +342,7 @@ func DefaultWorkerLogConfig() WorkerLogConfig {
 				Stderr: []OutputTargetConfig{
 					{
 						Type:   "file",
-						Path:   "{worker_id}-stderr.log", // Relative template - will be resolved at runtime
+						Path:   "{process_id}-stderr.log", // Relative template - will be resolved at runtime
 						Format: "enhanced_plain",
 						Rotation: RotationConfig{
 							MaxSize:  "100MB",

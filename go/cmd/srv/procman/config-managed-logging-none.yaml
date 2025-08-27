@@ -3,10 +3,10 @@ process_manager:
 
 managed_processes:
   - id: "test-managed-1"
-    type: "managed"
+    type: "standard_managed"
     profile_type: "web"
     unit:
-      managed:
+      standard_managed:
         metadata:
           name: "Echo gRPC server as managed unit"
         control:
@@ -28,10 +28,10 @@ managed_processes:
             initial_delay: "2s"
             retries: 2
   - id: "test-managed-2"
-    type: "managed"
+    type: "standard_managed"
     profile_type: "web"
     unit:
-      managed:
+      standard_managed:
         metadata:
           name: "Echo gRPC server as managed unit"
         control:

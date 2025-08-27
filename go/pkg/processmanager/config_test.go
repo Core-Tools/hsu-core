@@ -70,10 +70,10 @@ process_manager:
 
 managed_processes:
   - id: "test-managed"
-    type: "managed"
+    type: "standard_managed"
     enabled: true
     unit:
-      managed:
+      standard_managed:
         metadata:
           name: "Test Managed Service"
           description: "A test managed service"
@@ -99,9 +99,9 @@ managed_processes:
             timeout: "5s"
 
   - id: "test-integrated"
-    type: "integrated"
+    type: "integrated_managed"
     unit:
-      integrated:
+      integrated_managed:
         metadata:
           name: "Test Integrated Service"
         control:
@@ -123,23 +123,23 @@ managed_processes:
 				assert.Equal(t, "info", config.ProcessManager.LogLevel)
 				assert.Len(t, config.ManagedProcesses, 2)
 
-				// Check managed worker
+				// Check standard managed process
 				managed := config.ManagedProcesses[0]
 				assert.Equal(t, "test-managed", managed.ID)
-				assert.Equal(t, WorkerManagementTypeManaged, managed.Type)
+				assert.Equal(t, ProcessManagementTypeStandard, managed.Type)
 				assert.True(t, *managed.Enabled)
-				assert.NotNil(t, managed.Unit.Managed)
-				assert.Equal(t, "Test Managed Service", managed.Unit.Managed.Metadata.Name)
-				assert.Equal(t, executablePath, managed.Unit.Managed.Control.Execution.ExecutablePath)
-				assert.Equal(t, args, managed.Unit.Managed.Control.Execution.Args)
-				assert.Equal(t, processcontrol.RestartAlways, managed.Unit.Managed.Control.RestartPolicy)
+				assert.NotNil(t, managed.Unit.StandardManaged)
+				assert.Equal(t, "Test Managed Service", managed.Unit.StandardManaged.Metadata.Name)
+				assert.Equal(t, executablePath, managed.Unit.StandardManaged.Control.Execution.ExecutablePath)
+				assert.Equal(t, args, managed.Unit.StandardManaged.Control.Execution.Args)
+				assert.Equal(t, processcontrol.RestartAlways, managed.Unit.StandardManaged.Control.RestartPolicy)
 
-				// Check integrated worker
+				// Check integrated managed process
 				integrated := config.ManagedProcesses[1]
 				assert.Equal(t, "test-integrated", integrated.ID)
-				assert.Equal(t, WorkerManagementTypeIntegrated, integrated.Type)
+				assert.Equal(t, ProcessManagementTypeIntegrated, integrated.Type)
 				assert.True(t, *integrated.Enabled) // Should default to true
-				assert.NotNil(t, integrated.Unit.Integrated)
+				assert.NotNil(t, integrated.Unit.IntegratedManaged)
 			},
 		},
 		{
@@ -149,10 +149,10 @@ process_manager:
   port: 50055
 
 managed_processes:
-  - id: "simple-worker"
-    type: "managed"
+  - id: "simple-process"
+    type: "standard_managed"
     unit:
-      managed:
+      standard_managed:
         metadata:
           name: "Simple Managed Process"
         control:
@@ -167,9 +167,9 @@ managed_processes:
 				assert.Equal(t, "info", config.ProcessManager.LogLevel) // Should use default
 				assert.Len(t, config.ManagedProcesses, 1)
 
-				worker := config.ManagedProcesses[0]
-				assert.Equal(t, "simple-worker", worker.ID)
-				assert.True(t, *worker.Enabled) // Should default to true
+				process := config.ManagedProcesses[0]
+				assert.Equal(t, "simple-process", process.ID)
+				assert.True(t, *process.Enabled) // Should default to true
 			},
 		},
 		{
@@ -240,13 +240,13 @@ func TestValidateConfig(t *testing.T) {
 					Port:     50055,
 					LogLevel: "info",
 				},
-				ManagedProcesses: []WorkerConfig{
+				ManagedProcesses: []ProcessConfig{
 					{
-						ID:      "test-worker",
-						Type:    WorkerManagementTypeManaged,
+						ID:      "test-process",
+						Type:    ProcessManagementTypeStandard,
 						Enabled: func() *bool { b := true; return &b }(),
-						Unit: WorkerUnitConfig{
-							Managed: &managedprocess.ManagedUnit{
+						Unit: ProcessUnitConfig{
+							StandardManaged: &managedprocess.StandardManagedProcessConfig{
 								Metadata: managedprocess.ProcessMetadata{
 									Name: "Test Managed Process",
 								},
@@ -280,12 +280,12 @@ func TestValidateConfig(t *testing.T) {
 				ProcessManager: ProcessManagerConfigOptions{
 					Port: -1, // Invalid port
 				},
-				ManagedProcesses: []WorkerConfig{
+				ManagedProcesses: []ProcessConfig{
 					{
-						ID:   "test-worker",
-						Type: WorkerManagementTypeManaged,
-						Unit: WorkerUnitConfig{
-							Managed: &managedprocess.ManagedUnit{
+						ID:   "test-process",
+						Type: ProcessManagementTypeStandard,
+						Unit: ProcessUnitConfig{
+							StandardManaged: &managedprocess.StandardManagedProcessConfig{
 								Metadata: managedprocess.ProcessMetadata{Name: "Test"},
 								Control: processcontrol.ManagedProcessControlConfig{
 									Execution: process.ExecutionConfig{ExecutablePath: executablePath},
@@ -319,19 +319,19 @@ func TestValidateConfig(t *testing.T) {
 	}
 }
 
-func TestCreateWorkersFromConfig(t *testing.T) {
+func TestCreateProcessessFromConfig(t *testing.T) {
 	executablePath, _, _ := getTestExecutable()
 	testLogger := &TestLogger{}
 
 	config := &ProcessManagerConfig{
 		ProcessManager: ProcessManagerConfigOptions{Port: 50055},
-		ManagedProcesses: []WorkerConfig{
+		ManagedProcesses: []ProcessConfig{
 			{
-				ID:      "managed-worker",
-				Type:    WorkerManagementTypeManaged,
+				ID:      "managed-process",
+				Type:    ProcessManagementTypeStandard,
 				Enabled: func() *bool { b := true; return &b }(),
-				Unit: WorkerUnitConfig{
-					Managed: &managedprocess.ManagedUnit{
+				Unit: ProcessUnitConfig{
+					StandardManaged: &managedprocess.StandardManagedProcessConfig{
 						Metadata: managedprocess.ProcessMetadata{Name: "Managed Test"},
 						Control: processcontrol.ManagedProcessControlConfig{
 							Execution: process.ExecutionConfig{ExecutablePath: executablePath},
@@ -347,11 +347,11 @@ func TestCreateWorkersFromConfig(t *testing.T) {
 				},
 			},
 			{
-				ID:      "disabled-worker",
-				Type:    WorkerManagementTypeManaged,
+				ID:      "disabled-process",
+				Type:    ProcessManagementTypeStandard,
 				Enabled: func() *bool { b := false; return &b }(), // Disabled
-				Unit: WorkerUnitConfig{
-					Managed: &managedprocess.ManagedUnit{
+				Unit: ProcessUnitConfig{
+					StandardManaged: &managedprocess.StandardManagedProcessConfig{
 						Metadata: managedprocess.ProcessMetadata{Name: "Disabled Test"},
 						Control: processcontrol.ManagedProcessControlConfig{
 							Execution: process.ExecutionConfig{ExecutablePath: executablePath},
@@ -369,13 +369,13 @@ func TestCreateWorkersFromConfig(t *testing.T) {
 		},
 	}
 
-	workers, err := CreateWorkersFromConfig(config, testLogger)
+	processes, err := CreateProcessesFromConfig(config, testLogger)
 
 	assert.NoError(t, err)
-	assert.Len(t, workers, 1) // Should skip disabled worker
+	assert.Len(t, processes, 1) // Should skip disabled process
 
-	// Check worker ID
-	assert.Equal(t, "managed-worker", workers[0].ID())
+	// Check process ID
+	assert.Equal(t, "managed-process", processes[0].ID())
 }
 
 func TestConfigDefaults(t *testing.T) {
@@ -385,13 +385,13 @@ func TestConfigDefaults(t *testing.T) {
 		ProcessManager: ProcessManagerConfigOptions{
 			// Port not set - should get default
 		},
-		ManagedProcesses: []WorkerConfig{
+		ManagedProcesses: []ProcessConfig{
 			{
-				ID:   "test-worker",
-				Type: WorkerManagementTypeManaged,
+				ID:   "test-process",
+				Type: ProcessManagementTypeStandard,
 				// Enabled not set - should default to true
-				Unit: WorkerUnitConfig{
-					Managed: &managedprocess.ManagedUnit{
+				Unit: ProcessUnitConfig{
+					StandardManaged: &managedprocess.StandardManagedProcessConfig{
 						Metadata: managedprocess.ProcessMetadata{Name: "Test"},
 						Control: processcontrol.ManagedProcessControlConfig{
 							Execution: process.ExecutionConfig{
@@ -418,14 +418,14 @@ func TestConfigDefaults(t *testing.T) {
 	assert.Equal(t, 50055, config.ProcessManager.Port)
 	assert.Equal(t, "info", config.ProcessManager.LogLevel)
 
-	// Check worker defaults
-	worker := config.ManagedProcesses[0]
-	assert.True(t, *worker.Enabled) // Now checking pointer
-	assert.Equal(t, 10*time.Second, worker.Unit.Managed.Control.Execution.WaitDelay)
-	assert.Equal(t, processcontrol.RestartOnFailure, worker.Unit.Managed.Control.RestartPolicy)
-	assert.Equal(t, 3, worker.Unit.Managed.Control.ContextAwareRestart.Default.MaxRetries)
-	assert.Equal(t, 5*time.Second, worker.Unit.Managed.Control.ContextAwareRestart.Default.RetryDelay)
-	assert.Equal(t, 1.5, worker.Unit.Managed.Control.ContextAwareRestart.Default.BackoffRate)
+	// Check process defaults
+	process := config.ManagedProcesses[0]
+	assert.True(t, *process.Enabled) // Now checking pointer
+	assert.Equal(t, 10*time.Second, process.Unit.StandardManaged.Control.Execution.WaitDelay)
+	assert.Equal(t, processcontrol.RestartOnFailure, process.Unit.StandardManaged.Control.RestartPolicy)
+	assert.Equal(t, 3, process.Unit.StandardManaged.Control.ContextAwareRestart.Default.MaxRetries)
+	assert.Equal(t, 5*time.Second, process.Unit.StandardManaged.Control.ContextAwareRestart.Default.RetryDelay)
+	assert.Equal(t, 1.5, process.Unit.StandardManaged.Control.ContextAwareRestart.Default.BackoffRate)
 }
 
 func TestGetConfigSummary(t *testing.T) {
@@ -436,13 +436,13 @@ func TestGetConfigSummary(t *testing.T) {
 			Port:     50055,
 			LogLevel: "debug",
 		},
-		ManagedProcesses: []WorkerConfig{
+		ManagedProcesses: []ProcessConfig{
 			{
 				ID:      "web-service",
-				Type:    WorkerManagementTypeManaged,
+				Type:    ProcessManagementTypeStandard,
 				Enabled: func() *bool { b := true; return &b }(),
-				Unit: WorkerUnitConfig{
-					Managed: &managedprocess.ManagedUnit{
+				Unit: ProcessUnitConfig{
+					StandardManaged: &managedprocess.StandardManagedProcessConfig{
 						Metadata: managedprocess.ProcessMetadata{Name: "Web Service"},
 						Control: processcontrol.ManagedProcessControlConfig{
 							Execution:     process.ExecutionConfig{ExecutablePath: executablePath},
@@ -456,10 +456,10 @@ func TestGetConfigSummary(t *testing.T) {
 			},
 			{
 				ID:      "db-monitor",
-				Type:    WorkerManagementTypeUnmanaged,
+				Type:    ProcessManagementTypeUnmanaged,
 				Enabled: func() *bool { b := false; return &b }(),
-				Unit: WorkerUnitConfig{
-					Unmanaged: &managedprocess.UnmanagedUnit{
+				Unit: ProcessUnitConfig{
+					Unmanaged: &managedprocess.UnmanagedProcessConfig{
 						Metadata:    managedprocess.ProcessMetadata{Name: "DB Monitor"},
 						Discovery:   process.DiscoveryConfig{Method: process.DiscoveryMethodPIDFile},
 						HealthCheck: monitoring.HealthCheckConfig{Type: monitoring.HealthCheckTypeTCP},
@@ -473,25 +473,25 @@ func TestGetConfigSummary(t *testing.T) {
 
 	assert.Equal(t, 50055, summary.ProcessManagerPort)
 	assert.Equal(t, "debug", summary.LogLevel)
-	assert.Equal(t, 2, summary.TotalWorkers)
-	assert.Equal(t, 1, summary.EnabledWorkers)
+	assert.Equal(t, 2, summary.TotalProcesses)
+	assert.Equal(t, 1, summary.EnabledProcesses)
 	assert.Len(t, summary.ManagedProcesses, 2)
 
-	// Check first worker summary
-	webWorker := summary.ManagedProcesses[0]
-	assert.Equal(t, "web-service", webWorker.ID)
-	assert.Equal(t, "managed", webWorker.Type)
-	assert.True(t, webWorker.Enabled)
-	assert.Equal(t, executablePath, webWorker.ExecutablePath)
-	assert.Equal(t, "http", webWorker.HealthCheckType)
+	// Check first process summary
+	webProcess := summary.ManagedProcesses[0]
+	assert.Equal(t, "web-service", webProcess.ID)
+	assert.Equal(t, "standard_managed", webProcess.Type)
+	assert.True(t, webProcess.Enabled)
+	assert.Equal(t, executablePath, webProcess.ExecutablePath)
+	assert.Equal(t, "http", webProcess.HealthCheckType)
 
-	// Check second worker summary
-	dbWorker := summary.ManagedProcesses[1]
-	assert.Equal(t, "db-monitor", dbWorker.ID)
-	assert.Equal(t, "unmanaged", dbWorker.Type)
-	assert.False(t, dbWorker.Enabled)
-	assert.Equal(t, "pid-file", dbWorker.DiscoveryMethod)
-	assert.Equal(t, "tcp", dbWorker.HealthCheckType)
+	// Check second process summary
+	dbProcess := summary.ManagedProcesses[1]
+	assert.Equal(t, "db-monitor", dbProcess.ID)
+	assert.Equal(t, "unmanaged", dbProcess.Type)
+	assert.False(t, dbProcess.Enabled)
+	assert.Equal(t, "pid-file", dbProcess.DiscoveryMethod)
+	assert.Equal(t, "tcp", dbProcess.HealthCheckType)
 }
 
 func TestValidateConfigFile(t *testing.T) {
@@ -503,10 +503,10 @@ process_manager:
   port: 50055
 
 managed_processes:
-  - id: "test-worker"
-    type: "managed"
+  - id: "test-process"
+    type: "standard_managed"
     unit:
-      managed:
+      standard_managed:
         metadata:
           name: "Test Managed Process"
         control:

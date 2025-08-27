@@ -39,7 +39,7 @@ type resourceLimitManager struct {
 // NewResourceLimitManager creates a comprehensive resource limit manager with monitoring and violation detection.
 // Provides real-time resource usage tracking, configurable violation checking, and policy-based responses
 // (log, alert, restart, graceful shutdown, immediate kill). Integrates with circuit breakers for
-// production-grade resource management and worker protection.
+// production-grade resource management and process protection.
 func NewResourceLimitManager(pid int, limits *ResourceLimits, logger logging.Logger) ResourceLimitManager {
 	// Create monitoring config if not provided
 	var monitoringConfig *ResourceMonitoringConfig
@@ -242,7 +242,7 @@ func (rlm *resourceLimitManager) checkViolations() {
 func (rlm *resourceLimitManager) dispatchViolation(violation *ResourceViolation) {
 	callback := rlm.getViolationCallback()
 
-	rlm.logger.Warnf("Resource violation detected for worker with PID %d: %s, severity: %s", rlm.pid, violation.Message, violation.Severity)
+	rlm.logger.Warnf("Resource violation detected for process with PID %d: %s, severity: %s", rlm.pid, violation.Message, violation.Severity)
 
 	// Trigger enforcement
 	if violation.Severity != ViolationSeverityCritical {

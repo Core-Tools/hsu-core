@@ -17,7 +17,7 @@ import (
 
 // TestLogCollectionIntegration demonstrates the complete log collection system
 func TestLogCollectionIntegration(t *testing.T) {
-	fmt.Println("\n🚀 HSU Process Manager Log Collection Integration Test Starting...")
+	fmt.Println("\nProcess Manager Log Collection Integration Test Starting...")
 
 	// 1. Create structured logger
 	logger, err := NewStructuredLogger("zap", InfoLevel)
@@ -35,12 +35,12 @@ func TestLogCollectionIntegration(t *testing.T) {
 	}
 	defer service.Stop()
 
-	// 3. Register a worker for log collection
-	workerConfig := config.DefaultWorkerLogConfig()
-	workerID := "integration-test-worker"
+	// 3. Register a process for log collection
+	processConfig := config.DefaultProcessLogConfig()
+	processID := "integration-test-process"
 
-	if err := service.RegisterWorker(workerID, workerConfig); err != nil {
-		t.Fatalf("Failed to register worker: %v", err)
+	if err := service.RegisterProcess(processID, processConfig); err != nil {
+		t.Fatalf("Failed to register process: %v", err)
 	}
 
 	// 4. Simulate a process that generates logs
@@ -51,22 +51,22 @@ func TestLogCollectionIntegration(t *testing.T) {
 	defer process.Kill()
 
 	// 5. Start log collection from the process
-	fmt.Println("📋 Starting log collection from test process...")
-	if err := service.CollectFromStream(workerID, stdout, StdoutStream); err != nil {
+	fmt.Println("Starting log collection from test process...")
+	if err := service.CollectFromStream(processID, stdout, StdoutStream); err != nil {
 		t.Fatalf("Failed to start log collection: %v", err)
 	}
 
 	// 6. Let it collect logs for a few seconds
-	fmt.Println("⏱️  Collecting logs for 3 seconds...")
+	fmt.Println("Collecting logs for 3 seconds...")
 	time.Sleep(3 * time.Second)
 
 	// 7. Check status
-	status, err := service.GetWorkerStatus(workerID)
+	status, err := service.GetProcessStatus(processID)
 	if err != nil {
-		t.Fatalf("Failed to get worker status: %v", err)
+		t.Fatalf("Failed to get process status: %v", err)
 	}
 
-	fmt.Printf("\n📊 Log Collection Results:\n")
+	fmt.Printf("\nLog Collection Results:\n")
 	fmt.Printf("   - Lines Processed: %d\n", status.LinesProcessed)
 	fmt.Printf("   - Bytes Processed: %d\n", status.BytesProcessed)
 	fmt.Printf("   - Active: %t\n", status.Active)
@@ -82,16 +82,16 @@ func TestLogCollectionIntegration(t *testing.T) {
 
 	// 8. Check system status
 	systemStatus := service.GetSystemStatus()
-	fmt.Printf("\n📈 System Status:\n")
+	fmt.Printf("\nSystem Status:\n")
 	fmt.Printf("   - Total Lines: %d\n", systemStatus.TotalLines)
 	fmt.Printf("   - Total Bytes: %d\n", systemStatus.TotalBytes)
-	fmt.Printf("   - Active Workers: %d\n", systemStatus.WorkersActive)
+	fmt.Printf("   - Active Processes: %d\n", systemStatus.ProcessesActive)
 
 	if systemStatus.TotalLines == 0 {
 		t.Error("Expected system to have processed some lines")
 	}
 
-	fmt.Println("\n✅ Integration test completed successfully!")
+	fmt.Println("\nIntegration test completed successfully!")
 }
 
 // createTestProcess creates a simple process that outputs logs for testing
@@ -153,7 +153,7 @@ func TestRealTimeLogProcessing(t *testing.T) {
 				{Type: "process_manager_stdout", Format: "enhanced_plain"},
 			},
 		},
-		DefaultWorker: config.DefaultWorkerLogConfig(),
+		Default: config.DefaultProcessLogConfig(),
 		System: config.SystemConfig{
 			MaxManagedProcesses: 5,
 			FlushInterval:       100 * time.Millisecond,
@@ -166,8 +166,8 @@ func TestRealTimeLogProcessing(t *testing.T) {
 	service.Start(ctx)
 	defer service.Stop()
 
-	// Register worker
-	workerConfig := config.WorkerLogConfig{
+	// Register process
+	processConfig := config.ProcessLogConfig{
 		Enabled:       true,
 		CaptureStdout: true,
 		CaptureStderr: true,
@@ -181,7 +181,7 @@ func TestRealTimeLogProcessing(t *testing.T) {
 		},
 	}
 
-	service.RegisterWorker("realtime-worker", workerConfig)
+	service.RegisterProcess("realtime-process", processConfig)
 
 	// Simulate rapid log input
 	fmt.Println("📊 Generating rapid log stream...")
@@ -196,7 +196,7 @@ func TestRealTimeLogProcessing(t *testing.T) {
 
 	for i, line := range logLines {
 		reader := strings.NewReader(line + "\n")
-		service.CollectFromStream("realtime-worker", reader, StdoutStream)
+		service.CollectFromStream("realtime-process", reader, StdoutStream)
 
 		if i%2 == 0 {
 			time.Sleep(10 * time.Millisecond) // Simulate realistic timing
@@ -207,7 +207,7 @@ func TestRealTimeLogProcessing(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Check results
-	status, err := service.GetWorkerStatus("realtime-worker")
+	status, err := service.GetProcessStatus("realtime-process")
 	if err != nil {
 		t.Fatalf("Failed to get status: %v", err)
 	}

@@ -73,7 +73,7 @@ func (w *integratedManagedProcessDescription) ProcessControlOptions() processcon
 
 // AttachCmd creates a dynamic gRPC health check configuration by reading the port file
 func (w *integratedManagedProcessDescription) AttachCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
-	w.logger.Infof("Attaching to integrated worker, id: %s", w.id)
+	w.logger.Infof("Attaching to integrated managedprocess, id: %s", w.id)
 
 	pidFile := w.pidManager.GeneratePIDFilePath(w.id)
 
@@ -92,7 +92,7 @@ func (w *integratedManagedProcessDescription) AttachCmd(ctx context.Context) (*p
 	// Read the port from the port file
 	port, err := w.pidManager.ReadPortFile(w.id)
 	if err != nil {
-		w.logger.Warnf("Failed to read port file for worker %s: %v, using default port 50051", w.id, err)
+		w.logger.Warnf("Failed to read port file for managed process %s: %v, using default port 50051", w.id, err)
 		port = 50051 // Default fallback port
 	}
 
@@ -105,7 +105,7 @@ func (w *integratedManagedProcessDescription) AttachCmd(ctx context.Context) (*p
 		"server_address": address,
 	}
 
-	w.logger.Infof("Integrated worker attached successfully, id: %s, PID: %d", w.id, process.Pid)
+	w.logger.Infof("Integrated managed process attached successfully, id: %s, PID: %d", w.id, process.Pid)
 
 	return &processcontrol.CommandResult{
 		Process:           process,
@@ -116,7 +116,7 @@ func (w *integratedManagedProcessDescription) AttachCmd(ctx context.Context) (*p
 }
 
 func (w *integratedManagedProcessDescription) ExecuteCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
-	w.logger.Infof("Executing integrated worker command, id: %s", w.id)
+	w.logger.Infof("Executing integrated managed process command, id: %s", w.id)
 
 	// Get a free port for the gRPC server
 	port, err := getFreePort()
@@ -139,19 +139,19 @@ func (w *integratedManagedProcessDescription) ExecuteCmd(ctx context.Context) (*
 	// Write PID file
 	if err := w.pidManager.WritePIDFile(w.id, process.Pid); err != nil {
 		// Log error but don't fail - the process is already running
-		w.logger.Errorf("Failed to write PID file for worker %s: %v", w.id, err)
+		w.logger.Errorf("Failed to write PID file for managed process %s: %v", w.id, err)
 	} else {
 		pidFile := w.pidManager.GeneratePIDFilePath(w.id)
-		w.logger.Infof("PID file written for worker %s: %s (PID: %d)", w.id, pidFile, process.Pid)
+		w.logger.Infof("PID file written for managed process %s: %s (PID: %d)", w.id, pidFile, process.Pid)
 	}
 
 	// Write port file
 	if err := w.pidManager.WritePortFile(w.id, port); err != nil {
 		// Log error but don't fail - the process is already running
-		w.logger.Errorf("Failed to write port file for worker %s: %v", w.id, err)
+		w.logger.Errorf("Failed to write port file for managed process %s: %v", w.id, err)
 	} else {
 		portFile := w.pidManager.GeneratePortFilePath(w.id)
-		w.logger.Infof("Port file written for worker %s: %s (port: %d)", w.id, portFile, port)
+		w.logger.Infof("Port file written for managed process %s: %s (port: %d)", w.id, portFile, port)
 	}
 
 	address := "localhost:" + portStr
@@ -162,7 +162,7 @@ func (w *integratedManagedProcessDescription) ExecuteCmd(ctx context.Context) (*
 		"server_address": address,
 	}
 
-	w.logger.Infof("Integrated worker executed successfully, id: %s, PID: %d", w.id, process.Pid)
+	w.logger.Infof("Integrated managed process executed successfully, id: %s, PID: %d", w.id, process.Pid)
 
 	return &processcontrol.CommandResult{
 		Process:           process,

@@ -23,7 +23,7 @@ func TestProcessControl_ConcurrentStateAccess(t *testing.T) {
 		GracefulTimeout: 30 * time.Second,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	// Set to running state with a process
@@ -107,7 +107,7 @@ func TestProcessControl_ConcurrentOperationAttempts(t *testing.T) {
 		GracefulTimeout: 30 * time.Second,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	t.Run("concurrent_stop_attempts", func(t *testing.T) {
@@ -176,7 +176,7 @@ func TestProcessControl_StateTransitionRace(t *testing.T) {
 		GracefulTimeout: 30 * time.Second,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	t.Run("rapid_state_reads_only", func(t *testing.T) {
@@ -230,7 +230,7 @@ func TestProcessControl_DeferOnlyLocking_ConcurrentAccess(t *testing.T) {
 		GracefulTimeout: 30 * time.Second,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	t.Run("concurrent_planning_operations", func(t *testing.T) {
@@ -271,7 +271,7 @@ func TestProcessControl_DeferOnlyLocking_ConcurrentAccess(t *testing.T) {
 		// Create separate process control instances to avoid cross-contamination
 		processes := []*processControl{}
 		for i := 0; i < 5; i++ {
-			pc := NewProcessControl(config, "test-worker", logger)
+			pc := NewProcessControl(config, "test-process", logger)
 			impl := pc.(*processControl)
 			impl.state = processcontrol.ProcessStateStopping
 			impl.stdout = &MockReadCloser{}
@@ -306,7 +306,7 @@ func TestProcessControl_ResourceCleanup_Concurrency(t *testing.T) {
 		GracefulTimeout: 30 * time.Second,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	t.Run("concurrent_cleanup_operations", func(t *testing.T) {
@@ -341,7 +341,7 @@ func TestProcessControl_MemoryConsistency(t *testing.T) {
 		GracefulTimeout: 30 * time.Second,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	t.Run("memory_visibility_consistency", func(t *testing.T) {
@@ -396,7 +396,7 @@ func TestProcessControl_LockContention(t *testing.T) {
 		GracefulTimeout: 30 * time.Second,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	t.Run("high_contention_scenario", func(t *testing.T) {
@@ -445,7 +445,7 @@ func TestProcessControl_DeadlockPrevention(t *testing.T) {
 		GracefulTimeout: 30 * time.Second,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	t.Run("no_deadlock_with_defer_only", func(t *testing.T) {

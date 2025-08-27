@@ -26,11 +26,11 @@ const (
 
 // RestartContext provides context about restart trigger for intelligent decision making (moved from processcontrolimpl)
 type RestartContext struct {
-	TriggerType       RestartTriggerType `json:"trigger_type"`
-	Severity          string             `json:"severity"`            // warning, critical, emergency
-	WorkerProfileType string             `json:"worker_profile_type"` // batch, web, database, etc. - worker's load profile
-	ViolationType     string             `json:"violation_type"`      // memory, cpu, health, etc.
-	Message           string             `json:"message"`             // Human-readable reason
+	TriggerType        RestartTriggerType `json:"trigger_type"`
+	Severity           string             `json:"severity"`             // warning, critical, emergency
+	ProcessProfileType string             `json:"process_profile_type"` // batch, web, database, etc. - process's load profile
+	ViolationType      string             `json:"violation_type"`       // memory, cpu, health, etc.
+	Message            string             `json:"message"`              // Human-readable reason
 }
 
 // RestartConfig defines retry mechanics (moved from processcontrolimpl, originally from monitoring)
@@ -66,8 +66,8 @@ type ContextAwareRestartConfig struct {
 	// Multipliers for different severities (applied to max_retries and retry_delay)
 	SeverityMultipliers map[string]float64 `yaml:"severity_multipliers,omitempty"`
 
-	// Multipliers for different worker profile types (applied to max_retries and retry_delay)
-	WorkerProfileMultipliers map[string]float64 `yaml:"worker_profile_multipliers,omitempty"`
+	// Multipliers for different process profile types (applied to max_retries and retry_delay)
+	ProcessProfileMultipliers map[string]float64 `yaml:"process_profile_multipliers,omitempty"`
 
 	// Time-based context awareness
 	StartupGracePeriod     time.Duration `yaml:"startup_grace_period,omitempty"`     // No restarts during startup
@@ -114,10 +114,10 @@ func ValidateContextAwareRestartConfig(config ContextAwareRestartConfig) error {
 		}
 	}
 
-	// Validate worker profile multipliers
-	for profile, multiplier := range config.WorkerProfileMultipliers {
+	// Validate process profile multipliers
+	for profile, multiplier := range config.ProcessProfileMultipliers {
 		if multiplier <= 0 {
-			return fmt.Errorf("worker profile multiplier for '%s' must be positive: %f", profile, multiplier)
+			return fmt.Errorf("process profile multiplier for '%s' must be positive: %f", profile, multiplier)
 		}
 	}
 

@@ -24,7 +24,7 @@ func TestDeferOnlyLocking_PlanExecuteFinalizePattern(t *testing.T) {
 		GracefulTimeout: 30 * time.Second,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	t.Run("stop_operation_plan_execute_finalize", func(t *testing.T) {
@@ -119,7 +119,7 @@ func TestDeferOnlyLocking_DataTransferStructs(t *testing.T) {
 		CanTerminate: true,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	t.Run("stop_plan_data_structure", func(t *testing.T) {
@@ -186,7 +186,7 @@ func TestDeferOnlyLocking_LockScopedValidators(t *testing.T) {
 		CanTerminate: true,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	t.Run("validators_automatic_unlock", func(t *testing.T) {
@@ -277,7 +277,7 @@ func TestDeferOnlyLocking_LockScopedFinalizers(t *testing.T) {
 		CanTerminate: true,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	t.Run("finalizers_automatic_unlock", func(t *testing.T) {
@@ -355,7 +355,7 @@ func TestDeferOnlyLocking_SafeDataAccess(t *testing.T) {
 		CanTerminate: true,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	t.Run("safe_state_getter", func(t *testing.T) {
@@ -450,7 +450,7 @@ func TestDeferOnlyLocking_ResourceCleanupConsolidation(t *testing.T) {
 		CanTerminate: true,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	t.Run("cleanup_resources_under_lock", func(t *testing.T) {
@@ -507,7 +507,7 @@ func TestDeferOnlyLocking_UnifiedPolicyExecution(t *testing.T) {
 		CanTerminate: true,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	t.Run("execute_with_policy_pattern", func(t *testing.T) {
@@ -546,7 +546,7 @@ func TestDeferOnlyLocking_ArchitecturalBenefits(t *testing.T) {
 		CanTerminate: true,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	t.Run("no_explicit_unlock_calls", func(t *testing.T) {

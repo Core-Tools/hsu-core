@@ -8,20 +8,20 @@ import (
 	"github.com/core-tools/hsu-core/pkg/errors"
 )
 
-// ValidateWorkerID validates worker ID format and constraints
-func ValidateWorkerID(id string) error {
+// ValidateProcessID validates process ID format and constraints
+func ValidateProcessID(id string) error {
 	if id == "" {
-		return errors.NewValidationError("worker ID cannot be empty", nil)
+		return errors.NewValidationError("process ID cannot be empty", nil)
 	}
 
 	if len(id) > 64 {
-		return errors.NewValidationError("worker ID cannot exceed 64 characters", nil)
+		return errors.NewValidationError("process ID cannot exceed 64 characters", nil)
 	}
 
 	// Check for invalid characters
 	for _, char := range id {
 		if !isValidIDChar(char) {
-			return errors.NewValidationError("worker ID contains invalid characters: only letters, numbers, hyphens, and underscores are allowed", nil)
+			return errors.NewValidationError("process ID contains invalid characters: only letters, numbers, hyphens, and underscores are allowed", nil)
 		}
 	}
 

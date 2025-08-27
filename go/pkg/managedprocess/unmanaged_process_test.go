@@ -40,7 +40,7 @@ func (m *MockUnmanagedLogger) Errorf(format string, args ...interface{}) {
 	m.Called(format, args)
 }
 
-func createTestUnmanagedUnit() *UnmanagedUnit {
+func createTestUnmanagedUnit() *UnmanagedProcessConfig {
 	// Use OS-dependent path for PID file
 	var pidFile string
 	if runtime.GOOS == "windows" {
@@ -49,7 +49,7 @@ func createTestUnmanagedUnit() *UnmanagedUnit {
 		pidFile = "/tmp/test-process.pid"
 	}
 
-	return &UnmanagedUnit{
+	return &UnmanagedProcessConfig{
 		Metadata: ProcessMetadata{
 			Name:        "test-unmanaged-unit",
 			Description: "Test unmanaged unit",
@@ -80,8 +80,8 @@ func createTestUnmanagedUnit() *UnmanagedUnit {
 	}
 }
 
-func createTestUnmanagedUnitWithPortDiscovery() *UnmanagedUnit {
-	return &UnmanagedUnit{
+func createTestUnmanagedUnitWithPortDiscovery() *UnmanagedProcessConfig {
+	return &UnmanagedProcessConfig{
 		Metadata: ProcessMetadata{
 			Name:        "test-unmanaged-port-unit",
 			Description: "Test unmanaged unit with port discovery",
@@ -118,65 +118,65 @@ func createTestUnmanagedUnitWithPortDiscovery() *UnmanagedUnit {
 	}
 }
 
-func TestNewUnmanagedWorker(t *testing.T) {
+func TestNewUnmanagedProcess(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
 	unit := createTestUnmanagedUnit()
 
-	worker := NewUnmanagedProcessDescription("test-unmanaged-1", unit, logger)
+	process := NewUnmanagedProcessDescription("test-unmanaged-1", unit, logger)
 
-	assert.NotNil(t, worker)
-	assert.Equal(t, "test-unmanaged-1", worker.ID())
+	assert.NotNil(t, process)
+	assert.Equal(t, "test-unmanaged-1", process.ID())
 }
 
-func TestUnmanagedWorker_ID(t *testing.T) {
+func TestUnmanagedProcess_ID(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
 	unit := createTestUnmanagedUnit()
 
-	worker := NewUnmanagedProcessDescription("test-unmanaged-2", unit, logger)
+	process := NewUnmanagedProcessDescription("test-unmanaged-2", unit, logger)
 
-	assert.Equal(t, "test-unmanaged-2", worker.ID())
+	assert.Equal(t, "test-unmanaged-2", process.ID())
 }
 
-func TestUnmanagedWorker_Metadata(t *testing.T) {
+func TestUnmanagedProcess_Metadata(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
 	unit := createTestUnmanagedUnit()
 
-	worker := NewUnmanagedProcessDescription("test-unmanaged-3", unit, logger)
+	process := NewUnmanagedProcessDescription("test-unmanaged-3", unit, logger)
 
-	metadata := worker.Metadata()
+	metadata := process.Metadata()
 	assert.Equal(t, "test-unmanaged-unit", metadata.Name)
 	assert.Equal(t, "Test unmanaged unit", metadata.Description)
 }
 
-func TestUnmanagedWorker_ProcessControlOptions_PIDFile(t *testing.T) {
+func TestUnmanagedProcess_ProcessControlOptions_PIDFile(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	unit := createTestUnmanagedUnit()
 
-	worker := NewUnmanagedProcessDescription("test-unmanaged-4", unit, logger)
+	process := NewUnmanagedProcessDescription("test-unmanaged-4", unit, logger)
 
-	options := worker.ProcessControlOptions()
+	options := process.ProcessControlOptions()
 
 	// Test basic capabilities
-	assert.True(t, options.CanAttach, "UnmanagedWorker must support attachment")
-	assert.True(t, options.CanTerminate, "UnmanagedWorker should support termination based on config")
-	assert.False(t, options.CanRestart, "UnmanagedWorker should not support restart based on config")
+	assert.True(t, options.CanAttach, "UnmanagedProcess must support attachment")
+	assert.True(t, options.CanTerminate, "UnmanagedProcess should support termination based on config")
+	assert.False(t, options.CanRestart, "UnmanagedProcess should not support restart based on config")
 
 	// Test ExecuteCmd is not present
-	assert.Nil(t, options.ExecuteCmd, "UnmanagedWorker should not provide ExecuteCmd")
+	assert.Nil(t, options.ExecuteCmd, "UnmanagedProcess should not provide ExecuteCmd")
 
 	// Test restart configuration is not present
-	assert.Nil(t, options.ContextAwareRestart, "UnmanagedWorker should not provide restart configuration")
+	assert.Nil(t, options.ContextAwareRestart, "UnmanagedProcess should not provide restart configuration")
 
 	// Test resource limits are not present
-	assert.Nil(t, options.Limits, "UnmanagedWorker should not provide resource limits")
+	assert.Nil(t, options.Limits, "UnmanagedProcess should not provide resource limits")
 
 	// Test graceful timeout from system config
 	assert.Equal(t, 10*time.Second, options.GracefulTimeout)
 
 	// Test health check is provided by AttachCmd
-	assert.Nil(t, options.HealthCheck, "UnmanagedWorker should provide health check via AttachCmd")
-	assert.NotNil(t, options.AttachCmd, "UnmanagedWorker should provide AttachCmd")
+	assert.Nil(t, options.HealthCheck, "UnmanagedProcess should provide health check via AttachCmd")
+	assert.NotNil(t, options.AttachCmd, "UnmanagedProcess should provide AttachCmd")
 
 	// Test that AttachCmd would return the correct health check configuration
 	// Note: This is a unit test, so we can't actually test attachment without a real process
@@ -189,29 +189,29 @@ func TestUnmanagedWorker_ProcessControlOptions_PIDFile(t *testing.T) {
 	assert.Contains(t, options.AllowedSignals, os.Kill)
 }
 
-func TestUnmanagedWorker_ProcessControlOptions_Port(t *testing.T) {
+func TestUnmanagedProcess_ProcessControlOptions_Port(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	unit := createTestUnmanagedUnitWithPortDiscovery()
 
-	worker := NewUnmanagedProcessDescription("test-unmanaged-5", unit, logger)
+	process := NewUnmanagedProcessDescription("test-unmanaged-5", unit, logger)
 
-	options := worker.ProcessControlOptions()
+	options := process.ProcessControlOptions()
 
 	// Test basic capabilities
-	assert.True(t, options.CanAttach, "UnmanagedWorker must support attachment")
-	assert.False(t, options.CanTerminate, "UnmanagedWorker should not support termination based on config")
-	assert.False(t, options.CanRestart, "UnmanagedWorker should not support restart based on config")
+	assert.True(t, options.CanAttach, "UnmanagedProcess must support attachment")
+	assert.False(t, options.CanTerminate, "UnmanagedProcess should not support termination based on config")
+	assert.False(t, options.CanRestart, "UnmanagedProcess should not support restart based on config")
 
 	// Test ExecuteCmd is not present
-	assert.Nil(t, options.ExecuteCmd, "UnmanagedWorker should not provide ExecuteCmd")
+	assert.Nil(t, options.ExecuteCmd, "UnmanagedProcess should not provide ExecuteCmd")
 
 	// Test graceful timeout from system config
 	assert.Equal(t, 5*time.Second, options.GracefulTimeout)
 
 	// Test health check is provided by AttachCmd
-	assert.Nil(t, options.HealthCheck, "UnmanagedWorker should provide health check via AttachCmd")
-	assert.NotNil(t, options.AttachCmd, "UnmanagedWorker should provide AttachCmd")
+	assert.Nil(t, options.HealthCheck, "UnmanagedProcess should provide health check via AttachCmd")
+	assert.NotNil(t, options.AttachCmd, "UnmanagedProcess should provide AttachCmd")
 
 	// Test that AttachCmd would return the correct health check configuration
 	// Note: This is a unit test, so we can't actually test attachment without a real process
@@ -221,35 +221,35 @@ func TestUnmanagedWorker_ProcessControlOptions_Port(t *testing.T) {
 	assert.Len(t, options.AllowedSignals, 0)
 }
 
-func TestUnmanagedWorker_IntegrationWithProcessControlOptions(t *testing.T) {
+func TestUnmanagedProcess_IntegrationWithProcessControlOptions(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	unit := createTestUnmanagedUnit()
 
-	worker := NewUnmanagedProcessDescription("test-unmanaged-6", unit, logger)
+	process := NewUnmanagedProcessDescription("test-unmanaged-6", unit, logger)
 
-	options := worker.ProcessControlOptions()
+	options := process.ProcessControlOptions()
 
 	// Test that options pass validation
 	err := ValidateProcessControlOptions(options)
-	assert.NoError(t, err, "UnmanagedWorker options should pass validation")
+	assert.NoError(t, err, "UnmanagedProcess options should pass validation")
 }
 
-func TestUnmanagedWorker_IntegrationWithProcessControlOptions_Port(t *testing.T) {
+func TestUnmanagedProcess_IntegrationWithProcessControlOptions_Port(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	unit := createTestUnmanagedUnitWithPortDiscovery()
 
-	worker := NewUnmanagedProcessDescription("test-unmanaged-7", unit, logger)
+	process := NewUnmanagedProcessDescription("test-unmanaged-7", unit, logger)
 
-	options := worker.ProcessControlOptions()
+	options := process.ProcessControlOptions()
 
 	// Test that options pass validation
 	err := ValidateProcessControlOptions(options)
-	assert.NoError(t, err, "UnmanagedWorker options with port discovery should pass validation")
+	assert.NoError(t, err, "UnmanagedProcess options with port discovery should pass validation")
 }
 
-func TestUnmanagedWorker_MultipleInstances(t *testing.T) {
+func TestUnmanagedProcess_MultipleInstances(t *testing.T) {
 	logger1 := &MockUnmanagedLogger{}
 	logger1.On("Debugf", mock.Anything, mock.Anything).Maybe()
 	logger2 := &MockUnmanagedLogger{}
@@ -258,15 +258,15 @@ func TestUnmanagedWorker_MultipleInstances(t *testing.T) {
 	unit1 := createTestUnmanagedUnit()
 	unit2 := createTestUnmanagedUnitWithPortDiscovery()
 
-	worker1 := NewUnmanagedProcessDescription("test-unmanaged-7", unit1, logger1)
-	worker2 := NewUnmanagedProcessDescription("test-unmanaged-8", unit2, logger2)
+	process1 := NewUnmanagedProcessDescription("test-unmanaged-7", unit1, logger1)
+	process2 := NewUnmanagedProcessDescription("test-unmanaged-8", unit2, logger2)
 
 	// Test independence
-	assert.NotEqual(t, worker1.ID(), worker2.ID())
-	assert.NotEqual(t, worker1.Metadata(), worker2.Metadata()) // Different units, different metadata
+	assert.NotEqual(t, process1.ID(), process2.ID())
+	assert.NotEqual(t, process1.Metadata(), process2.Metadata()) // Different units, different metadata
 }
 
-func TestUnmanagedWorker_DifferentCapabilities(t *testing.T) {
+func TestUnmanagedProcess_DifferentCapabilities(t *testing.T) {
 	logger := &MockUnmanagedLogger{}
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 
@@ -279,11 +279,11 @@ func TestUnmanagedWorker_DifferentCapabilities(t *testing.T) {
 	unit2.Control.CanTerminate = false
 	unit2.Control.CanRestart = false
 
-	worker1 := NewUnmanagedProcessDescription("worker-1", unit1, logger)
-	worker2 := NewUnmanagedProcessDescription("worker-2", unit2, logger)
+	process1 := NewUnmanagedProcessDescription("process-1", unit1, logger)
+	process2 := NewUnmanagedProcessDescription("process-2", unit2, logger)
 
-	options1 := worker1.ProcessControlOptions()
-	options2 := worker2.ProcessControlOptions()
+	options1 := process1.ProcessControlOptions()
+	options2 := process2.ProcessControlOptions()
 
 	// Test different capabilities based on system config
 	assert.True(t, options1.CanTerminate)

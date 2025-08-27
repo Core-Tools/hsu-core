@@ -144,7 +144,7 @@ func TestProcessControl_ResourceViolationPolicyExecution(t *testing.T) {
 				},
 			}
 
-			pc := NewProcessControl(config, "test-worker", logger)
+			pc := NewProcessControl(config, "test-process", logger)
 			impl := pc.(*processControl)
 			impl.restartCircuitBreaker = breaker
 
@@ -194,7 +194,7 @@ func TestProcessControl_ResourceViolationHandlerIntegration(t *testing.T) {
 		},
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 	impl.restartCircuitBreaker = breaker
 
@@ -274,7 +274,7 @@ func TestProcessControl_ResourceViolationWithoutCircuitBreaker(t *testing.T) {
 		},
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 	impl.restartCircuitBreaker = nil // No circuit breaker
 
@@ -302,7 +302,7 @@ func TestProcessControl_ResourcePolicyValidation(t *testing.T) {
 		CanTerminate: true,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	// Test all defined policy types
@@ -340,7 +340,7 @@ func TestProcessControl_ResourceViolationEdgeCases(t *testing.T) {
 		CanTerminate: true,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	t.Run("nil_violation_handling", func(t *testing.T) {

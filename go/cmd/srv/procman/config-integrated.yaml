@@ -2,12 +2,12 @@ process_manager:
   port: 50055
 
 managed_processes:
-  # Simple integrated worker (enabled field omitted - defaults to true)
+  # Simple integrated process (enabled field omitted - defaults to true)
   - id: "test-integrated"
-    type: "integrated"
+    type: "integrated_managed"
     profile_type: "web"  # ✅ NEW: Echo gRPC server is a web service
     unit:
-      integrated:
+      integrated_managed:
         metadata:
           name: "Echo gRPC server as integrated unit"
         control:

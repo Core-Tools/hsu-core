@@ -71,11 +71,11 @@ type ProcessControlOptions struct {
 	RestartPolicy       RestartPolicy              // Policy for health monitor
 
 	// Managed process profile type for context-aware restart decisions
-	WorkerProfileType string // "batch", "web", "database", etc. - managed process's load/resource profile for restart policies
+	ProcessProfileType string // "batch", "web", "database", etc. - managed process's load/resource profile for restart policies
 
 	// Log collection
 	LogCollectionService logcollection.LogCollectionService // Log collection service
-	LogConfig            *logconfig.WorkerLogConfig         // Log collection configuration for this worker
+	LogConfig            *logconfig.ProcessLogConfig        // Log collection configuration for this specific process
 
 	// Health check override
 	HealthCheck *monitoring.HealthCheckConfig // nil if not health checkable or if ExecuteCmd/AttachCmd are provided

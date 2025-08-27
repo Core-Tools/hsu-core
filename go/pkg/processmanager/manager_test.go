@@ -11,29 +11,29 @@ import (
 	"github.com/core-tools/hsu-core/pkg/managedprocess"
 	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
 	"github.com/core-tools/hsu-core/pkg/process"
-	"github.com/core-tools/hsu-core/pkg/processmanager/workerstatemachine"
+	"github.com/core-tools/hsu-core/pkg/processmanager/processstatemachine"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// MockWorker is a mock implementation of ProcessDescription for testing
-type MockWorker struct {
+// mockProcess is a mock implementation of ProcessDescription for testing
+type mockProcess struct {
 	mock.Mock
 }
 
-func (m *MockWorker) ID() string {
+func (m *mockProcess) ID() string {
 	args := m.Called()
 	return args.String(0)
 }
 
-func (m *MockWorker) Metadata() managedprocess.ProcessMetadata {
+func (m *mockProcess) Metadata() managedprocess.ProcessMetadata {
 	args := m.Called()
 	return args.Get(0).(managedprocess.ProcessMetadata)
 }
 
-func (m *MockWorker) ProcessControlOptions() processcontrol.ProcessControlOptions {
+func (m *mockProcess) ProcessControlOptions() processcontrol.ProcessControlOptions {
 	args := m.Called()
 	return args.Get(0).(processcontrol.ProcessControlOptions)
 }
@@ -71,12 +71,12 @@ func createTestProcessManager(t *testing.T) *processManager {
 	logger.On("Errorf", mock.Anything, mock.Anything).Maybe()
 
 	return &processManager{
-		logger:  logger,
-		workers: make(map[string]*workerEntry), // Updated to use new combined map
+		logger:    logger,
+		processes: make(map[string]*processEntry),
 	}
 }
 
-func createTestWorker(id string) *MockWorker {
+func createTestProcess(id string) *mockProcess {
 	// Use OS-dependent path for PID file
 	var pidFile string
 	if runtime.GOOS == "windows" {
@@ -85,12 +85,12 @@ func createTestWorker(id string) *MockWorker {
 		pidFile = fmt.Sprintf("/tmp/%s.pid", id)
 	}
 
-	worker := &MockWorker{}
-	worker.On("ID").Return(id)
-	worker.On("Metadata").Return(managedprocess.ProcessMetadata{
+	mockProcess := &mockProcess{}
+	mockProcess.On("ID").Return(id)
+	mockProcess.On("Metadata").Return(managedprocess.ProcessMetadata{
 		Name:        id,
-		Description: fmt.Sprintf("Test worker %s", id),
-	}).Maybe() // Make this optional since AddWorker doesn't call Metadata()
+		Description: fmt.Sprintf("Test process %s", id),
+	}).Maybe() // Make this optional since AddProcess doesn't call Metadata()
 
 	// Create a mock logger for the test
 	mockLogger := &MockLogger{}
@@ -114,265 +114,265 @@ func createTestWorker(id string) *MockWorker {
 		}, err
 	}
 
-	worker.On("ProcessControlOptions").Return(processcontrol.ProcessControlOptions{
+	mockProcess.On("ProcessControlOptions").Return(processcontrol.ProcessControlOptions{
 		CanAttach:    true,
 		CanTerminate: true,
 		CanRestart:   true,
 		AttachCmd:    attachCmd,
 	})
-	return worker
+	return mockProcess
 }
 
-func TestProcessManager_AddWorker(t *testing.T) {
-	t.Run("valid_worker", func(t *testing.T) {
+func TestProcessManager_AddProcess(t *testing.T) {
+	t.Run("valid_process", func(t *testing.T) {
 		manager := createTestProcessManager(t)
-		worker := createTestWorker("test-worker-1")
+		mockProcess := createTestProcess("test-process-1")
 
-		err := manager.AddWorker(worker)
+		err := manager.AddProcess(mockProcess)
 
 		assert.NoError(t, err)
-		assert.Equal(t, 1, len(manager.workers))
-		worker.AssertExpectations(t)
+		assert.Equal(t, 1, len(manager.processes))
+		mockProcess.AssertExpectations(t)
 	})
 
-	t.Run("nil_worker", func(t *testing.T) {
+	t.Run("nil_process", func(t *testing.T) {
 		manager := createTestProcessManager(t)
-		err := manager.AddWorker(nil)
+		err := manager.AddProcess(nil)
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsValidationError(err))
 	})
 
-	t.Run("duplicate_worker", func(t *testing.T) {
+	t.Run("duplicate_process", func(t *testing.T) {
 		manager := createTestProcessManager(t)
-		worker1 := createTestWorker("test-worker-1")
-		worker2 := createTestWorker("test-worker-1")
+		mockProcess1 := createTestProcess("test-process-1")
+		mockProcess2 := createTestProcess("test-process-1")
 
-		err1 := manager.AddWorker(worker1)
-		err2 := manager.AddWorker(worker2)
+		err1 := manager.AddProcess(mockProcess1)
+		err2 := manager.AddProcess(mockProcess2)
 
 		assert.NoError(t, err1)
 		require.Error(t, err2)
 		assert.True(t, errors.IsConflictError(err2), "Expected ConflictError but got: %v", err2)
-		assert.Equal(t, 1, len(manager.workers))
+		assert.Equal(t, 1, len(manager.processes))
 
 		// Clean up mock expectations
-		worker1.AssertExpectations(t)
-		worker2.AssertExpectations(t)
+		mockProcess1.AssertExpectations(t)
+		mockProcess2.AssertExpectations(t)
 	})
 
-	t.Run("invalid_worker_id", func(t *testing.T) {
+	t.Run("invalid_process_id", func(t *testing.T) {
 		manager := createTestProcessManager(t)
-		worker := &MockWorker{}
-		worker.On("ID").Return("") // Empty ID
+		mockProcess := &mockProcess{}
+		mockProcess.On("ID").Return("") // Empty ID
 		// Don't set up ProcessControlOptions expectation since validation fails before it's called
 
-		err := manager.AddWorker(worker)
+		err := manager.AddProcess(mockProcess)
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsValidationError(err))
-		worker.AssertExpectations(t)
+		mockProcess.AssertExpectations(t)
 	})
 }
 
-func TestProcessManager_RemoveWorker(t *testing.T) {
+func TestProcessManager_RemoveProcess(t *testing.T) {
 	t.Run("valid_removal", func(t *testing.T) {
 		manager := createTestProcessManager(t)
 
-		// Add a worker
-		worker := createTestWorker("test-worker-1")
-		err := manager.AddWorker(worker)
+		// Add a process
+		mockProcess := createTestProcess("test-process-1")
+		err := manager.AddProcess(mockProcess)
 		require.NoError(t, err)
 
 		// Managed process should be in 'registered' state, which is safe to remove
-		err = manager.RemoveWorker("test-worker-1")
+		err = manager.RemoveProcess("test-process-1")
 		assert.NoError(t, err)
 
-		// Verify worker is removed
-		_, err = manager.GetWorkerState("test-worker-1")
+		// Verify process is removed
+		_, err = manager.GetProcessState("test-process-1")
 		assert.Error(t, err)
 		assert.True(t, errors.IsNotFoundError(err))
 	})
 
-	t.Run("invalid_worker_id", func(t *testing.T) {
+	t.Run("invalid_process_id", func(t *testing.T) {
 		manager := createTestProcessManager(t)
-		err := manager.RemoveWorker("")
+		err := manager.RemoveProcess("")
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsValidationError(err))
 	})
 
-	t.Run("nonexistent_worker", func(t *testing.T) {
+	t.Run("nonexistent_process", func(t *testing.T) {
 		manager := createTestProcessManager(t)
-		err := manager.RemoveWorker("nonexistent-worker")
+		err := manager.RemoveProcess("nonexistent-process")
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsNotFoundError(err))
 	})
 
-	t.Run("cannot_remove_running_worker", func(t *testing.T) {
+	t.Run("cannot_remove_running_process", func(t *testing.T) {
 		manager := createTestProcessManager(t)
 
-		// Add a worker
-		worker := createTestWorker("running-worker")
-		err := manager.AddWorker(worker)
+		// Add a process
+		mockProcess := createTestProcess("running-process")
+		err := manager.AddProcess(mockProcess)
 		require.NoError(t, err)
 
 		// Manually transition to running state using proper sequence
-		workerEntry, _, exists := manager.getWorkerAndManagerState("running-worker")
+		processEntry, _, exists := manager.getProcessAndManagerState("running-process")
 		require.True(t, exists)
 		// registered -> starting -> running
-		err = workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateStarting, "start", nil)
+		err = processEntry.StateMachine.Transition(processstatemachine.ProcessStateStarting, "start", nil)
 		require.NoError(t, err)
-		err = workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateRunning, "start", nil)
+		err = processEntry.StateMachine.Transition(processstatemachine.ProcessStateRunning, "start", nil)
 		require.NoError(t, err)
 
-		// Should not be able to remove running worker
-		err = manager.RemoveWorker("running-worker")
+		// Should not be able to remove running process
+		err = manager.RemoveProcess("running-process")
 		assert.Error(t, err)
 		assert.True(t, errors.IsValidationError(err))
-		assert.Contains(t, err.Error(), "cannot remove worker in state 'running'")
-		assert.Contains(t, err.Error(), "worker must be stopped before removal")
+		assert.Contains(t, err.Error(), "cannot remove process in state 'running'")
+		assert.Contains(t, err.Error(), "process must be stopped before removal")
 
 		// Managed process should still exist
-		state, err := manager.GetWorkerState("running-worker")
+		state, err := manager.GetProcessState("running-process")
 		assert.NoError(t, err)
-		assert.Equal(t, workerstatemachine.WorkerStateRunning, state)
+		assert.Equal(t, processstatemachine.ProcessStateRunning, state)
 	})
 
-	t.Run("can_remove_stopped_worker", func(t *testing.T) {
+	t.Run("can_remove_stopped_process", func(t *testing.T) {
 		manager := createTestProcessManager(t)
 
-		// Add a worker
-		worker := createTestWorker("stopped-worker")
-		err := manager.AddWorker(worker)
+		// Add a process
+		mockProcess := createTestProcess("stopped-process")
+		err := manager.AddProcess(mockProcess)
 		require.NoError(t, err)
 
 		// Manually transition to stopped state using proper sequence
-		workerEntry, _, exists := manager.getWorkerAndManagerState("stopped-worker")
+		processEntry, _, exists := manager.getProcessAndManagerState("stopped-process")
 		require.True(t, exists)
 		// registered -> starting -> running -> stopping -> stopped
-		err = workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateStarting, "start", nil)
+		err = processEntry.StateMachine.Transition(processstatemachine.ProcessStateStarting, "start", nil)
 		require.NoError(t, err)
-		err = workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateRunning, "start", nil)
+		err = processEntry.StateMachine.Transition(processstatemachine.ProcessStateRunning, "start", nil)
 		require.NoError(t, err)
-		err = workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateStopping, "stop", nil)
+		err = processEntry.StateMachine.Transition(processstatemachine.ProcessStateStopping, "stop", nil)
 		require.NoError(t, err)
-		err = workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateStopped, "stop", nil)
+		err = processEntry.StateMachine.Transition(processstatemachine.ProcessStateStopped, "stop", nil)
 		require.NoError(t, err)
 
-		// Should be able to remove stopped worker
-		err = manager.RemoveWorker("stopped-worker")
+		// Should be able to remove stopped process
+		err = manager.RemoveProcess("stopped-process")
 		assert.NoError(t, err)
 
 		// Managed process should be removed
-		_, err = manager.GetWorkerState("stopped-worker")
+		_, err = manager.GetProcessState("stopped-process")
 		assert.Error(t, err)
 		assert.True(t, errors.IsNotFoundError(err))
 	})
 
-	t.Run("can_remove_failed_worker", func(t *testing.T) {
+	t.Run("can_remove_failed_process", func(t *testing.T) {
 		manager := createTestProcessManager(t)
 
-		// Add a worker
-		worker := createTestWorker("failed-worker")
-		err := manager.AddWorker(worker)
+		// Add a process
+		mockProcess := createTestProcess("failed-process")
+		err := manager.AddProcess(mockProcess)
 		require.NoError(t, err)
 
 		// Manually transition to failed state using proper sequence
-		workerEntry, _, exists := manager.getWorkerAndManagerState("failed-worker")
+		processEntry, _, exists := manager.getProcessAndManagerState("failed-process")
 		require.True(t, exists)
 		// registered -> starting -> failed (start operation failed)
-		err = workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateStarting, "start", nil)
+		err = processEntry.StateMachine.Transition(processstatemachine.ProcessStateStarting, "start", nil)
 		require.NoError(t, err)
-		err = workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateFailed, "start", fmt.Errorf("test failure"))
+		err = processEntry.StateMachine.Transition(processstatemachine.ProcessStateFailed, "start", fmt.Errorf("test failure"))
 		require.NoError(t, err)
 
-		// Should be able to remove failed worker
-		err = manager.RemoveWorker("failed-worker")
+		// Should be able to remove failed process
+		err = manager.RemoveProcess("failed-process")
 		assert.NoError(t, err)
 
 		// Managed process should be removed
-		_, err = manager.GetWorkerState("failed-worker")
+		_, err = manager.GetProcessState("failed-process")
 		assert.Error(t, err)
 		assert.True(t, errors.IsNotFoundError(err))
 	})
 }
 
-func TestIsWorkerSafelyRemovable(t *testing.T) {
+func TestIsProcessSafelyRemovable(t *testing.T) {
 	tests := []struct {
-		state    workerstatemachine.WorkerState
+		state    processstatemachine.ProcessState
 		expected bool
 		reason   string
 	}{
-		{workerstatemachine.WorkerStateUnknown, true, "unknown state should be safe"},
-		{workerstatemachine.WorkerStateRegistered, true, "registered workers have no process"},
-		{workerstatemachine.WorkerStateStarting, false, "starting workers may have process"},
-		{workerstatemachine.WorkerStateRunning, false, "running workers have active process"},
-		{workerstatemachine.WorkerStateStopping, false, "stopping workers still have process"},
-		{workerstatemachine.WorkerStateStopped, true, "stopped workers have no process"},
-		{workerstatemachine.WorkerStateFailed, true, "failed workers have no process"},
-		{workerstatemachine.WorkerStateRestarting, false, "restarting workers may have process"},
+		{processstatemachine.ProcessStateUnknown, true, "unknown state should be safe"},
+		{processstatemachine.ProcessStateRegistered, true, "registered processes have no process"},
+		{processstatemachine.ProcessStateStarting, false, "starting processes may have process"},
+		{processstatemachine.ProcessStateRunning, false, "running processes have active process"},
+		{processstatemachine.ProcessStateStopping, false, "stopping processes still have process"},
+		{processstatemachine.ProcessStateStopped, true, "stopped processes have no process"},
+		{processstatemachine.ProcessStateFailed, true, "failed processes have no process"},
+		{processstatemachine.ProcessStateRestarting, false, "restarting processes may have process"},
 	}
 
 	for _, tt := range tests {
 		t.Run(string(tt.state), func(t *testing.T) {
-			result := isWorkerSafelyRemovable(tt.state)
+			result := isProcessSafelyRemovable(tt.state)
 			assert.Equal(t, tt.expected, result, tt.reason)
 		})
 	}
 }
 
-func TestProcessManager_StartWorker(t *testing.T) {
+func TestProcessManager_StartProcess(t *testing.T) {
 	t.Run("nil_context", func(t *testing.T) {
 		manager := createTestProcessManager(t)
-		err := manager.StartWorker(nil, "test-worker-1")
+		err := manager.StartProcess(nil, "test-process-1")
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsValidationError(err))
 	})
 
-	t.Run("invalid_worker_id", func(t *testing.T) {
+	t.Run("invalid_process_id", func(t *testing.T) {
 		manager := createTestProcessManager(t)
 		ctx := context.Background()
-		err := manager.StartWorker(ctx, "")
+		err := manager.StartProcess(ctx, "")
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsValidationError(err))
 	})
 
-	t.Run("nonexistent_worker", func(t *testing.T) {
+	t.Run("nonexistent_process", func(t *testing.T) {
 		manager := createTestProcessManager(t)
 		ctx := context.Background()
-		err := manager.StartWorker(ctx, "nonexistent-worker")
+		err := manager.StartProcess(ctx, "nonexistent-process")
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsNotFoundError(err))
 	})
 }
 
-func TestProcessManager_StopWorker(t *testing.T) {
+func TestProcessManager_StopProcess(t *testing.T) {
 	t.Run("nil_context", func(t *testing.T) {
 		manager := createTestProcessManager(t)
-		err := manager.StopWorker(nil, "test-worker-1")
+		err := manager.StopProcess(nil, "test-process-1")
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsValidationError(err))
 	})
 
-	t.Run("invalid_worker_id", func(t *testing.T) {
+	t.Run("invalid_process_id", func(t *testing.T) {
 		manager := createTestProcessManager(t)
 		ctx := context.Background()
-		err := manager.StopWorker(ctx, "")
+		err := manager.StopProcess(ctx, "")
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsValidationError(err))
 	})
 
-	t.Run("nonexistent_worker", func(t *testing.T) {
+	t.Run("nonexistent_process", func(t *testing.T) {
 		manager := createTestProcessManager(t)
 		ctx := context.Background()
-		err := manager.StopWorker(ctx, "nonexistent-worker")
+		err := manager.StopProcess(ctx, "nonexistent-process")
 
 		assert.Error(t, err)
 		assert.True(t, errors.IsNotFoundError(err))
@@ -382,14 +382,14 @@ func TestProcessManager_StopWorker(t *testing.T) {
 func TestProcessManager_ConcurrentOperations(t *testing.T) {
 	manager := createTestProcessManager(t)
 
-	// Test concurrent AddWorker operations
+	// Test concurrent AddProcess operations
 	done := make(chan bool)
 	errors := make(chan error, 10)
 
 	for i := 0; i < 10; i++ {
 		go func(id int) {
-			worker := createTestWorker(fmt.Sprintf("worker-%d", id))
-			err := manager.AddWorker(worker)
+			mockProcess := createTestProcess(fmt.Sprintf("process-%d", id))
+			err := manager.AddProcess(mockProcess)
 			errors <- err
 			done <- true
 		}(i)
@@ -400,7 +400,7 @@ func TestProcessManager_ConcurrentOperations(t *testing.T) {
 		<-done
 	}
 
-	// Check that all workers were added successfully
+	// Check that all processes were added successfully
 	errorCount := 0
 	for i := 0; i < 10; i++ {
 		if err := <-errors; err != nil {
@@ -408,8 +408,8 @@ func TestProcessManager_ConcurrentOperations(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, 0, errorCount, "No errors should occur during concurrent AddWorker operations")
-	assert.Equal(t, 10, len(manager.workers))
+	assert.Equal(t, 0, errorCount, "No errors should occur during concurrent AddProcess operations")
+	assert.Equal(t, 10, len(manager.processes))
 }
 
 func TestProcessManager_ContextCancellation(t *testing.T) {
@@ -422,10 +422,10 @@ func TestProcessManager_ContextCancellation(t *testing.T) {
 	cancel()
 
 	// Operations with cancelled context should handle it gracefully
-	err := manager.StartWorker(ctx, "test-worker")
+	err := manager.StartProcess(ctx, "test-process")
 	assert.Error(t, err)
-	// The actual error depends on whether the worker exists or not
-	// If worker doesn't exist, we get NotFoundError before checking context
+	// The actual error depends on whether the process exists or not
+	// If process doesn't exist, we get NotFoundError before checking context
 	assert.True(t, errors.IsNotFoundError(err) || errors.IsCancelledError(err))
 }
 
@@ -440,8 +440,8 @@ func TestProcessManager_ContextTimeout(t *testing.T) {
 	time.Sleep(2 * time.Millisecond)
 
 	// Operations with timed out context should handle it gracefully
-	err := manager.StartWorker(ctx, "test-worker")
+	err := manager.StartProcess(ctx, "test-process")
 	assert.Error(t, err)
-	// The actual error depends on whether the worker exists or not
+	// The actual error depends on whether the process exists or not
 	assert.True(t, errors.IsNotFoundError(err) || errors.IsCancelledError(err))
 }

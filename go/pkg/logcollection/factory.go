@@ -112,33 +112,6 @@ func DevelopmentLogger() (StructuredLogger, error) {
 	return NewStructuredLoggerWithConfig(cfg)
 }
 
-// ===== INTEGRATION HELPERS =====
-
-// CreateLoggerForWorker creates a logger instance specifically for a worker
-func CreateLoggerForWorker(workerID string, baseLogger StructuredLogger) StructuredLogger {
-	return baseLogger.WithWorker(workerID).WithFields(
-		Component("worker"),
-		String("worker_type", "process"),
-	)
-}
-
-// CreateLoggerForProcessManager creates a logger instance specifically for the process manager
-func CreateLoggerForProcessManager(processManagerID string, baseLogger StructuredLogger) StructuredLogger {
-	return baseLogger.WithFields(
-		String("process_manager_id", processManagerID),
-		Component("process_manager"),
-		String("component_type", "process_manager"),
-	)
-}
-
-// CreateLoggerForComponent creates a logger instance for a specific component
-func CreateLoggerForComponent(component string, baseLogger StructuredLogger) StructuredLogger {
-	return baseLogger.WithFields(
-		Component(component),
-		String("subsystem", "process_manager"),
-	)
-}
-
 // ===== VALIDATION HELPERS =====
 
 // ValidateLoggerConfig validates a logger configuration
@@ -238,7 +211,7 @@ func (w *simpleLoggerWrapper) WithError(err error) StructuredLogger {
 	return w
 }
 
-func (w *simpleLoggerWrapper) WithWorker(workerID string) StructuredLogger {
+func (w *simpleLoggerWrapper) WithProcess(processID string) StructuredLogger {
 	return w
 }
 

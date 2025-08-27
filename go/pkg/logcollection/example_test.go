@@ -36,11 +36,11 @@ func ExampleUsage() {
 	)
 
 	// Fluent interface
-	workerLogger := logger.
-		WithWorker("database-service").
+	processLogger := logger.
+		WithProcess("database-service").
 		WithFields(Component("health-check"))
 
-	workerLogger.LogWithFields(WarnLevel, "Health check failed",
+	processLogger.LogWithFields(WarnLevel, "Health check failed",
 		Error(fmt.Errorf("connection timeout")), // Our field constructor
 		Int("retry_count", 5),
 	)
@@ -56,10 +56,10 @@ func ExampleUsage() {
 	}
 	defer service.Stop()
 
-	// ===== 4. REGISTER WORKER FOR LOG COLLECTION =====
+	// ===== 4. REGISTER PROCESS FOR LOG COLLECTION =====
 
-	workerConfig := config.DefaultWorkerLogConfig()
-	if err := service.RegisterWorker("web-server", workerConfig); err != nil {
+	processConfig := config.DefaultProcessLogConfig()
+	if err := service.RegisterProcess("web-server", processConfig); err != nil {
 		panic(err)
 	}
 
@@ -85,17 +85,17 @@ func ExampleUsage() {
 
 	// ===== 6. CHECK STATUS =====
 
-	workerStatus, err := service.GetWorkerStatus("web-server")
+	processStatus, err := service.GetProcessStatus("web-server")
 	if err != nil {
 		panic(err)
 	}
 
 	fmt.Printf("Managed process processed %d lines, %d bytes\n",
-		workerStatus.LinesProcessed, workerStatus.BytesProcessed)
+		processStatus.LinesProcessed, processStatus.BytesProcessed)
 
 	systemStatus := service.GetSystemStatus()
 	fmt.Printf("System: %d active managed processes, %d total lines processed\n",
-		systemStatus.WorkersActive, systemStatus.TotalLines)
+		systemStatus.ProcessesActive, systemStatus.TotalLines)
 }
 
 // TestPhase1Integration demonstrates integration with process control
@@ -125,7 +125,7 @@ func TestPhase1Integration(t *testing.T) {
 				},
 			},
 		},
-		DefaultWorker: config.DefaultWorkerLogConfig(),
+		Default: config.DefaultProcessLogConfig(),
 		System: config.SystemConfig{
 			MaxManagedProcesses: 10,
 			FlushInterval:       1 * time.Second,
@@ -140,8 +140,8 @@ func TestPhase1Integration(t *testing.T) {
 	}
 	defer service.Stop()
 
-	// Register worker
-	workerConfig := config.WorkerLogConfig{
+	// Register process
+	processConfig := config.ProcessLogConfig{
 		Enabled:       true,
 		CaptureStdout: true,
 		CaptureStderr: true,
@@ -155,8 +155,8 @@ func TestPhase1Integration(t *testing.T) {
 		},
 	}
 
-	if err := service.RegisterWorker("test-worker", workerConfig); err != nil {
-		t.Fatalf("Failed to register worker: %v", err)
+	if err := service.RegisterProcess("test-process", processConfig); err != nil {
+		t.Fatalf("Failed to register process: %v", err)
 	}
 
 	// Simulate log collection from process streams
@@ -168,7 +168,7 @@ Another plain text line with INFO: prefix
 
 	// Test single stream collection
 	reader := strings.NewReader(testLogs)
-	if err := service.CollectFromStream("test-worker", reader, StdoutStream); err != nil {
+	if err := service.CollectFromStream("test-process", reader, StdoutStream); err != nil {
 		t.Fatalf("Failed to collect from stream: %v", err)
 	}
 
@@ -176,9 +176,9 @@ Another plain text line with INFO: prefix
 	time.Sleep(200 * time.Millisecond)
 
 	// Verify status
-	status, err := service.GetWorkerStatus("test-worker")
+	status, err := service.GetProcessStatus("test-process")
 	if err != nil {
-		t.Fatalf("Failed to get worker status: %v", err)
+		t.Fatalf("Failed to get process status: %v", err)
 	}
 
 	if status.LinesProcessed == 0 {
@@ -206,7 +206,7 @@ func BenchmarkLogCollection(b *testing.B) {
 	service.Start(ctx)
 	defer service.Stop()
 
-	service.RegisterWorker("bench-worker", config.DefaultWorkerLogConfig())
+	service.RegisterProcess("bench-process", config.DefaultProcessLogConfig())
 
 	logLine := "2025-01-20 10:30:45 INFO: This is a test log line for benchmarking\n"
 
@@ -214,7 +214,7 @@ func BenchmarkLogCollection(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			reader := strings.NewReader(logLine)
-			service.CollectFromStream("bench-worker", reader, StdoutStream)
+			service.CollectFromStream("bench-process", reader, StdoutStream)
 		}
 	})
 }

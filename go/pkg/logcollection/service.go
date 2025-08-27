@@ -25,7 +25,7 @@ type logCollectionService struct {
 
 	// Core components
 	logger      StructuredLogger
-	workers     map[string]*workerLogCollector
+	processes   map[string]*processLogCollector
 	outputs     []LogOutputWriter
 	pathManager *processfile.ProcessFileManager // NEW: For resolving log paths
 
@@ -59,7 +59,7 @@ func NewLogCollectionServiceWithPathManager(config config.LogCollectionConfig, l
 	return &logCollectionService{
 		config:      config,
 		logger:      logger,
-		workers:     make(map[string]*workerLogCollector),
+		processes:   make(map[string]*processLogCollector),
 		outputs:     make([]LogOutputWriter, 0),
 		pathManager: pathManager,
 		ctx:         ctx,
@@ -82,8 +82,8 @@ func (s *logCollectionService) resolveOutputPath(outputConfig config.OutputTarge
 	return s.pathManager.GenerateLogFilePath(outputConfig.Path)
 }
 
-// resolveWorkerOutputPath resolves a worker-specific path template to an absolute path
-func (s *logCollectionService) resolveWorkerOutputPath(outputConfig config.OutputTargetConfig, workerID string) string {
+// resolveProcessOutputPath resolves a process-specific path template to an absolute path
+func (s *logCollectionService) resolveProcessOutputPath(outputConfig config.OutputTargetConfig, processID string) string {
 	if outputConfig.Type != "file" {
 		return outputConfig.Path
 	}
@@ -93,8 +93,8 @@ func (s *logCollectionService) resolveWorkerOutputPath(outputConfig config.Outpu
 		return outputConfig.Path
 	}
 
-	// Resolve relative path using path manager for worker logs
-	return s.pathManager.GenerateWorkerLogFilePath(outputConfig.Path, workerID)
+	// Resolve relative path using path manager for process logs
+	return s.pathManager.GenerateProcessLogFilePath(outputConfig.Path, processID)
 }
 
 // ===== SERVICE LIFECYCLE =====
@@ -135,10 +135,10 @@ func (s *logCollectionService) Stop() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Stop all worker collectors
-	for workerID, worker := range s.workers {
-		if err := worker.stop(); err != nil {
-			s.logger.WithError(err).Warnf("Error stopping worker collector: %s", workerID)
+	// Stop all process collectors
+	for processID, process := range s.processes {
+		if err := process.stop(); err != nil {
+			s.logger.WithError(err).Warnf("Error stopping process collector: %s", processID)
 		}
 	}
 
@@ -161,10 +161,10 @@ func (s *logCollectionService) Stop() error {
 	return nil
 }
 
-// ===== WORKER MANAGEMENT =====
+// ===== PROCESS MANAGEMENT =====
 
-// RegisterWorker registers a new worker for log collection
-func (s *logCollectionService) RegisterWorker(workerID string, workerConfig config.WorkerLogConfig) error {
+// RegisterProcess registers a new process for log collection
+func (s *logCollectionService) RegisterProcess(processID string, processConfig config.ProcessLogConfig) error {
 	if atomic.LoadInt32(&s.running) == 0 {
 		return errors.NewValidationError("log collection service not running", nil)
 	}
@@ -172,39 +172,39 @@ func (s *logCollectionService) RegisterWorker(workerID string, workerConfig conf
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, exists := s.workers[workerID]; exists {
-		return errors.NewConflictError("worker already registered", nil).WithContext("worker_id", workerID)
+	if _, exists := s.processes[processID]; exists {
+		return errors.NewConflictError("process already registered", nil).WithContext("process_id", processID)
 	}
 
-	worker := newWorkerLogCollector(workerID, workerConfig, s.logger.WithWorker(workerID), s)
-	s.workers[workerID] = worker
+	process := newProcessLogCollector(processID, processConfig, s.logger.WithProcess(processID), s)
+	s.processes[processID] = process
 
 	s.logger.WithFields(
-		ManagedProcess(workerID),
-		Bool("capture_stdout", workerConfig.CaptureStdout),
-		Bool("capture_stderr", workerConfig.CaptureStderr),
+		ManagedProcess(processID),
+		Bool("capture_stdout", processConfig.CaptureStdout),
+		Bool("capture_stderr", processConfig.CaptureStderr),
 	).Infof("Managed process registered for log collection")
 
 	return nil
 }
 
-// UnregisterWorker unregisters a worker from log collection
-func (s *logCollectionService) UnregisterWorker(workerID string) error {
+// UnregisterProcess unregisters a process from log collection
+func (s *logCollectionService) UnregisterProcess(processID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	worker, exists := s.workers[workerID]
+	process, exists := s.processes[processID]
 	if !exists {
-		return errors.NewNotFoundError("worker not registered", nil).WithContext("worker_id", workerID)
+		return errors.NewNotFoundError("process not registered", nil).WithContext("process_id", processID)
 	}
 
-	if err := worker.stop(); err != nil {
-		s.logger.WithError(err).Warnf("Error stopping worker collector: %s", workerID)
+	if err := process.stop(); err != nil {
+		s.logger.WithError(err).Warnf("Error stopping process collector: %s", processID)
 	}
 
-	delete(s.workers, workerID)
+	delete(s.processes, processID)
 
-	s.logger.WithWorker(workerID).Infof("Managed process unregistered from log collection")
+	s.logger.WithProcess(processID).Infof("Managed process unregistered from log collection")
 
 	return nil
 }
@@ -212,33 +212,33 @@ func (s *logCollectionService) UnregisterWorker(workerID string) error {
 // ===== LOG COLLECTION =====
 
 // CollectFromStream collects logs from a single stream
-func (s *logCollectionService) CollectFromStream(workerID string, stream io.Reader, streamType StreamType) error {
-	worker, err := s.getWorker(workerID)
+func (s *logCollectionService) CollectFromStream(processID string, stream io.Reader, streamType StreamType) error {
+	process, err := s.getProcess(processID)
 	if err != nil {
 		return err
 	}
 
-	return worker.collectFromStream(stream, streamType)
+	return process.collectFromStream(stream, streamType)
 }
 
 // CollectFromProcess collects logs from both stdout and stderr of a process
-func (s *logCollectionService) CollectFromProcess(workerID string, stdout, stderr io.Reader) error {
-	worker, err := s.getWorker(workerID)
+func (s *logCollectionService) CollectFromProcess(processID string, stdout, stderr io.Reader) error {
+	process, err := s.getProcess(processID)
 	if err != nil {
 		return err
 	}
 
-	return worker.collectFromProcess(stdout, stderr)
+	return process.collectFromProcess(stdout, stderr)
 }
 
 // ProcessLogLine processes a single log line
-func (s *logCollectionService) ProcessLogLine(workerID string, line string, metadata LogMetadata) error {
-	worker, err := s.getWorker(workerID)
+func (s *logCollectionService) ProcessLogLine(processID string, line string, metadata LogMetadata) error {
+	process, err := s.getProcess(processID)
 	if err != nil {
 		return err
 	}
 
-	return worker.processLogLine(line, metadata)
+	return process.processLogLine(line, metadata)
 }
 
 // ForwardLogs forwards logs to external targets
@@ -275,17 +275,17 @@ func (s *logCollectionService) GetConfiguration() config.LogCollectionConfig {
 
 // ===== STATUS AND METRICS =====
 
-// GetWorkerStatus returns the status of a specific worker
-func (s *logCollectionService) GetWorkerStatus(workerID string) (*WorkerLogStatus, error) {
+// GetProcessStatus returns the status of a specific process
+func (s *logCollectionService) GetProcessStatus(processID string) (*ProcessLogStatus, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	worker, exists := s.workers[workerID]
+	process, exists := s.processes[processID]
 	if !exists {
-		return nil, errors.NewNotFoundError("worker not registered", nil).WithContext("worker_id", workerID)
+		return nil, errors.NewNotFoundError("process not registered", nil).WithContext("process_id", processID)
 	}
 
-	return worker.getStatus(), nil
+	return process.getStatus(), nil
 }
 
 // GetSystemStatus returns the overall system status
@@ -293,14 +293,14 @@ func (s *logCollectionService) GetSystemStatus() *SystemLogStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	workers := make(map[string]*WorkerLogStatus)
-	activeWorkers := 0
+	processes := make(map[string]*ProcessLogStatus)
+	activeProcesses := 0
 
-	for workerID, worker := range s.workers {
-		status := worker.getStatus()
-		workers[workerID] = status
+	for processID, process := range s.processes {
+		status := process.getStatus()
+		processes[processID] = status
 		if status.Active {
-			activeWorkers++
+			activeProcesses++
 		}
 	}
 
@@ -311,30 +311,30 @@ func (s *logCollectionService) GetSystemStatus() *SystemLogStatus {
 
 	return &SystemLogStatus{
 		Active:           atomic.LoadInt32(&s.running) == 1,
-		WorkersActive:    activeWorkers,
-		TotalWorkers:     len(s.workers),
+		ProcessesActive:  activeProcesses,
+		TotalProcesses:   len(s.processes),
 		TotalLines:       atomic.LoadInt64(&s.totalLines),
 		TotalBytes:       atomic.LoadInt64(&s.totalBytes),
 		StartTime:        s.startTime,
 		LastActivity:     time.Now(), // TODO: Track actual last activity
-		ManagedProcesses: workers,
+		ManagedProcesses: processes,
 		OutputTargets:    outputTargets,
 	}
 }
 
 // ===== INTERNAL HELPERS =====
 
-// getWorker retrieves a worker collector safely
-func (s *logCollectionService) getWorker(workerID string) (*workerLogCollector, error) {
+// getProcess retrieves a process collector safely
+func (s *logCollectionService) getProcess(processID string) (*processLogCollector, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	worker, exists := s.workers[workerID]
+	process, exists := s.processes[processID]
 	if !exists {
-		return nil, errors.NewNotFoundError("worker not registered", nil).WithContext("worker_id", workerID)
+		return nil, errors.NewNotFoundError("process not registered", nil).WithContext("process_id", processID)
 	}
 
-	return worker, nil
+	return process, nil
 }
 
 // initializeOutputs initializes global output writers
@@ -368,14 +368,14 @@ func (s *logCollectionService) recordMetrics(lineLength int) {
 	atomic.AddInt64(&s.totalBytes, int64(lineLength))
 }
 
-// ===== WORKER LOG COLLECTOR =====
+// ===== PROCESS LOG COLLECTOR =====
 
-// workerLogCollector handles log collection for a specific worker
-type workerLogCollector struct {
-	workerID string
-	config   config.WorkerLogConfig
-	logger   StructuredLogger
-	service  *logCollectionService
+// processLogCollector handles log collection for a specific process
+type processLogCollector struct {
+	processID string
+	config    config.ProcessLogConfig
+	logger    StructuredLogger
+	service   *logCollectionService
 
 	// State
 	mu             sync.RWMutex
@@ -390,20 +390,20 @@ type workerLogCollector struct {
 	wg     sync.WaitGroup
 }
 
-// newWorkerLogCollector creates a new worker log collector
-func newWorkerLogCollector(workerID string, config config.WorkerLogConfig, logger StructuredLogger, service *logCollectionService) *workerLogCollector {
-	return &workerLogCollector{
-		workerID: workerID,
-		config:   config,
-		logger:   logger,
-		service:  service,
-		stopCh:   make(chan struct{}),
-		errors:   make([]string, 0),
+// newProcessLogCollector creates a new process log collector
+func newProcessLogCollector(processID string, config config.ProcessLogConfig, logger StructuredLogger, service *logCollectionService) *processLogCollector {
+	return &processLogCollector{
+		processID: processID,
+		config:    config,
+		logger:    logger,
+		service:   service,
+		stopCh:    make(chan struct{}),
+		errors:    make([]string, 0),
 	}
 }
 
 // collectFromStream collects logs from a single stream
-func (w *workerLogCollector) collectFromStream(stream io.Reader, streamType StreamType) error {
+func (w *processLogCollector) collectFromStream(stream io.Reader, streamType StreamType) error {
 	if !w.config.Enabled {
 		return nil
 	}
@@ -427,7 +427,7 @@ func (w *workerLogCollector) collectFromStream(stream io.Reader, streamType Stre
 }
 
 // collectFromProcess collects logs from both stdout and stderr
-func (w *workerLogCollector) collectFromProcess(stdout, stderr io.Reader) error {
+func (w *processLogCollector) collectFromProcess(stdout, stderr io.Reader) error {
 	if !w.config.Enabled {
 		return nil
 	}
@@ -436,14 +436,14 @@ func (w *workerLogCollector) collectFromProcess(stdout, stderr io.Reader) error 
 
 	if w.config.CaptureStdout && stdout != nil {
 		if streamErr := w.collectFromStream(stdout, StdoutStream); streamErr != nil {
-			wrappedErr := errors.NewInternalError("stdout collection failed", streamErr).WithContext("worker_id", w.workerID)
+			wrappedErr := errors.NewInternalError("stdout collection failed", streamErr).WithContext("process_id", w.processID)
 			errorCollection.Add(wrappedErr)
 		}
 	}
 
 	if w.config.CaptureStderr && stderr != nil {
 		if streamErr := w.collectFromStream(stderr, StderrStream); streamErr != nil {
-			wrappedErr := errors.NewInternalError("stderr collection failed", streamErr).WithContext("worker_id", w.workerID)
+			wrappedErr := errors.NewInternalError("stderr collection failed", streamErr).WithContext("process_id", w.processID)
 			errorCollection.Add(wrappedErr)
 		}
 	}
@@ -452,7 +452,7 @@ func (w *workerLogCollector) collectFromProcess(stdout, stderr io.Reader) error 
 }
 
 // streamReader reads from a stream and processes log lines
-func (w *workerLogCollector) streamReader(stream io.Reader, streamType StreamType) {
+func (w *processLogCollector) streamReader(stream io.Reader, streamType StreamType) {
 	defer w.wg.Done()
 
 	scanner := bufio.NewScanner(stream)
@@ -470,7 +470,7 @@ func (w *workerLogCollector) streamReader(stream io.Reader, streamType StreamTyp
 
 		metadata := LogMetadata{
 			Timestamp: time.Now(),
-			WorkerID:  w.workerID,
+			ProcessID: w.processID,
 			Stream:    streamType,
 			LineNum:   lineNum,
 		}
@@ -492,7 +492,7 @@ func (w *workerLogCollector) streamReader(stream io.Reader, streamType StreamTyp
 }
 
 // processLogLine processes a single log line
-func (w *workerLogCollector) processLogLine(line string, metadata LogMetadata) error {
+func (w *processLogCollector) processLogLine(line string, metadata LogMetadata) error {
 	// Update metrics
 	w.mu.Lock()
 	w.linesProcessed++
@@ -505,7 +505,7 @@ func (w *workerLogCollector) processLogLine(line string, metadata LogMetadata) e
 
 	// Create raw log entry
 	rawEntry := RawLogEntry{
-		WorkerID:  metadata.WorkerID,
+		ProcessID: metadata.ProcessID,
 		Stream:    metadata.Stream,
 		Line:      line,
 		Timestamp: metadata.Timestamp,
@@ -517,7 +517,7 @@ func (w *workerLogCollector) processLogLine(line string, metadata LogMetadata) e
 	logEntry := LogEntry{
 		Timestamp: rawEntry.Timestamp,
 		Message:   rawEntry.Line,
-		WorkerID:  rawEntry.WorkerID,
+		ProcessID: rawEntry.ProcessID,
 		Stream:    rawEntry.Stream,
 		Raw:       rawEntry.Line,
 	}
@@ -527,7 +527,7 @@ func (w *workerLogCollector) processLogLine(line string, metadata LogMetadata) e
 }
 
 // writeToOutputs writes the log entry to configured outputs
-func (w *workerLogCollector) writeToOutputs(entry LogEntry) error {
+func (w *processLogCollector) writeToOutputs(entry LogEntry) error {
 	// Write to global aggregated outputs
 	for _, output := range w.service.outputs {
 		if err := output.Write(entry); err != nil {
@@ -542,8 +542,8 @@ func (w *workerLogCollector) writeToOutputs(entry LogEntry) error {
 	return nil
 }
 
-// stop stops the worker log collector
-func (w *workerLogCollector) stop() error {
+// stop stops the process log collector
+func (w *processLogCollector) stop() error {
 	close(w.stopCh)
 	w.wg.Wait()
 
@@ -554,8 +554,8 @@ func (w *workerLogCollector) stop() error {
 	return nil
 }
 
-// getStatus returns the current status of the worker
-func (w *workerLogCollector) getStatus() *WorkerLogStatus {
+// getStatus returns the current status of the process
+func (w *processLogCollector) getStatus() *ProcessLogStatus {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
@@ -563,8 +563,8 @@ func (w *workerLogCollector) getStatus() *WorkerLogStatus {
 	errorsCopy := make([]string, len(w.errors))
 	copy(errorsCopy, w.errors)
 
-	return &WorkerLogStatus{
-		WorkerID:       w.workerID,
+	return &ProcessLogStatus{
+		ProcessID:      w.processID,
 		Active:         w.active,
 		LinesProcessed: w.linesProcessed,
 		BytesProcessed: w.bytesProcessed,
@@ -575,7 +575,7 @@ func (w *workerLogCollector) getStatus() *WorkerLogStatus {
 }
 
 // recordError records an error for status reporting
-func (w *workerLogCollector) recordError(errMsg string) {
+func (w *processLogCollector) recordError(errMsg string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -609,7 +609,7 @@ type stdoutWriter struct{}
 func (s *stdoutWriter) Write(entry LogEntry) error {
 	fmt.Printf("[%s][%s][%s] %s\n",
 		entry.Timestamp.Format(time.RFC3339),
-		entry.WorkerID,
+		entry.ProcessID,
 		entry.Stream,
 		entry.Message,
 	)
@@ -644,7 +644,7 @@ func (f *fileWriter) Write(entry LogEntry) error {
 	// Write log entry
 	logLine := fmt.Sprintf("[%s][%s][%s] %s\n",
 		entry.Timestamp.Format(time.RFC3339),
-		entry.WorkerID,
+		entry.ProcessID,
 		entry.Stream,
 		entry.Message,
 	)

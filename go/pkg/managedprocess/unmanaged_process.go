@@ -9,7 +9,7 @@ import (
 	"github.com/core-tools/hsu-core/pkg/process"
 )
 
-type UnmanagedUnit struct {
+type UnmanagedProcessConfig struct {
 	// Metadata
 	Metadata ProcessMetadata `yaml:"metadata"`
 
@@ -32,7 +32,7 @@ type unmanagedProcessDescription struct {
 	logger               logging.Logger
 }
 
-func NewUnmanagedProcessDescription(id string, unit *UnmanagedUnit, logger logging.Logger) ProcessDescription {
+func NewUnmanagedProcessDescription(id string, unit *UnmanagedProcessConfig, logger logging.Logger) ProcessDescription {
 	return &unmanagedProcessDescription{
 		id:                   id,
 		metadata:             unit.Metadata,
@@ -52,7 +52,7 @@ func (pd *unmanagedProcessDescription) Metadata() ProcessMetadata {
 }
 
 func (pd *unmanagedProcessDescription) ProcessControlOptions() processcontrol.ProcessControlOptions {
-	pd.logger.Debugf("Preparing process control options for unmanaged worker, id: %s, discovery: %s, can_terminate: %t, can_restart: %t",
+	pd.logger.Debugf("Preparing process control options for unmanaged process, id: %s, discovery: %s, can_terminate: %t, can_restart: %t",
 		pd.id, pd.discoveryConfig.Method, pd.processControlConfig.CanTerminate, pd.processControlConfig.CanRestart)
 
 	return processcontrol.ProcessControlOptions{
@@ -71,7 +71,7 @@ func (pd *unmanagedProcessDescription) ProcessControlOptions() processcontrol.Pr
 }
 
 func (pd *unmanagedProcessDescription) AttachCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
-	pd.logger.Infof("Attaching to unmanaged worker, id: %s", pd.id)
+	pd.logger.Infof("Attaching to unmanaged process, id: %s", pd.id)
 
 	stdAttachCmd := process.NewStdAttachCmd(pd.discoveryConfig, pd.id, pd.logger)
 	process, stdout, err := stdAttachCmd(ctx)
@@ -79,7 +79,7 @@ func (pd *unmanagedProcessDescription) AttachCmd(ctx context.Context) (*processc
 		return nil, err
 	}
 
-	pd.logger.Infof("Unmanaged worker attached successfully, id: %s, PID: %d", pd.id, process.Pid)
+	pd.logger.Infof("Unmanaged process attached successfully, id: %s, PID: %d", pd.id, process.Pid)
 
 	return &processcontrol.CommandResult{
 		Process:           process,

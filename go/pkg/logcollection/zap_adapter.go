@@ -92,9 +92,9 @@ func (z *ZapAdapter) WithError(err error) StructuredLogger {
 	return z.WithFields(Error(err))
 }
 
-// WithWorker creates a new logger with a managed process field
-func (z *ZapAdapter) WithWorker(workerID string) StructuredLogger {
-	return z.WithFields(ManagedProcess(workerID))
+// WithProcess creates a new logger with a managed process field
+func (z *ZapAdapter) WithProcess(processID string) StructuredLogger {
+	return z.WithFields(ManagedProcess(processID))
 }
 
 // WithContext creates a new logger with context fields

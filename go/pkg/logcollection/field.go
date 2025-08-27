@@ -115,11 +115,11 @@ func Array(key string, value interface{}) LogField {
 	return LogField{Key: key, Value: value, Type: ArrayField}
 }
 
-// ===== WORKER-SPECIFIC CONVENIENCE FIELDS =====
+// ===== PROCESS-SPECIFIC CONVENIENCE FIELDS =====
 
-// Managed process creates a worker_id field
-func ManagedProcess(workerID string) LogField {
-	return String("worker_id", workerID)
+// Managed process creates a process_id field
+func ManagedProcess(processID string) LogField {
+	return String("process_id", processID)
 }
 
 // Stream creates a stream field
@@ -254,8 +254,8 @@ func (f *Fields) AddError(err error) *Fields {
 }
 
 // AddManagedProcess adds a managed process field
-func (f *Fields) AddManagedProcess(workerID string) *Fields {
-	return f.Add(ManagedProcess(workerID))
+func (f *Fields) AddManagedProcess(processID string) *Fields {
+	return f.Add(ManagedProcess(processID))
 }
 
 // ToSlice returns the fields as a slice

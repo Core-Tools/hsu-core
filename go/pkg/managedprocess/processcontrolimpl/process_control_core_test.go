@@ -23,7 +23,7 @@ func TestProcessControl_NewProcessControl(t *testing.T) {
 	tests := []struct {
 		name        string
 		config      processcontrol.ProcessControlOptions
-		workerID    string
+		processID   string
 		expectError bool
 		description string
 	}{
@@ -32,7 +32,7 @@ func TestProcessControl_NewProcessControl(t *testing.T) {
 			config: processcontrol.ProcessControlOptions{
 				CanTerminate: true,
 			},
-			workerID:    "test-worker",
+			processID:   "test-process",
 			expectError: false,
 			description: "Minimal configuration should work",
 		},
@@ -77,7 +77,7 @@ func TestProcessControl_NewProcessControl(t *testing.T) {
 				},
 				RestartPolicy: processcontrol.RestartOnFailure,
 			},
-			workerID:    "full-featured-worker",
+			processID:   "full-featured-process",
 			expectError: false,
 			description: "Full configuration with all features should work",
 		},
@@ -87,7 +87,7 @@ func TestProcessControl_NewProcessControl(t *testing.T) {
 				CanTerminate:    true,
 				GracefulTimeout: 0, // Zero timeout
 			},
-			workerID:    "zero-timeout-worker",
+			processID:   "zero-timeout-process",
 			expectError: false,
 			description: "Zero graceful timeout should be allowed",
 		},
@@ -97,7 +97,7 @@ func TestProcessControl_NewProcessControl(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := &SimpleLogger{}
 
-			pc := NewProcessControl(tt.config, tt.workerID, logger)
+			pc := NewProcessControl(tt.config, tt.processID, logger)
 
 			if tt.expectError {
 				assert.Nil(t, pc)
@@ -107,7 +107,7 @@ func TestProcessControl_NewProcessControl(t *testing.T) {
 				// Verify initial state
 				if impl, ok := pc.(*processControl); ok {
 					assert.Equal(t, processcontrol.ProcessStateIdle, impl.GetState())
-					assert.Equal(t, tt.workerID, impl.workerID)
+					assert.Equal(t, tt.processID, impl.processID)
 					assert.Equal(t, tt.config.CanAttach, impl.config.CanAttach)
 					assert.Equal(t, tt.config.CanTerminate, impl.config.CanTerminate)
 					assert.Equal(t, tt.config.CanRestart, impl.config.CanRestart)
@@ -275,7 +275,7 @@ func TestProcessControl_Start_ComprehensiveScenarios(t *testing.T) {
 			config := tt.setupConfig()
 			ctx := tt.setupContext()
 
-			pc := NewProcessControl(config, "test-worker", logger)
+			pc := NewProcessControl(config, "test-process", logger)
 			require.NotNil(t, pc)
 
 			err := pc.Start(ctx)
@@ -358,7 +358,7 @@ func TestProcessControl_Stop_ComprehensiveScenarios(t *testing.T) {
 				GracefulTimeout: 30 * time.Second,
 			}
 
-			pc := NewProcessControl(config, "test-worker", logger)
+			pc := NewProcessControl(config, "test-process", logger)
 			impl := pc.(*processControl)
 			tt.setupProcess(impl)
 
@@ -531,7 +531,7 @@ func TestProcessControl_Restart_ComprehensiveScenarios(t *testing.T) {
 			logger := &SimpleLogger{}
 			config := tt.setupConfig()
 
-			pc := NewProcessControl(config, "test-worker", logger)
+			pc := NewProcessControl(config, "test-process", logger)
 			impl := pc.(*processControl)
 			tt.setupProcess(impl)
 
@@ -591,7 +591,7 @@ func TestProcessControl_GetState_ThreadSafety(t *testing.T) {
 		CanTerminate: true,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	// Test that GetState is consistent
@@ -613,7 +613,7 @@ func TestProcessControl_ConfigurationValidation(t *testing.T) {
 			GracefulTimeout: 45 * time.Second,
 		}
 
-		pc := NewProcessControl(config, "config-test-worker", logger)
+		pc := NewProcessControl(config, "config-test-process", logger)
 		impl := pc.(*processControl)
 
 		assert.Equal(t, config.CanAttach, impl.config.CanAttach)
@@ -622,15 +622,15 @@ func TestProcessControl_ConfigurationValidation(t *testing.T) {
 		assert.Equal(t, config.GracefulTimeout, impl.config.GracefulTimeout)
 	})
 
-	t.Run("worker_id_preserved", func(t *testing.T) {
-		workerIDs := []string{"worker1", "worker-with-dashes", "worker_with_underscores", "WORKER-CAPS"}
+	t.Run("process_id_preserved", func(t *testing.T) {
+		processIDs := []string{"process1", "process-with-dashes", "process_with_underscores", "PROCESS-CAPS"}
 
-		for _, workerID := range workerIDs {
+		for _, processID := range processIDs {
 			config := processcontrol.ProcessControlOptions{CanTerminate: true}
-			pc := NewProcessControl(config, workerID, logger)
+			pc := NewProcessControl(config, processID, logger)
 			impl := pc.(*processControl)
 
-			assert.Equal(t, workerID, impl.workerID, "Managed process ID should be preserved")
+			assert.Equal(t, processID, impl.processID, "Managed process ID should be preserved")
 		}
 	})
 }

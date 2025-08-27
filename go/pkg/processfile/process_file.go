@@ -69,8 +69,8 @@ func NewProcessFileManager(config ProcessFileConfig, logger logging.Logger) *Pro
 	}
 }
 
-// generateFilePath generates an appropriate PID file path for the given worker ID
-func (m *ProcessFileManager) generateFilePath(workerID, ext string) string {
+// generateFilePath generates an appropriate PID file path for the given process ID
+func (m *ProcessFileManager) generateFilePath(processID, ext string) string {
 	baseDir := m.getBaseDirectory()
 
 	// Create app subdirectory if requested
@@ -78,73 +78,73 @@ func (m *ProcessFileManager) generateFilePath(workerID, ext string) string {
 		baseDir = filepath.Join(baseDir, m.config.AppName)
 	}
 
-	return filepath.Join(baseDir, workerID+ext)
+	return filepath.Join(baseDir, processID+ext)
 }
 
-// GeneratePIDFilePath generates an appropriate PID file path for the given worker ID
-func (m *ProcessFileManager) GeneratePIDFilePath(workerID string) string {
-	return m.generateFilePath(workerID, ".pid")
+// GeneratePIDFilePath generates an appropriate PID file path for the given process ID
+func (m *ProcessFileManager) GeneratePIDFilePath(processID string) string {
+	return m.generateFilePath(processID, ".pid")
 }
 
-// GeneratePortFilePath generates an appropriate port file path for the given worker ID
-func (m *ProcessFileManager) GeneratePortFilePath(workerID string) string {
+// GeneratePortFilePath generates an appropriate port file path for the given process ID
+func (m *ProcessFileManager) GeneratePortFilePath(processID string) string {
 	// Use same base directory as PID files but with .port extension
-	return m.generateFilePath(workerID, ".port")
+	return m.generateFilePath(processID, ".port")
 }
 
-// WritePIDFile writes the process PID to the appropriate file for the given worker ID
-func (m *ProcessFileManager) WritePIDFile(workerID string, pid int) error {
-	pidFilePath := m.GeneratePIDFilePath(workerID)
-	m.logger.Debugf("Writing PID file, worker: %s, pid: %d, path: %s", workerID, pid, pidFilePath)
+// WritePIDFile writes the process PID to the appropriate file for the given process ID
+func (m *ProcessFileManager) WritePIDFile(processID string, pid int) error {
+	pidFilePath := m.GeneratePIDFilePath(processID)
+	m.logger.Debugf("Writing PID file, process: %s, pid: %d, path: %s", processID, pid, pidFilePath)
 
 	// Validate directory exists and is writable
 	if err := ValidateDirectory(pidFilePath); err != nil {
-		m.logger.Errorf("PID file directory validation failed, worker: %s, path: %s, error: %v", workerID, pidFilePath, err)
+		m.logger.Errorf("PID file directory validation failed, process: %s, path: %s, error: %v", processID, pidFilePath, err)
 		return errors.NewIOError("PID file directory validation failed", err).WithContext("pid_file", pidFilePath)
 	}
 
 	// Write PID to file
 	pidContent := fmt.Sprintf("%d\n", pid)
 	if err := os.WriteFile(pidFilePath, []byte(pidContent), 0644); err != nil {
-		m.logger.Errorf("Failed to write PID file, worker: %s, pid: %d, path: %s, error: %v", workerID, pid, pidFilePath, err)
+		m.logger.Errorf("Failed to write PID file, process: %s, pid: %d, path: %s, error: %v", processID, pid, pidFilePath, err)
 		return errors.NewIOError("failed to write PID file", err).WithContext("pid_file", pidFilePath).WithContext("pid", pid)
 	}
 
-	m.logger.Infof("PID file written successfully, worker: %s, pid: %d, path: %s", workerID, pid, pidFilePath)
+	m.logger.Infof("PID file written successfully, process: %s, pid: %d, path: %s", processID, pid, pidFilePath)
 	return nil
 }
 
 // WritePortFile writes a port number to a port file
-func (m *ProcessFileManager) WritePortFile(workerID string, port int) error {
-	portPath := m.GeneratePortFilePath(workerID)
-	m.logger.Debugf("Writing port file, worker: %s, port: %d, path: %s", workerID, port, portPath)
+func (m *ProcessFileManager) WritePortFile(processID string, port int) error {
+	portPath := m.GeneratePortFilePath(processID)
+	m.logger.Debugf("Writing port file, process: %s, port: %d, path: %s", processID, port, portPath)
 
 	// Validate directory exists and is writable
 	if err := ValidateDirectory(portPath); err != nil {
-		m.logger.Errorf("Port file directory validation failed, worker: %s, path: %s, error: %v", workerID, portPath, err)
+		m.logger.Errorf("Port file directory validation failed, process: %s, path: %s, error: %v", processID, portPath, err)
 		return errors.NewIOError("port file directory validation failed", err).WithContext("port_file", portPath)
 	}
 
 	// Write port to file
 	portContent := fmt.Sprintf("%d\n", port)
 	if err := os.WriteFile(portPath, []byte(portContent), 0644); err != nil {
-		m.logger.Errorf("Failed to write port file, worker: %s, port: %d, path: %s, error: %v", workerID, port, portPath, err)
+		m.logger.Errorf("Failed to write port file, process: %s, port: %d, path: %s, error: %v", processID, port, portPath, err)
 		return errors.NewIOError("failed to write port file", err).WithContext("port_file", portPath).WithContext("port", port)
 	}
 
-	m.logger.Infof("Port file written successfully, worker: %s, port: %d, path: %s", workerID, port, portPath)
+	m.logger.Infof("Port file written successfully, process: %s, port: %d, path: %s", processID, port, portPath)
 	return nil
 }
 
 // ReadPortFile reads a port number from a port file
-func (m *ProcessFileManager) ReadPortFile(workerID string) (int, error) {
-	portPath := m.GeneratePortFilePath(workerID)
-	m.logger.Debugf("Reading port file, worker: %s, path: %s", workerID, portPath)
+func (m *ProcessFileManager) ReadPortFile(processID string) (int, error) {
+	portPath := m.GeneratePortFilePath(processID)
+	m.logger.Debugf("Reading port file, process: %s, path: %s", processID, portPath)
 
 	// Read port file
 	content, err := os.ReadFile(portPath)
 	if err != nil {
-		m.logger.Warnf("Failed to read port file, worker: %s, path: %s, error: %v", workerID, portPath, err)
+		m.logger.Warnf("Failed to read port file, process: %s, path: %s, error: %v", processID, portPath, err)
 		return 0, errors.NewIOError("failed to read port file", err).WithContext("port_file", portPath)
 	}
 
@@ -152,11 +152,11 @@ func (m *ProcessFileManager) ReadPortFile(workerID string) (int, error) {
 	portStr := strings.TrimSpace(string(content))
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
-		m.logger.Errorf("Invalid port content in port file, worker: %s, path: %s, content: %s, error: %v", workerID, portPath, portStr, err)
+		m.logger.Errorf("Invalid port content in port file, process: %s, path: %s, content: %s, error: %v", processID, portPath, portStr, err)
 		return 0, errors.NewValidationError("invalid port in port file", err).WithContext("port_file", portPath).WithContext("content", portStr)
 	}
 
-	m.logger.Debugf("Port file read successfully, worker: %s, port: %d, path: %s", workerID, port, portPath)
+	m.logger.Debugf("Port file read successfully, process: %s, port: %d, path: %s", processID, port, portPath)
 	return port, nil
 }
 
@@ -176,8 +176,8 @@ func (m *ProcessFileManager) GenerateLogDirectoryPath() string {
 	return filepath.Join(baseDir, "logs")
 }
 
-// GenerateWorkerLogDirectoryPath generates the log directory path for worker-specific logs
-func (m *ProcessFileManager) GenerateWorkerLogDirectoryPath() string {
+// GenerateProcessLogDirectoryPath generates the log directory path for process-specific logs
+func (m *ProcessFileManager) GenerateProcessLogDirectoryPath() string {
 	return filepath.Join(m.GenerateLogDirectoryPath(), "managed_processes")
 }
 
@@ -187,14 +187,14 @@ func (m *ProcessFileManager) GenerateLogFilePath(relativeTemplate string) string
 	return filepath.Join(logDir, relativeTemplate)
 }
 
-// GenerateWorkerLogFilePath generates a worker-specific log file path from a relative template
-func (m *ProcessFileManager) GenerateWorkerLogFilePath(relativeTemplate string, workerID string) string {
-	workerLogDir := m.GenerateWorkerLogDirectoryPath()
+// GenerateProcessLogFilePath generates a process-specific log file path from a relative template
+func (m *ProcessFileManager) GenerateProcessLogFilePath(relativeTemplate string, processID string) string {
+	processLogDir := m.GenerateProcessLogDirectoryPath()
 
-	// Replace {worker_id} placeholder in template
-	resolvedTemplate := strings.ReplaceAll(relativeTemplate, "{worker_id}", workerID)
+	// Replace {process_id} placeholder in template
+	resolvedTemplate := strings.ReplaceAll(relativeTemplate, "{process_id}", processID)
 
-	return filepath.Join(workerLogDir, resolvedTemplate)
+	return filepath.Join(processLogDir, resolvedTemplate)
 }
 
 // getBaseDirectory returns the appropriate base directory for PID files

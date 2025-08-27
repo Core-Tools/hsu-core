@@ -53,11 +53,11 @@ func TestGeneratePIDFilePath_SystemService(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	path := manager.GeneratePIDFilePath("test-worker")
+	path := manager.GeneratePIDFilePath("test-process")
 
 	assert.NotEmpty(t, path)
 	assert.Contains(t, path, "test-app")
-	assert.Contains(t, path, "test-worker.pid")
+	assert.Contains(t, path, "test-process.pid")
 }
 
 func TestGeneratePIDFilePath_UserService(t *testing.T) {
@@ -68,11 +68,11 @@ func TestGeneratePIDFilePath_UserService(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	path := manager.GeneratePIDFilePath("test-worker")
+	path := manager.GeneratePIDFilePath("test-process")
 
 	assert.NotEmpty(t, path)
 	assert.Contains(t, path, "test-app")
-	assert.Contains(t, path, "test-worker.pid")
+	assert.Contains(t, path, "test-process.pid")
 }
 
 func TestGeneratePIDFilePath_SessionService(t *testing.T) {
@@ -83,11 +83,11 @@ func TestGeneratePIDFilePath_SessionService(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	path := manager.GeneratePIDFilePath("test-worker")
+	path := manager.GeneratePIDFilePath("test-process")
 
 	assert.NotEmpty(t, path)
 	// very different and platform-dependent path, could not check more
-	assert.Contains(t, path, "test-worker.pid")
+	assert.Contains(t, path, "test-process.pid")
 }
 
 func TestGeneratePIDFilePath_WithCustomBaseDirectory(t *testing.T) {
@@ -104,11 +104,11 @@ func TestGeneratePIDFilePath_WithCustomBaseDirectory(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	path := manager.GeneratePIDFilePath("test-worker")
+	path := manager.GeneratePIDFilePath("test-process")
 
 	assert.NotEmpty(t, path)
 	assert.Contains(t, path, customPath)
-	assert.Contains(t, path, "test-worker.pid")
+	assert.Contains(t, path, "test-process.pid")
 }
 
 func TestGeneratePIDFilePath_WithoutSubdirectory(t *testing.T) {
@@ -125,11 +125,11 @@ func TestGeneratePIDFilePath_WithoutSubdirectory(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	path := manager.GeneratePIDFilePath("test-worker")
+	path := manager.GeneratePIDFilePath("test-process")
 
 	assert.NotEmpty(t, path)
 	assert.Contains(t, path, testPath)
-	assert.Contains(t, path, "test-worker.pid")
+	assert.Contains(t, path, "test-process.pid")
 	assert.NotContains(t, path, "test-app")
 }
 
@@ -143,7 +143,7 @@ func TestValidateDirectory_Success(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	pidFile := manager.GeneratePIDFilePath("test-worker")
+	pidFile := manager.GeneratePIDFilePath("test-process")
 
 	err := ValidateDirectory(pidFile)
 
@@ -161,7 +161,7 @@ func TestValidateDirectory_CreateDirectory(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	pidFile := manager.GeneratePIDFilePath("test-worker")
+	pidFile := manager.GeneratePIDFilePath("test-process")
 
 	err := ValidateDirectory(pidFile)
 
@@ -178,7 +178,7 @@ func TestValidateDirectory_InvalidPath(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	pidFile := manager.GeneratePIDFilePath("test-worker")
+	pidFile := manager.GeneratePIDFilePath("test-process")
 
 	err := ValidateDirectory(pidFile)
 
@@ -263,7 +263,7 @@ func TestGetRecommendedProcessFileConfig(t *testing.T) {
 	}
 }
 
-func TestProcessFileManager_MultipleWorkers(t *testing.T) {
+func TestProcessFileManager_MultipleProcesses(t *testing.T) {
 	config := ProcessFileConfig{
 		BaseDirectory:   t.TempDir(),
 		ServiceContext:  UserService,
@@ -274,12 +274,12 @@ func TestProcessFileManager_MultipleWorkers(t *testing.T) {
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
 
 	// Generate paths for multiple managed processes
-	worker1Path := manager.GeneratePIDFilePath("worker-1")
-	worker2Path := manager.GeneratePIDFilePath("worker-2")
+	process1Path := manager.GeneratePIDFilePath("process-1")
+	process2Path := manager.GeneratePIDFilePath("process-2")
 
-	assert.NotEqual(t, worker1Path, worker2Path)
-	assert.Contains(t, worker1Path, "worker-1.pid")
-	assert.Contains(t, worker2Path, "worker-2.pid")
+	assert.NotEqual(t, process1Path, process2Path)
+	assert.Contains(t, process1Path, "process-1.pid")
+	assert.Contains(t, process2Path, "process-2.pid")
 }
 
 func TestProcessFileManager_PathSeparators(t *testing.T) {
@@ -291,13 +291,13 @@ func TestProcessFileManager_PathSeparators(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	path := manager.GeneratePIDFilePath("test-worker")
+	path := manager.GeneratePIDFilePath("test-process")
 
 	assert.NotEmpty(t, path)
-	assert.Contains(t, path, "test-worker.pid")
+	assert.Contains(t, path, "test-process.pid")
 }
 
-func TestProcessFileManager_WorkerIDValidation(t *testing.T) {
+func TestProcessFileManager_ProcessIDValidation(t *testing.T) {
 	config := ProcessFileConfig{
 		BaseDirectory:   t.TempDir(),
 		ServiceContext:  UserService,
@@ -307,19 +307,19 @@ func TestProcessFileManager_WorkerIDValidation(t *testing.T) {
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
 
-	// Test with various worker IDs
+	// Test with various process IDs
 	testCases := []string{
-		"simple-worker",
-		"worker_with_underscores",
-		"worker123",
+		"simple-process",
+		"process_with_underscores",
+		"process123",
 		"Managed-Process-With-Mixed-Case",
 	}
 
-	for _, workerID := range testCases {
-		t.Run(workerID, func(t *testing.T) {
-			path := manager.GeneratePIDFilePath(workerID)
+	for _, processID := range testCases {
+		t.Run(processID, func(t *testing.T) {
+			path := manager.GeneratePIDFilePath(processID)
 			assert.NotEmpty(t, path)
-			assert.Contains(t, path, workerID+".pid")
+			assert.Contains(t, path, processID+".pid")
 		})
 	}
 }
@@ -334,15 +334,15 @@ func TestProcessFileManager_WritePIDFile(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	workerID := "test-worker"
+	processID := "test-process"
 	pid := 12345
 
-	err := manager.WritePIDFile(workerID, pid)
+	err := manager.WritePIDFile(processID, pid)
 
 	assert.NoError(t, err)
 
 	// Verify file was created with correct content
-	pidFilePath := manager.GeneratePIDFilePath(workerID)
+	pidFilePath := manager.GeneratePIDFilePath(processID)
 	assert.FileExists(t, pidFilePath)
 
 	content, err := os.ReadFile(pidFilePath)
@@ -359,10 +359,10 @@ func TestProcessFileManager_WritePIDFile_InvalidDirectory(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	workerID := "test-worker"
+	processID := "test-process"
 	pid := 12345
 
-	err := manager.WritePIDFile(workerID, pid)
+	err := manager.WritePIDFile(processID, pid)
 
 	if runtime.GOOS != "windows" {
 		assert.Error(t, err)
@@ -379,15 +379,15 @@ func TestProcessFileManager_WritePIDFile_WithSubdirectory(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	workerID := "test-worker"
+	processID := "test-process"
 	pid := 12345
 
-	err := manager.WritePIDFile(workerID, pid)
+	err := manager.WritePIDFile(processID, pid)
 
 	assert.NoError(t, err)
 
 	// Verify file was created with correct content
-	pidFilePath := manager.GeneratePIDFilePath(workerID)
+	pidFilePath := manager.GeneratePIDFilePath(processID)
 	assert.FileExists(t, pidFilePath)
 
 	content, err := os.ReadFile(pidFilePath)
@@ -405,15 +405,15 @@ func TestProcessFileManager_WritePortFile(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	workerID := "test-worker"
+	processID := "test-process"
 	port := 8080
 
-	err := manager.WritePortFile(workerID, port)
+	err := manager.WritePortFile(processID, port)
 
 	assert.NoError(t, err)
 
 	// Verify file was created with correct content
-	portFilePath := manager.GeneratePortFilePath(workerID)
+	portFilePath := manager.GeneratePortFilePath(processID)
 	assert.FileExists(t, portFilePath)
 
 	content, err := os.ReadFile(portFilePath)
@@ -431,15 +431,15 @@ func TestProcessFileManager_ReadPortFile(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	workerID := "test-worker"
+	processID := "test-process"
 	expectedPort := 8080
 
 	// Write port file first
-	err := manager.WritePortFile(workerID, expectedPort)
+	err := manager.WritePortFile(processID, expectedPort)
 	require.NoError(t, err)
 
 	// Read port file
-	port, err := manager.ReadPortFile(workerID)
+	port, err := manager.ReadPortFile(processID)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedPort, port)
@@ -455,10 +455,10 @@ func TestProcessFileManager_ReadPortFile_InvalidFile(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	workerID := "nonexistent-worker"
+	processID := "nonexistent-process"
 
 	// Test reading non-existent port file
-	_, err := manager.ReadPortFile(workerID)
+	_, err := manager.ReadPortFile(processID)
 
 	assert.Error(t, err)
 }
@@ -473,17 +473,17 @@ func TestProcessFileManager_ReadPortFile_InvalidContent(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	workerID := "test-worker"
+	processID := "test-process"
 
 	// Write invalid content to port file
-	portFilePath := manager.GeneratePortFilePath(workerID)
+	portFilePath := manager.GeneratePortFilePath(processID)
 	err := os.MkdirAll(filepath.Dir(portFilePath), 0755)
 	require.NoError(t, err)
 	err = os.WriteFile(portFilePath, []byte("invalid-port"), 0644)
 	require.NoError(t, err)
 
 	// Test reading invalid port file
-	_, err = manager.ReadPortFile(workerID)
+	_, err = manager.ReadPortFile(processID)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid port in port file")
 }
@@ -502,12 +502,12 @@ func TestProcessFileManager_GeneratePortFilePath(t *testing.T) {
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	workerID := "test-worker"
+	processID := "test-process"
 
-	portFilePath := manager.GeneratePortFilePath(workerID)
+	portFilePath := manager.GeneratePortFilePath(processID)
 
 	assert.NotEmpty(t, portFilePath)
-	assert.Contains(t, portFilePath, "test-worker.port")
+	assert.Contains(t, portFilePath, "test-process.port")
 	assert.Contains(t, portFilePath, testPath)
 }
 
@@ -525,12 +525,12 @@ func TestProcessFileManager_GeneratePortFilePath_WithSubdirectory(t *testing.T) 
 	}
 
 	manager := NewProcessFileManager(config, &ProcessFileMockLogger{})
-	workerID := "test-worker"
+	processID := "test-process"
 
-	portFilePath := manager.GeneratePortFilePath(workerID)
+	portFilePath := manager.GeneratePortFilePath(processID)
 
 	assert.NotEmpty(t, portFilePath)
-	assert.Contains(t, portFilePath, "test-worker.port")
+	assert.Contains(t, portFilePath, "test-process.port")
 	assert.Contains(t, portFilePath, testPath)
 	assert.Contains(t, portFilePath, "test-app")
 }

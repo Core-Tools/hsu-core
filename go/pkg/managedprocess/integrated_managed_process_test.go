@@ -101,55 +101,55 @@ func createTestIntegratedManagedProcessConfig() *IntegratedManagedProcessConfig 
 	}
 }
 
-func TestNewIntegratedWorker(t *testing.T) {
+func TestNewIntegratedManagedProcess(t *testing.T) {
 	logger := &MockIntegratedLogger{}
 	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedManagedProcessDescription("test-integrated-1", unit, logger)
+	process := NewIntegratedManagedProcessDescription("test-integrated-1", unit, logger)
 
-	require.NotNil(t, worker)
-	assert.Equal(t, "test-integrated-1", worker.ID())
+	require.NotNil(t, process)
+	assert.Equal(t, "test-integrated-1", process.ID())
 }
 
-func TestIntegratedWorker_ID(t *testing.T) {
+func TestIntegratedManagedProcess_ID(t *testing.T) {
 	logger := &MockIntegratedLogger{}
 	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedManagedProcessDescription("test-integrated-2", unit, logger)
+	process := NewIntegratedManagedProcessDescription("test-integrated-2", unit, logger)
 
-	assert.Equal(t, "test-integrated-2", worker.ID())
+	assert.Equal(t, "test-integrated-2", process.ID())
 }
 
-func TestIntegratedWorker_Metadata(t *testing.T) {
+func TestIntegratedManagedProcess_Metadata(t *testing.T) {
 	logger := &MockIntegratedLogger{}
 	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedManagedProcessDescription("test-integrated-3", unit, logger)
+	process := NewIntegratedManagedProcessDescription("test-integrated-3", unit, logger)
 
-	metadata := worker.Metadata()
+	metadata := process.Metadata()
 
 	assert.Equal(t, "test-integrated-service", metadata.Name)
 	assert.Equal(t, "Test integrated service", metadata.Description)
 }
 
-func TestIntegratedWorker_ProcessControlOptions(t *testing.T) {
+func TestIntegratedManagedProcess_ProcessControlOptions(t *testing.T) {
 	logger := &MockIntegratedLogger{}
 	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedManagedProcessDescription("test-integrated-4", unit, logger)
+	process := NewIntegratedManagedProcessDescription("test-integrated-4", unit, logger)
 
-	options := worker.ProcessControlOptions()
+	options := process.ProcessControlOptions()
 
 	// Test basic capabilities
-	assert.True(t, options.CanAttach, "IntegratedWorker should support attachment")
-	assert.True(t, options.CanTerminate, "IntegratedWorker should support termination")
-	assert.True(t, options.CanRestart, "IntegratedWorker should support restart")
+	assert.True(t, options.CanAttach, "IntegratedManagedProcess should support attachment")
+	assert.True(t, options.CanTerminate, "IntegratedManagedProcess should support termination")
+	assert.True(t, options.CanRestart, "IntegratedManagedProcess should support restart")
 
 	// Test ExecuteCmd is present
-	assert.NotNil(t, options.ExecuteCmd, "IntegratedWorker should provide ExecuteCmd")
+	assert.NotNil(t, options.ExecuteCmd, "IntegratedManagedProcess should provide ExecuteCmd")
 
 	// Test AttachCmd is present
-	assert.NotNil(t, options.AttachCmd, "IntegratedWorker should provide AttachCmd")
+	assert.NotNil(t, options.AttachCmd, "IntegratedManagedProcess should provide AttachCmd")
 
 	// Test restart configuration
 	require.NotNil(t, options.ContextAwareRestart)
@@ -170,10 +170,10 @@ func TestIntegratedWorker_ProcessControlOptions(t *testing.T) {
 	assert.Equal(t, 30*time.Second, options.GracefulTimeout)
 
 	// Test health check is nil (provided by ExecuteCmd or AttachCmd)
-	assert.Nil(t, options.HealthCheck, "IntegratedWorker health check should be nil (provided by ExecuteCmd or AttachCmd)")
+	assert.Nil(t, options.HealthCheck, "IntegratedManagedProcess health check should be nil (provided by ExecuteCmd or AttachCmd)")
 }
 
-func TestIntegratedWorker_ExecuteCmd_NilContext(t *testing.T) {
+func TestIntegratedManagedProcess_ExecuteCmd_NilContext(t *testing.T) {
 	logger := &MockIntegratedLogger{}
 	logger.On("Infof", mock.Anything, mock.Anything).Maybe()
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
@@ -181,9 +181,9 @@ func TestIntegratedWorker_ExecuteCmd_NilContext(t *testing.T) {
 
 	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedManagedProcessDescription("test-integrated-5", unit, logger).(*integratedManagedProcessDescription)
+	process := NewIntegratedManagedProcessDescription("test-integrated-5", unit, logger).(*integratedManagedProcessDescription)
 
-	cmdResult, err := worker.ExecuteCmd(nil)
+	cmdResult, err := process.ExecuteCmd(nil)
 
 	assert.Nil(t, cmdResult)
 	assert.Error(t, err)
@@ -191,7 +191,7 @@ func TestIntegratedWorker_ExecuteCmd_NilContext(t *testing.T) {
 	assert.Contains(t, err.Error(), "context cannot be nil")
 }
 
-func TestIntegratedWorker_ExecuteCmd_ValidContext(t *testing.T) {
+func TestIntegratedManagedProcess_ExecuteCmd_ValidContext(t *testing.T) {
 	logger := &MockIntegratedLogger{}
 	logger.On("Infof", mock.Anything, mock.Anything).Maybe()
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
@@ -199,10 +199,10 @@ func TestIntegratedWorker_ExecuteCmd_ValidContext(t *testing.T) {
 	// Create a unit with a valid executable (use 'echo' which should exist on most systems)
 	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedManagedProcessDescription("test-integrated-6", unit, logger).(*integratedManagedProcessDescription)
+	process := NewIntegratedManagedProcessDescription("test-integrated-6", unit, logger).(*integratedManagedProcessDescription)
 
 	ctx := context.Background()
-	cmdResult, err := worker.ExecuteCmd(ctx)
+	cmdResult, err := process.ExecuteCmd(ctx)
 
 	// Note: This test might fail if the executable doesn't exist or isn't executable
 	// But the structure should be correct
@@ -239,14 +239,14 @@ func TestIntegratedWorker_ExecuteCmd_ValidContext(t *testing.T) {
 	logger.AssertExpectations(t)
 }
 
-func TestIntegratedWorker_ExecuteCmd_PortAllocation(t *testing.T) {
+func TestIntegratedManagedProcess_ExecuteCmd_PortAllocation(t *testing.T) {
 	logger := &MockIntegratedLogger{}
 	logger.On("Infof", mock.Anything, mock.Anything).Maybe()
 	logger.On("Debugf", mock.Anything, mock.Anything).Maybe()
 
 	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedManagedProcessDescription("test-integrated-7", unit, logger).(*integratedManagedProcessDescription)
+	process := NewIntegratedManagedProcessDescription("test-integrated-7", unit, logger).(*integratedManagedProcessDescription)
 
 	ctx := context.Background()
 
@@ -254,7 +254,7 @@ func TestIntegratedWorker_ExecuteCmd_PortAllocation(t *testing.T) {
 	ports := make(map[string]bool)
 	successCount := 0
 	for i := 0; i < 3; i++ {
-		cmdResult, err := worker.ExecuteCmd(ctx)
+		cmdResult, err := process.ExecuteCmd(ctx)
 
 		if err == nil {
 			process := cmdResult.Process
@@ -287,33 +287,33 @@ func TestIntegratedWorker_ExecuteCmd_PortAllocation(t *testing.T) {
 	logger.AssertExpectations(t)
 }
 
-func TestIntegratedWorker_IntegrationWithProcessControlOptions(t *testing.T) {
+func TestIntegratedManagedProcess_IntegrationWithProcessControlOptions(t *testing.T) {
 	logger := &MockIntegratedLogger{}
 	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedManagedProcessDescription("test-integrated-8", unit, logger)
+	process := NewIntegratedManagedProcessDescription("test-integrated-8", unit, logger)
 
-	options := worker.ProcessControlOptions()
+	options := process.ProcessControlOptions()
 
 	// Test that options pass validation
 	err := ValidateProcessControlOptions(options)
-	assert.NoError(t, err, "IntegratedWorker options should pass validation")
+	assert.NoError(t, err, "IntegratedManagedProcess options should pass validation")
 }
 
-func TestIntegratedWorker_MultipleInstances(t *testing.T) {
+func TestIntegratedManagedProcess_MultipleInstances(t *testing.T) {
 	logger := &MockIntegratedLogger{}
 	unit := createTestIntegratedManagedProcessConfig()
 
-	worker1 := NewIntegratedManagedProcessDescription("worker-1", unit, logger)
-	worker2 := NewIntegratedManagedProcessDescription("worker-2", unit, logger)
+	process1 := NewIntegratedManagedProcessDescription("process-1", unit, logger)
+	process2 := NewIntegratedManagedProcessDescription("process-2", unit, logger)
 
 	// Test independence
-	assert.NotEqual(t, worker1.ID(), worker2.ID())
-	assert.Equal(t, worker1.Metadata(), worker2.Metadata()) // Same unit, same metadata
+	assert.NotEqual(t, process1.ID(), process2.ID())
+	assert.Equal(t, process1.Metadata(), process2.Metadata()) // Same unit, same metadata
 
 	// Test same ProcessControlOptions configuration (since they share the same unit)
-	options1 := worker1.ProcessControlOptions()
-	options2 := worker2.ProcessControlOptions()
+	options1 := process1.ProcessControlOptions()
+	options2 := process2.ProcessControlOptions()
 
 	assert.Equal(t, options1.CanAttach, options2.CanAttach)
 	assert.Equal(t, options1.CanTerminate, options2.CanTerminate)
@@ -325,7 +325,7 @@ func TestIntegratedWorker_MultipleInstances(t *testing.T) {
 	assert.NotNil(t, options2.ExecuteCmd)
 }
 
-func TestIntegratedWorker_ConfigurationVariations(t *testing.T) {
+func TestIntegratedManagedProcess_ConfigurationVariations(t *testing.T) {
 	logger := &MockIntegratedLogger{}
 
 	// Test with different configurations
@@ -334,9 +334,9 @@ func TestIntegratedWorker_ConfigurationVariations(t *testing.T) {
 	unit.HealthCheckRunOptions.Interval = 60 * time.Second
 	unit.HealthCheckRunOptions.Timeout = 10 * time.Second
 
-	worker := NewIntegratedManagedProcessDescription("test-integrated-9", unit, logger)
+	process := NewIntegratedManagedProcessDescription("test-integrated-9", unit, logger)
 
-	options := worker.ProcessControlOptions()
+	options := process.ProcessControlOptions()
 
 	assert.Equal(t, 60*time.Second, options.GracefulTimeout)
 
@@ -346,7 +346,7 @@ func TestIntegratedWorker_ConfigurationVariations(t *testing.T) {
 	assert.NotNil(t, options.Limits)
 }
 
-func TestIntegratedWorker_GetFreePort(t *testing.T) {
+func TestIntegratedManagedProcess_GetFreePort(t *testing.T) {
 	// Test the getFreePort function indirectly through ExecuteCmd
 	logger := &MockIntegratedLogger{}
 	logger.On("Infof", mock.Anything, mock.Anything).Maybe()
@@ -354,10 +354,10 @@ func TestIntegratedWorker_GetFreePort(t *testing.T) {
 
 	unit := createTestIntegratedManagedProcessConfig()
 
-	worker := NewIntegratedManagedProcessDescription("test-integrated-10", unit, logger).(*integratedManagedProcessDescription)
+	process := NewIntegratedManagedProcessDescription("test-integrated-10", unit, logger).(*integratedManagedProcessDescription)
 
 	ctx := context.Background()
-	cmdResult, err := worker.ExecuteCmd(ctx)
+	cmdResult, err := process.ExecuteCmd(ctx)
 
 	if err == nil {
 		process := cmdResult.Process

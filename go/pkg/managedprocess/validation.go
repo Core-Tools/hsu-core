@@ -9,7 +9,7 @@ import (
 	"github.com/core-tools/hsu-core/pkg/process"
 )
 
-func ValidateManagedUnit(config ManagedUnit) error {
+func ValidateStandardManagedProcessConfig(config StandardManagedProcessConfig) error {
 	// Validate metadata
 	if config.Metadata.Name == "" {
 		return errors.NewValidationError("unit name is required", nil)
@@ -17,7 +17,7 @@ func ValidateManagedUnit(config ManagedUnit) error {
 
 	// Validate execution config
 	if config.Control.Execution.ExecutablePath == "" {
-		return errors.NewValidationError("executable path is required for managed worker", nil)
+		return errors.NewValidationError("executable path is required for standard managed process", nil)
 	}
 
 	// Additional validation using existing functions
@@ -39,7 +39,7 @@ func ValidateManagedUnit(config ManagedUnit) error {
 	return nil
 }
 
-func ValidateUnmanagedUnit(config UnmanagedUnit) error {
+func ValidateUnmanagedProcessConfig(config UnmanagedProcessConfig) error {
 	// Validate metadata
 	if config.Metadata.Name == "" {
 		return errors.NewValidationError("unit name is required", nil)
@@ -68,7 +68,7 @@ func ValidateIntegratedManagedProcessConfig(config IntegratedManagedProcessConfi
 
 	// Validate execution config
 	if config.Control.Execution.ExecutablePath == "" {
-		return errors.NewValidationError("executable path is required for integrated worker", nil)
+		return errors.NewValidationError("executable path is required for integrated managed process", nil)
 	}
 
 	// Additional validation

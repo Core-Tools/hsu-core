@@ -12,7 +12,7 @@ log_collection:
       - type: "file" 
         path: "process_manager-aggregated.log"
         format: "enhanced_plain"
-  default_worker:
+  default:
     enabled: true
     capture_stdout: true
     capture_stderr: true
@@ -20,11 +20,11 @@ log_collection:
       separate:
         stdout:
           - type: "file"
-            path: "{worker_id}-stdout.log"
+            path: "{process_id}-stdout.log"
             format: "enhanced_plain"
         stderr:
           - type: "file"
-            path: "{worker_id}-stderr.log"
+            path: "{process_id}-stderr.log"
             format: "enhanced_plain"
           - type: "process_manager_stdout"
             format: "enhanced_plain"
@@ -32,10 +32,10 @@ log_collection:
 
 managed_processes:
   - id: "echotest"
-    type: "managed"
+    type: "standard_managed"
     profile_type: "web"
     unit:
-      managed:
+      standard_managed:
         metadata:
           name: "Echo Test"
         control:
@@ -60,7 +60,7 @@ managed_processes:
               separate:
                 stdout:
                   - type: "file"
-                    path: "{worker_id}-detailed.log"
+                    path: "{process_id}-detailed.log"
                     format: "enhanced_plain"
         health_check:
           type: "process"

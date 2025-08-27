@@ -41,7 +41,7 @@ func (s *SimpleLogger) LogLevelf(level int, format string, args ...interface{}) 
 
 // DemoCrossPlatformPaths demonstrates the new cross-platform log path resolution
 func DemoCrossPlatformPaths() {
-	fmt.Printf("\n🌍 Cross-Platform Log Path Resolution Demo on %s\n", runtime.GOOS)
+	fmt.Printf("\nCross-Platform Log Path Resolution Demo on %s\n", runtime.GOOS)
 	fmt.Println("=" + strings.Repeat("=", 60))
 
 	// Test different deployment scenarios
@@ -55,7 +55,7 @@ func DemoCrossPlatformPaths() {
 	}
 
 	for _, sc := range scenarios {
-		fmt.Printf("\n📁 %s Scenario:\n", sc.name)
+		fmt.Printf("\n%s Scenario:\n", sc.name)
 		fmt.Printf("   " + strings.Repeat("-", 40) + "\n")
 
 		// Create process file manager for this scenario
@@ -64,45 +64,45 @@ func DemoCrossPlatformPaths() {
 
 		// Show log directories
 		logDir := pathManager.GenerateLogDirectoryPath()
-		workerLogDir := pathManager.GenerateWorkerLogDirectoryPath()
+		processLogDir := pathManager.GenerateProcessLogDirectoryPath()
 
-		fmt.Printf("   📂 Log Directory: %s\n", logDir)
-		fmt.Printf("   📂 Managed Process Log Directory: %s\n", workerLogDir)
+		fmt.Printf("Log Directory: %s\n", logDir)
+		fmt.Printf("Managed Process Log Directory: %s\n", processLogDir)
 
 		// Show path resolution examples
 		templates := []string{
 			"aggregated.log",
-			"{worker_id}-stdout.log",
-			"daily/{worker_id}-2025-01-20.log",
+			"{process_id}-stdout.log",
+			"daily/{process_id}-2025-01-20.log",
 		}
 
 		for _, template := range templates {
 			resolved := pathManager.GenerateLogFilePath(template)
-			workerResolved := pathManager.GenerateWorkerLogFilePath(template, "my-worker")
+			processResolved := pathManager.GenerateProcessLogFilePath(template, "my-process")
 
-			fmt.Printf("   📄 Template: %-30s → %s\n", template, resolved)
-			fmt.Printf("   📄 Managed Process Template: %-30s → %s\n", template, workerResolved)
+			fmt.Printf("Template: %-30s → %s\n", template, resolved)
+			fmt.Printf("Managed Process Template: %-30s → %s\n", template, processResolved)
 		}
 	}
 
 	// Show config changes
-	fmt.Printf("\n📋 Configuration Changes:\n")
+	fmt.Printf("\nConfiguration Changes:\n")
 	fmt.Printf("   " + strings.Repeat("-", 40) + "\n")
 
 	defaultConfig := config.DefaultLogCollectionConfig()
-	workerConfig := config.DefaultWorkerLogConfig()
+	processConfig := config.DefaultProcessLogConfig()
 
-	fmt.Printf("   ✅ Global aggregation target: %s (relative)\n", defaultConfig.GlobalAggregation.Targets[0].Path)
-	fmt.Printf("   ✅ Managed process directory: %s (relative)\n", defaultConfig.System.WorkerDirectory)
-	fmt.Printf("   ✅ Managed process stdout target: %s (relative)\n", workerConfig.Outputs.Separate.Stdout[0].Path)
-	fmt.Printf("   ✅ Managed process stderr target: %s (relative)\n", workerConfig.Outputs.Separate.Stderr[0].Path)
+	fmt.Printf("Global aggregation target: %s (relative)\n", defaultConfig.GlobalAggregation.Targets[0].Path)
+	fmt.Printf("Managed process directory: %s (relative)\n", defaultConfig.System.ProcessDirectory)
+	fmt.Printf("Managed process stdout target: %s (relative)\n", processConfig.Outputs.Separate.Stdout[0].Path)
+	fmt.Printf("Managed process stderr target: %s (relative)\n", processConfig.Outputs.Separate.Stderr[0].Path)
 
-	fmt.Println("\n✨ Cross-platform log path resolution is working perfectly!")
+	fmt.Println("\nCross-platform log path resolution is working perfectly!")
 }
 
 // LogCollectionDemo demonstrates log collection integration with ProcessControl
 func LogCollectionDemo() error {
-	fmt.Println("\n🚀 HSU Process Manager Log Collection Demo Starting...")
+	fmt.Println("\nHSU Process Manager Log Collection Demo Starting...")
 
 	// 1. Create structured logger
 	structuredLogger, err := logcollection.NewStructuredLogger("zap", logcollection.InfoLevel)
@@ -121,7 +121,7 @@ func LogCollectionDemo() error {
 	defer logService.Stop()
 
 	// 3. Create ProcessControl with log collection integration
-	workerLogConfig := config.DefaultWorkerLogConfig()
+	processLogConfig := config.DefaultProcessLogConfig()
 
 	processOptions := processcontrol.ProcessControlOptions{
 		CanAttach:            false,
@@ -130,28 +130,28 @@ func LogCollectionDemo() error {
 		GracefulTimeout:      30 * time.Second,
 		ExecuteCmd:           createEchoCommand,
 		LogCollectionService: logService,
-		LogConfig:            &workerLogConfig,
+		LogConfig:            &processLogConfig,
 	}
 
 	simpleLogger := &SimpleLogger{}
-	processControl := processcontrolimpl.NewProcessControl(processOptions, "demo-worker", simpleLogger)
+	processControl := processcontrolimpl.NewProcessControl(processOptions, "demo-process", simpleLogger)
 
 	// 4. Start the process (this will automatically start log collection)
-	fmt.Println("\n📋 Starting process with integrated log collection...")
+	fmt.Println("\nStarting process with integrated log collection...")
 	if err := processControl.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start process: %w", err)
 	}
 
 	// 5. Let it run for a bit to collect logs
-	fmt.Println("\n⏱️  Collecting logs for 10 seconds...")
+	fmt.Println("\n⏱Collecting logs for 10 seconds...")
 	time.Sleep(10 * time.Second)
 
 	// 6. Check log collection status
-	status, err := logService.GetWorkerStatus("demo-worker")
+	status, err := logService.GetProcessStatus("demo-process")
 	if err != nil {
-		fmt.Printf("⚠️  Could not get worker status: %v\n", err)
+		fmt.Printf("Could not get process status: %v\n", err)
 	} else {
-		fmt.Printf("\n📊 Log Collection Status:\n")
+		fmt.Printf("\nLog Collection Status:\n")
 		fmt.Printf("   - Lines Processed: %d\n", status.LinesProcessed)
 		fmt.Printf("   - Bytes Processed: %d\n", status.BytesProcessed)
 		fmt.Printf("   - Active: %t\n", status.Active)
@@ -159,19 +159,19 @@ func LogCollectionDemo() error {
 	}
 
 	// 7. Stop the process
-	fmt.Println("\n🛑 Stopping process...")
+	fmt.Println("\nStopping process...")
 	if err := processControl.Stop(ctx); err != nil {
 		return fmt.Errorf("failed to stop process: %w", err)
 	}
 
 	// 8. Check final status
 	systemStatus := logService.GetSystemStatus()
-	fmt.Printf("\n📈 Final System Status:\n")
+	fmt.Printf("\nFinal System Status:\n")
 	fmt.Printf("   - Total Lines: %d\n", systemStatus.TotalLines)
 	fmt.Printf("   - Total Bytes: %d\n", systemStatus.TotalBytes)
-	fmt.Printf("   - Workers: %d active / %d total\n", systemStatus.WorkersActive, systemStatus.TotalWorkers)
+	fmt.Printf("   - Processes: %d active / %d total\n", systemStatus.ProcessesActive, systemStatus.TotalProcesses)
 
-	fmt.Println("\n✅ Log Collection Demo Completed Successfully!")
+	fmt.Println("\nLog Collection Demo Completed Successfully!")
 	return nil
 }
 
@@ -184,7 +184,7 @@ func createEchoCommand(ctx context.Context) (*processcontrol.CommandResult, erro
 		cmd = exec.CommandContext(ctx, "powershell", "-Command", `
 			for ($i = 1; $i -le 100; $i++) {
 				$timestamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
-				Write-Host "$timestamp INFO: Demo log message $i from HSU worker process"
+				Write-Host "$timestamp INFO: Demo log message $i from HSU process"
 				if ($i % 10 -eq 0) {
 					Write-Host "$timestamp WARN: Every 10th message is a warning (message $i)"
 				}
@@ -197,7 +197,7 @@ func createEchoCommand(ctx context.Context) (*processcontrol.CommandResult, erro
 		cmd = exec.CommandContext(ctx, "bash", "-c", `
 			for i in {1..100}; do
 				timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-				echo "$timestamp INFO: Demo log message $i from HSU worker process"
+				echo "$timestamp INFO: Demo log message $i from HSU process"
 				if [ $((i % 10)) -eq 0 ]; then
 					echo "$timestamp WARN: Every 10th message is a warning (message $i)"
 				fi
@@ -232,7 +232,7 @@ func main() {
 
 	err := LogCollectionDemo()
 	if err != nil {
-		fmt.Printf("❌ Demo failed: %v\n", err)
+		fmt.Printf("Demo failed: %v\n", err)
 		os.Exit(1)
 	}
 }

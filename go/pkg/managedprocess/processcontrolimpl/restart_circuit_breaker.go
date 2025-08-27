@@ -28,7 +28,7 @@ type RestartCircuitBreaker interface {
 	Reset()
 }
 
-// Default multipliers for severity and worker profile types
+// Default multipliers for severity and process profile types
 var (
 	DefaultSeverityMultipliers = map[string]float64{
 		"warning":   0.5, // Half normal limits for warnings
@@ -36,8 +36,8 @@ var (
 		"emergency": 2.0, // Double limits for emergencies
 	}
 
-	// Default multipliers for worker profile types
-	DefaultWorkerProfileMultipliers = map[string]float64{
+	// Default multipliers for process profile types
+	DefaultProcessProfileMultipliers = map[string]float64{
 		"batch":     3.0, // Very lenient for batch processors
 		"web":       1.0, // Standard for web services
 		"database":  5.0, // Extremely lenient for databases
@@ -48,43 +48,43 @@ var (
 )
 
 // Single constructor function for context-aware circuit breaker
-func NewRestartCircuitBreaker(config *processcontrol.ContextAwareRestartConfig, id string, workerProfileType string, logger logging.Logger) RestartCircuitBreaker {
+func NewRestartCircuitBreaker(config *processcontrol.ContextAwareRestartConfig, id string, processProfileType string, logger logging.Logger) RestartCircuitBreaker {
 	severityMultipliers := config.SeverityMultipliers
 	if severityMultipliers == nil {
 		severityMultipliers = DefaultSeverityMultipliers
 	}
 
-	workerProfileMultipliers := config.WorkerProfileMultipliers
-	if workerProfileMultipliers == nil {
-		workerProfileMultipliers = DefaultWorkerProfileMultipliers
+	processProfileMultipliers := config.ProcessProfileMultipliers
+	if processProfileMultipliers == nil {
+		processProfileMultipliers = DefaultProcessProfileMultipliers
 	}
 
 	return &enhancedRestartCircuitBreaker{
-		basicConfig:              &config.Default,
-		enhancedConfig:           config,
-		id:                       id,
-		workerProfileType:        workerProfileType,
-		logger:                   logger,
-		restartAttempts:          0,
-		lastRestartTime:          time.Now(),
-		creationTime:             time.Now(),
-		circuitBreakerOpen:       false,
-		severityMultipliers:      severityMultipliers,
-		workerProfileMultipliers: workerProfileMultipliers,
+		basicConfig:               &config.Default,
+		enhancedConfig:            config,
+		id:                        id,
+		processProfileType:        processProfileType,
+		logger:                    logger,
+		restartAttempts:           0,
+		lastRestartTime:           time.Now(),
+		creationTime:              time.Now(),
+		circuitBreakerOpen:        false,
+		severityMultipliers:       severityMultipliers,
+		processProfileMultipliers: processProfileMultipliers,
 	}
 }
 
 type enhancedRestartCircuitBreaker struct {
 	// Configuration (using local RestartConfig without Policy)
-	basicConfig       *processcontrol.RestartConfig
-	enhancedConfig    *processcontrol.ContextAwareRestartConfig
-	id                string
-	workerProfileType string
-	logger            logging.Logger
+	basicConfig        *processcontrol.RestartConfig
+	enhancedConfig     *processcontrol.ContextAwareRestartConfig
+	id                 string
+	processProfileType string
+	logger             logging.Logger
 
 	// Multipliers
-	severityMultipliers      map[string]float64
-	workerProfileMultipliers map[string]float64
+	severityMultipliers       map[string]float64
+	processProfileMultipliers map[string]float64
 
 	// State
 	restartAttempts    int                               // Track attempts across all restart sources
@@ -105,8 +105,8 @@ func (rcb *enhancedRestartCircuitBreaker) ExecuteRestart(restartFunc RestartFunc
 	rcb.lastContext = &context
 	rcb.lastTriggerType = context.TriggerType
 
-	rcb.logger.Debugf("Restart request, id: %s, trigger: %s, severity: %s, worker_profile: %s, message: %s",
-		rcb.id, context.TriggerType, context.Severity, context.WorkerProfileType, context.Message)
+	rcb.logger.Debugf("Restart request, id: %s, trigger: %s, severity: %s, process profile: %s, message: %s",
+		rcb.id, context.TriggerType, context.Severity, context.ProcessProfileType, context.Message)
 
 	// Check circuit breaker
 	if rcb.circuitBreakerOpen {
@@ -241,7 +241,7 @@ func (rcb *enhancedRestartCircuitBreaker) getConfigForContext(context processcon
 	return &rcb.enhancedConfig.Default
 }
 
-// applyMultipliers applies severity and worker profile type multipliers to integer values
+// applyMultipliers applies severity and process profile type multipliers to integer values
 func (rcb *enhancedRestartCircuitBreaker) applyMultipliers(baseValue int, context processcontrol.RestartContext) int {
 	if baseValue <= 0 {
 		return baseValue
@@ -254,13 +254,13 @@ func (rcb *enhancedRestartCircuitBreaker) applyMultipliers(baseValue int, contex
 		multiplier *= severityMult
 	}
 
-	// Apply worker profile type multiplier
-	workerProfileType := context.WorkerProfileType
-	if workerProfileType == "" {
-		workerProfileType = "default"
+	// Apply process profile type multiplier
+	processProfileType := context.ProcessProfileType
+	if processProfileType == "" {
+		processProfileType = "default"
 	}
-	if workerProfileMult, exists := rcb.workerProfileMultipliers[workerProfileType]; exists {
-		multiplier *= workerProfileMult
+	if processProfileMult, exists := rcb.processProfileMultipliers[processProfileType]; exists {
+		multiplier *= processProfileMult
 	}
 
 	result := int(float64(baseValue) * multiplier)
@@ -271,7 +271,7 @@ func (rcb *enhancedRestartCircuitBreaker) applyMultipliers(baseValue int, contex
 	return result
 }
 
-// applyDurationMultipliers applies severity and worker profile type multipliers to duration values
+// applyDurationMultipliers applies severity and process profile type multipliers to duration values
 func (rcb *enhancedRestartCircuitBreaker) applyDurationMultipliers(baseDuration time.Duration, context processcontrol.RestartContext) time.Duration {
 	if baseDuration <= 0 {
 		return baseDuration
@@ -284,13 +284,13 @@ func (rcb *enhancedRestartCircuitBreaker) applyDurationMultipliers(baseDuration 
 		multiplier *= severityMult
 	}
 
-	// Apply worker profile type multiplier
-	workerProfileType := context.WorkerProfileType
-	if workerProfileType == "" {
-		workerProfileType = "default"
+	// Apply process profile type multiplier
+	processProfileType := context.ProcessProfileType
+	if processProfileType == "" {
+		processProfileType = "default"
 	}
-	if workerProfileMult, exists := rcb.workerProfileMultipliers[workerProfileType]; exists {
-		multiplier *= workerProfileMult
+	if processProfileMult, exists := rcb.processProfileMultipliers[processProfileType]; exists {
+		multiplier *= processProfileMult
 	}
 
 	result := time.Duration(float64(baseDuration) * multiplier)

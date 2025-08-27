@@ -36,7 +36,7 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 
 	// Log log collection status
 	if enableLogCollection {
-		logger.Infof("Log collection is ENABLED - worker logs will be collected!")
+		logger.Infof("Log collection is ENABLED - process logs will be collected!")
 	} else {
 		logger.Infof("Log collection is DISABLED")
 	}
@@ -77,8 +77,8 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 				logDir := pathManager.GenerateLogDirectoryPath()
 				logger.Infof("Log collection directory: %s", logDir)
 
-				workerLogDir := pathManager.GenerateWorkerLogDirectoryPath()
-				logger.Infof("Managed process logs directory: %s", workerLogDir)
+				processLogDir := pathManager.GenerateProcessLogDirectoryPath()
+				logger.Infof("Managed process logs directory: %s", processLogDir)
 			}
 		} else {
 			logger.Infof("Log collection is disabled")
@@ -93,38 +93,38 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 	// Create process manager instance
 	processManager := NewProcessManager(processManagerOptions, logger)
 
-	var workers []managedprocess.ProcessDescription
+	var processes []managedprocess.ProcessDescription
 	if logIntegration != nil {
 		// Set log collection service on process manager
 		if logIntegration.IsEnabled() {
 			processManager.SetLogCollectionService(logIntegration.GetLogCollectionService())
 		}
 
-		// Create workers from configuration with log collection support
-		workers, err = CreateWorkersFromConfigWithLogCollection(config, logger, logIntegration)
+		// Create processes from configuration with log collection support
+		processes, err = CreateProcessesFromConfigWithLogCollection(config, logger, logIntegration)
 		if err != nil {
-			return errors.NewValidationError("failed to create workers from configuration with log collection support", err)
+			return errors.NewValidationError("failed to create processes from configuration with log collection support", err)
 		}
 	} else {
-		// Create workers from configuration
-		workers, err = CreateWorkersFromConfig(config, logger)
+		// Create processes from configuration
+		processes, err = CreateProcessesFromConfig(config, logger)
 		if err != nil {
-			return errors.NewValidationError("failed to create workers from configuration", err)
+			return errors.NewValidationError("failed to create processes from configuration", err)
 		}
 	}
 
-	logger.Infof("Created %d workers", len(workers))
+	logger.Infof("Created %d processes", len(processes))
 
-	// Add all workers to process manager (registration phase)
-	for _, worker := range workers {
-		err := processManager.AddWorker(worker)
+	// Add all processes to process manager (registration phase)
+	for _, process := range processes {
+		err := processManager.AddProcess(process)
 		if err != nil {
 			return errors.NewValidationError(
-				fmt.Sprintf("failed to add worker: %s", worker.ID()),
+				fmt.Sprintf("failed to add process: %s", process.ID()),
 				err,
-			).WithContext("worker_id", worker.ID())
+			).WithContext("process_id", process.ID())
 		}
-		logger.Infof("Added worker: %s", worker.ID())
+		logger.Infof("Added process: %s", process.ID())
 	}
 
 	// Start process manager
@@ -140,25 +140,25 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	}
 
-	logger.Infof("Process manager is ready, starting workers...")
+	logger.Infof("Process manager is ready, starting processes...")
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
-		// Start all workers (lifecycle phase)
-		for _, worker := range workers {
-			err := processManager.StartWorker(componentCtx, worker.ID())
+		// Start all processes (lifecycle phase)
+		for _, process := range processes {
+			err := processManager.StartProcess(componentCtx, process.ID())
 			if err != nil {
-				logger.Errorf("Failed to start worker %s: %v", worker.ID(), err)
-				// Continue with other workers rather than failing completely
+				logger.Errorf("Failed to start process %s: %v", process.ID(), err)
+				// Continue with other processes rather than failing completely
 				continue
 			}
-			logger.Infof("Started worker: %s", worker.ID())
+			logger.Infof("Started process: %s", process.ID())
 		}
 
-		logger.Infof("All workers started, process manager is fully operational")
+		logger.Infof("All processes started, process manager is fully operational")
 	}()
 
 	// Wait for graceful shutdown or timeout
@@ -175,9 +175,9 @@ func Run(runDuration int, configFile string, enableLogCollection bool, logger lo
 		logger.Infof("Process manager runner timed out")
 	}
 
-	logger.Infof("Waiting for workers start to finish...")
+	logger.Infof("Waiting for processes start to finish...")
 
-	// Wait for starting workers to finish
+	// Wait for starting processes to finish
 	wg.Wait()
 
 	logger.Infof("Ready to stop process manager...")
@@ -217,47 +217,47 @@ func GetConfigSummary(config *ProcessManagerConfig) ConfigSummary {
 	summary := ConfigSummary{
 		ProcessManagerPort: config.ProcessManager.Port,
 		LogLevel:           config.ProcessManager.LogLevel,
-		ManagedProcesses:   make([]WorkerSummary, 0, len(config.ManagedProcesses)),
+		ManagedProcesses:   make([]ProcessSummary, 0, len(config.ManagedProcesses)),
 	}
 
-	for _, worker := range config.ManagedProcesses {
+	for _, process := range config.ManagedProcesses {
 		enabled := false
-		if worker.Enabled != nil {
-			enabled = *worker.Enabled
+		if process.Enabled != nil {
+			enabled = *process.Enabled
 		}
 
-		workerSummary := WorkerSummary{
-			ID:      worker.ID,
-			Type:    string(worker.Type),
+		processSummary := ProcessSummary{
+			ID:      process.ID,
+			Type:    string(process.Type),
 			Enabled: enabled,
 		}
 
 		// Add type-specific information
-		switch worker.Type {
-		case WorkerManagementTypeManaged:
-			if worker.Unit.Managed != nil {
-				workerSummary.ExecutablePath = worker.Unit.Managed.Control.Execution.ExecutablePath
-				workerSummary.HealthCheckType = string(worker.Unit.Managed.HealthCheck.Type)
+		switch process.Type {
+		case ProcessManagementTypeStandard:
+			if process.Unit.StandardManaged != nil {
+				processSummary.ExecutablePath = process.Unit.StandardManaged.Control.Execution.ExecutablePath
+				processSummary.HealthCheckType = string(process.Unit.StandardManaged.HealthCheck.Type)
 			}
-		case WorkerManagementTypeUnmanaged:
-			if worker.Unit.Unmanaged != nil {
-				workerSummary.DiscoveryMethod = string(worker.Unit.Unmanaged.Discovery.Method)
-				workerSummary.HealthCheckType = string(worker.Unit.Unmanaged.HealthCheck.Type)
+		case ProcessManagementTypeIntegrated:
+			if process.Unit.IntegratedManaged != nil {
+				processSummary.ExecutablePath = process.Unit.IntegratedManaged.Control.Execution.ExecutablePath
 			}
-		case WorkerManagementTypeIntegrated:
-			if worker.Unit.Integrated != nil {
-				workerSummary.ExecutablePath = worker.Unit.Integrated.Control.Execution.ExecutablePath
+		case ProcessManagementTypeUnmanaged:
+			if process.Unit.Unmanaged != nil {
+				processSummary.DiscoveryMethod = string(process.Unit.Unmanaged.Discovery.Method)
+				processSummary.HealthCheckType = string(process.Unit.Unmanaged.HealthCheck.Type)
 			}
 		}
 
-		summary.ManagedProcesses = append(summary.ManagedProcesses, workerSummary)
+		summary.ManagedProcesses = append(summary.ManagedProcesses, processSummary)
 	}
 
-	summary.TotalWorkers = len(summary.ManagedProcesses)
-	summary.EnabledWorkers = 0
-	for _, worker := range summary.ManagedProcesses {
-		if worker.Enabled {
-			summary.EnabledWorkers++
+	summary.TotalProcesses = len(summary.ManagedProcesses)
+	summary.EnabledProcesses = 0
+	for _, process := range summary.ManagedProcesses {
+		if process.Enabled {
+			summary.EnabledProcesses++
 		}
 	}
 
@@ -266,16 +266,16 @@ func GetConfigSummary(config *ProcessManagerConfig) ConfigSummary {
 
 // ConfigSummary provides a high-level overview of configuration
 type ConfigSummary struct {
-	ProcessManagerPort int             `json:"process_manager_port"`
-	LogLevel           string          `json:"log_level"`
-	TotalWorkers       int             `json:"total_workers"`
-	EnabledWorkers     int             `json:"enabled_workers"`
-	ManagedProcesses   []WorkerSummary `json:"managed_processes"`
-	Error              string          `json:"error,omitempty"`
+	ProcessManagerPort int              `json:"process_manager_port"`
+	LogLevel           string           `json:"log_level"`
+	TotalProcesses     int              `json:"total_processes"`
+	EnabledProcesses   int              `json:"enabled_processes"`
+	ManagedProcesses   []ProcessSummary `json:"managed_processes"`
+	Error              string           `json:"error,omitempty"`
 }
 
-// WorkerSummary provides a summary of worker configuration
-type WorkerSummary struct {
+// ProcessSummary provides a summary of process configuration
+type ProcessSummary struct {
 	ID              string `json:"id"`
 	Type            string `json:"type"`
 	Enabled         bool   `json:"enabled"`

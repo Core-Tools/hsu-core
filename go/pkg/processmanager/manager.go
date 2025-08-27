@@ -13,12 +13,12 @@ import (
 	"github.com/core-tools/hsu-core/pkg/managedprocess"
 	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
 	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrolimpl"
-	"github.com/core-tools/hsu-core/pkg/processmanager/workerstatemachine"
+	"github.com/core-tools/hsu-core/pkg/processmanager/processstatemachine"
 )
 
 type ProcessRegistry interface {
-	AddWorker(worker managedprocess.ProcessDescription) error
-	RemoveWorker(id string) error
+	AddProcess(process managedprocess.ProcessDescription) error
+	RemoveProcess(id string) error
 }
 
 type LogCollectorIntegration interface {
@@ -28,15 +28,15 @@ type LogCollectorIntegration interface {
 type ProcessLifecycle interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
-	StartWorker(ctx context.Context, id string) error
-	StopWorker(ctx context.Context, id string) error
+	StartProcess(ctx context.Context, id string) error
+	StopProcess(ctx context.Context, id string) error
 	GetManagerState() ProcessManagerState
-	GetAllWorkerStatesWithDiagnostics() map[string]WorkerStateWithDiagnostics
-	GetWorkerState(id string) (workerstatemachine.WorkerState, error)
-	GetWorkerContext(id string) (map[string]string, error)
-	GetWorkerStateWithDiagnostics(id string) (WorkerStateWithDiagnostics, error)
-	IsWorkerOperationAllowed(id string, operation string) (bool, error)
-	GetWorkerProcessDiagnostics(id string) (processcontrol.ProcessDiagnostics, error)
+	GetAllProcessStatesWithDiagnostics() map[string]ProcessStateWithDiagnostics
+	GetProcessState(id string) (processstatemachine.ProcessState, error)
+	GetProcessContext(id string) (map[string]string, error)
+	GetProcessStateWithDiagnostics(id string) (ProcessStateWithDiagnostics, error)
+	IsProcessOperationAllowed(id string, operation string) (bool, error)
+	GetProcessProcessDiagnostics(id string) (processcontrol.ProcessDiagnostics, error)
 }
 
 type ProcessManager interface {
@@ -56,7 +56,7 @@ const (
 	// ProcessManagerStateNotStarted is the initial state before Run() is called
 	ProcessManagerStateNotStarted ProcessManagerState = "not_started"
 
-	// ProcessManagerStateRunning means process manager is running and can manage workers
+	// ProcessManagerStateRunning means process manager is running and can manage processes
 	ProcessManagerStateRunning ProcessManagerState = "running"
 
 	// ProcessManagerStateStopping means process manager is shutting down
@@ -66,16 +66,16 @@ const (
 	ProcessManagerStateStopped ProcessManagerState = "stopped"
 )
 
-// workerEntry combines ProcessControl and StateMachine for a worker
-type workerEntry struct {
+// processEntry combines ProcessControl and StateMachine for a process
+type processEntry struct {
 	ProcessControl processcontrol.ProcessControl
-	StateMachine   *workerstatemachine.WorkerStateMachine
+	StateMachine   *processstatemachine.ProcessStateMachine
 }
 
 type processManager struct {
 	options              ProcessManagerOptions
-	workers              map[string]*workerEntry // Combined map for controls and state machines
-	state                ProcessManagerState     // Track process manager state
+	processes            map[string]*processEntry // Combined map for controls and state machines
+	state                ProcessManagerState      // Track process manager state
 	mutex                sync.Mutex
 	logCollectionService logcollection.LogCollectionService // Log collection service
 	logger               logging.Logger
@@ -83,46 +83,46 @@ type processManager struct {
 
 func NewProcessManager(options ProcessManagerOptions, logger logging.Logger) ProcessManager {
 	return &processManager{
-		options: options,
-		logger:  logger,
-		workers: make(map[string]*workerEntry),
-		state:   ProcessManagerStateNotStarted,
-		mutex:   sync.Mutex{},
+		options:   options,
+		logger:    logger,
+		processes: make(map[string]*processEntry),
+		state:     ProcessManagerStateNotStarted,
+		mutex:     sync.Mutex{},
 	}
 }
 
-func (pm *processManager) AddWorker(worker managedprocess.ProcessDescription) error {
+func (pm *processManager) AddProcess(process managedprocess.ProcessDescription) error {
 	// Validate input
-	if worker == nil {
-		return errors.NewValidationError("worker cannot be nil", nil)
+	if process == nil {
+		return errors.NewValidationError("process cannot be nil", nil)
 	}
 
-	id := worker.ID()
+	id := process.ID()
 
-	// Validate worker ID
-	if err := ValidateWorkerID(id); err != nil {
-		return errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
+	// Validate process ID
+	if err := ValidateProcessID(id); err != nil {
+		return errors.NewValidationError("invalid process ID", err).WithContext("process_id", id)
 	}
 
-	// Validate worker options
-	options := worker.ProcessControlOptions()
+	// Validate process options
+	options := process.ProcessControlOptions()
 	if err := managedprocess.ValidateProcessControlOptions(options); err != nil {
-		return errors.NewValidationError("invalid worker process control options", err).WithContext("worker_id", id)
+		return errors.NewValidationError("invalid process process control options", err).WithContext("process_id", id)
 	}
 
-	pm.logger.Infof("Adding worker, id: %s, can_attach: %t, can_execute: %t, can_terminate: %t, can_restart: %t",
+	pm.logger.Infof("Adding process, id: %s, can_attach: %t, can_execute: %t, can_terminate: %t, can_restart: %t",
 		id, options.CanAttach, (options.ExecuteCmd != nil), options.CanTerminate, options.CanRestart)
 
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
 
-	// Check if worker already exists
-	if _, exists := pm.workers[id]; exists {
-		return errors.NewConflictError("worker already exists", nil).WithContext("worker_id", id)
+	// Check if process already exists
+	if _, exists := pm.processes[id]; exists {
+		return errors.NewConflictError("process already exists", nil).WithContext("process_id", id)
 	}
 
-	// Create state machine for the worker
-	stateMachine := workerstatemachine.NewWorkerStateMachine(id, pm.logger)
+	// Create state machine for the process
+	stateMachine := processstatemachine.NewProcessStateMachine(id, pm.logger)
 
 	// Validate that add operation is allowed
 	if err := stateMachine.ValidateOperation("add"); err != nil {
@@ -130,15 +130,15 @@ func (pm *processManager) AddWorker(worker managedprocess.ProcessDescription) er
 	}
 
 	// Transition to registered state
-	if err := stateMachine.Transition(workerstatemachine.WorkerStateRegistered, "add", nil); err != nil {
-		return errors.NewInternalError("failed to transition worker to registered state", err).WithContext("worker_id", id)
+	if err := stateMachine.Transition(processstatemachine.ProcessStateRegistered, "add", nil); err != nil {
+		return errors.NewInternalError("failed to transition process to registered state", err).WithContext("process_id", id)
 	}
 
 	// Create process control
 	processControl := processcontrolimpl.NewProcessControl(options, id, pm.logger)
 
-	// Store worker and state machine
-	pm.workers[id] = &workerEntry{
+	// Store process and state machine
+	pm.processes[id] = &processEntry{
 		ProcessControl: processControl,
 		StateMachine:   stateMachine,
 	}
@@ -147,30 +147,30 @@ func (pm *processManager) AddWorker(worker managedprocess.ProcessDescription) er
 	return nil
 }
 
-func (pm *processManager) RemoveWorker(id string) error {
-	// Validate worker ID
-	if err := ValidateWorkerID(id); err != nil {
-		return errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
+func (pm *processManager) RemoveProcess(id string) error {
+	// Validate process ID
+	if err := ValidateProcessID(id); err != nil {
+		return errors.NewValidationError("invalid process ID", err).WithContext("process_id", id)
 	}
 
-	pm.logger.Infof("Removing worker, id: %s", id)
+	pm.logger.Infof("Removing process, id: %s", id)
 
-	// Get worker and check if it's safely removable
-	workerEntry, _, exists := pm.getWorkerAndManagerState(id)
+	// Get process and check if it's safely removable
+	processEntry, _, exists := pm.getProcessAndManagerState(id)
 	if !exists {
-		return errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
+		return errors.NewNotFoundError("process not found", nil).WithContext("process_id", id)
 	}
 
-	// Check if worker is in a safe state for removal
-	currentState := workerEntry.StateMachine.GetCurrentState()
-	if !isWorkerSafelyRemovable(currentState) {
+	// Check if process is in a safe state for removal
+	currentState := processEntry.StateMachine.GetCurrentState()
+	if !isProcessSafelyRemovable(currentState) {
 		return errors.NewValidationError(
-			fmt.Sprintf("cannot remove worker in state '%s': worker must be stopped before removal", currentState),
+			fmt.Sprintf("cannot remove process in state '%s': process must be stopped before removal", currentState),
 			nil,
-		).WithContext("worker_id", id).
+		).WithContext("process_id", id).
 			WithContext("current_state", string(currentState)).
 			WithContext("required_states", "stopped, failed").
-			WithContext("suggested_action", "call StopWorker first")
+			WithContext("suggested_action", "call StopProcess first")
 	}
 
 	// Safe to remove - acquire lock and remove
@@ -178,164 +178,164 @@ func (pm *processManager) RemoveWorker(id string) error {
 	defer pm.mutex.Unlock()
 
 	// Double-check existence under lock (could have been removed by another goroutine)
-	if _, exists := pm.workers[id]; !exists {
-		return errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
+	if _, exists := pm.processes[id]; !exists {
+		return errors.NewNotFoundError("process not found", nil).WithContext("process_id", id)
 	}
 
-	// Remove worker and state machine
-	delete(pm.workers, id)
+	// Remove process and state machine
+	delete(pm.processes, id)
 
 	pm.logger.Infof("Managed process removed successfully, id: %s", id)
 	return nil
 }
 
-// isWorkerSafelyRemovable checks if a worker is in a state safe for removal
-func isWorkerSafelyRemovable(state workerstatemachine.WorkerState) bool {
+// isProcessSafelyRemovable checks if a process is in a state safe for removal
+func isProcessSafelyRemovable(state processstatemachine.ProcessState) bool {
 	switch state {
-	case workerstatemachine.WorkerStateStopped, workerstatemachine.WorkerStateFailed:
+	case processstatemachine.ProcessStateStopped, processstatemachine.ProcessStateFailed:
 		return true // Safe to remove - process is not running
-	case workerstatemachine.WorkerStateUnknown, workerstatemachine.WorkerStateRegistered:
+	case processstatemachine.ProcessStateUnknown, processstatemachine.ProcessStateRegistered:
 		return true // Safe to remove - no process started yet
-	case workerstatemachine.WorkerStateStarting, workerstatemachine.WorkerStateRunning, workerstatemachine.WorkerStateStopping, workerstatemachine.WorkerStateRestarting:
+	case processstatemachine.ProcessStateStarting, processstatemachine.ProcessStateRunning, processstatemachine.ProcessStateStopping, processstatemachine.ProcessStateRestarting:
 		return false // Unsafe - process may be running
 	default:
 		return false // Unknown state - be conservative
 	}
 }
 
-func (pm *processManager) StartWorker(ctx context.Context, id string) error {
+func (pm *processManager) StartProcess(ctx context.Context, id string) error {
 	// Validate context
 	if ctx == nil {
 		return errors.NewValidationError("context cannot be nil", nil)
 	}
 
-	// Validate worker ID
-	if err := ValidateWorkerID(id); err != nil {
-		return errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
+	// Validate process ID
+	if err := ValidateProcessID(id); err != nil {
+		return errors.NewValidationError("invalid process ID", err).WithContext("process_id", id)
 	}
 
-	// Get worker and process manager state safely
-	workerEntry, currentState, exists := pm.getWorkerAndManagerState(id)
+	// Get process and process manager state safely
+	processEntry, currentState, exists := pm.getProcessAndManagerState(id)
 
 	if !exists {
-		return errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
+		return errors.NewNotFoundError("process not found", nil).WithContext("process_id", id)
 	}
 
-	// Validate process manager is running - after worker existence check
+	// Validate process manager is running - after process existence check
 	if currentState != ProcessManagerStateRunning {
 		return errors.NewValidationError(
-			fmt.Sprintf("process manager must be running to start workers, current state: %s", currentState),
+			fmt.Sprintf("process manager must be running to start processes, current state: %s", currentState),
 			nil,
-		).WithContext("worker_id", id).WithContext("state", string(currentState))
+		).WithContext("process_id", id).WithContext("state", string(currentState))
 	}
 
-	pm.logger.Infof("Starting worker, id: %s", id)
+	pm.logger.Infof("Starting process, id: %s", id)
 
 	// 2. Validate operation using state machine (outside lock)
-	if err := workerEntry.StateMachine.ValidateOperation("start"); err != nil {
+	if err := processEntry.StateMachine.ValidateOperation("start"); err != nil {
 		return err
 	}
 
 	// 3. Transition to starting state
-	if err := workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateStarting, "start", nil); err != nil {
-		return errors.NewInternalError("failed to transition worker to starting state", err).WithContext("worker_id", id)
+	if err := processEntry.StateMachine.Transition(processstatemachine.ProcessStateStarting, "start", nil); err != nil {
+		return errors.NewInternalError("failed to transition process to starting state", err).WithContext("process_id", id)
 	}
 
 	// 4. Start process control (outside of lock, can be long-running)
-	err := workerEntry.ProcessControl.Start(ctx)
+	err := processEntry.ProcessControl.Start(ctx)
 
 	// 5. Update state based on result
 	if err != nil {
 		// Transition to failed state
-		transitionErr := workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateFailed, "start", err)
+		transitionErr := processEntry.StateMachine.Transition(processstatemachine.ProcessStateFailed, "start", err)
 		if transitionErr != nil {
-			pm.logger.Errorf("Failed to transition worker to failed state, id: %s, error: %v", id, transitionErr)
+			pm.logger.Errorf("Failed to transition process to failed state, id: %s, error: %v", id, transitionErr)
 		}
 
-		pm.logger.Errorf("Failed to start worker, id: %s, error: %v", id, err)
+		pm.logger.Errorf("Failed to start process, id: %s, error: %v", id, err)
 
 		// Check if the error is a context cancellation
 		if ctx.Err() != nil {
-			return errors.NewCancelledError("worker start was cancelled", ctx.Err()).WithContext("worker_id", id)
+			return errors.NewCancelledError("process start was cancelled", ctx.Err()).WithContext("process_id", id)
 		}
-		return errors.NewProcessError("failed to start worker", err).WithContext("worker_id", id)
+		return errors.NewProcessError("failed to start process", err).WithContext("process_id", id)
 	}
 
 	// 6. Transition to running state on success
-	if err := workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateRunning, "start", nil); err != nil {
-		pm.logger.Errorf("Failed to transition worker to running state, id: %s, error: %v", id, err)
+	if err := processEntry.StateMachine.Transition(processstatemachine.ProcessStateRunning, "start", nil); err != nil {
+		pm.logger.Errorf("Failed to transition process to running state, id: %s, error: %v", id, err)
 		// Note: Process is actually running, but state tracking failed
 	}
 
-	pm.logger.Infof("Managed process started successfully, id: %s, state: %s", id, workerEntry.StateMachine.GetCurrentState())
+	pm.logger.Infof("Managed process started successfully, id: %s, state: %s", id, processEntry.StateMachine.GetCurrentState())
 	return nil
 }
 
-func (pm *processManager) StopWorker(ctx context.Context, id string) error {
+func (pm *processManager) StopProcess(ctx context.Context, id string) error {
 	// Validate context
 	if ctx == nil {
 		return errors.NewValidationError("context cannot be nil", nil)
 	}
 
-	// Validate worker ID
-	if err := ValidateWorkerID(id); err != nil {
-		return errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
+	// Validate process ID
+	if err := ValidateProcessID(id); err != nil {
+		return errors.NewValidationError("invalid process ID", err).WithContext("process_id", id)
 	}
 
-	// Get worker and process manager state safely
-	workerEntry, currentState, exists := pm.getWorkerAndManagerState(id)
+	// Get process and process manager state safely
+	processEntry, currentState, exists := pm.getProcessAndManagerState(id)
 
 	if !exists {
-		return errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
+		return errors.NewNotFoundError("process not found", nil).WithContext("process_id", id)
 	}
 
-	// Validate process manager is running - after worker existence check
+	// Validate process manager is running - after process existence check
 	if currentState != ProcessManagerStateRunning {
 		return errors.NewValidationError(
-			fmt.Sprintf("process manager must be running to stop workers, current state: %s", currentState),
+			fmt.Sprintf("process manager must be running to stop processes, current state: %s", currentState),
 			nil,
-		).WithContext("worker_id", id).WithContext("state", string(currentState))
+		).WithContext("process_id", id).WithContext("state", string(currentState))
 	}
 
-	pm.logger.Infof("Stopping worker, id: %s", id)
+	pm.logger.Infof("Stopping process, id: %s", id)
 
 	// 2. Validate operation using state machine (outside lock)
-	if err := workerEntry.StateMachine.ValidateOperation("stop"); err != nil {
+	if err := processEntry.StateMachine.ValidateOperation("stop"); err != nil {
 		return err
 	}
 
 	// 3. Transition to stopping state
-	if err := workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateStopping, "stop", nil); err != nil {
-		return errors.NewInternalError("failed to transition worker to stopping state", err).WithContext("worker_id", id)
+	if err := processEntry.StateMachine.Transition(processstatemachine.ProcessStateStopping, "stop", nil); err != nil {
+		return errors.NewInternalError("failed to transition process to stopping state", err).WithContext("process_id", id)
 	}
 
 	// 4. Stop process control (outside of lock, can be long-running)
-	err := workerEntry.ProcessControl.Stop(ctx)
+	err := processEntry.ProcessControl.Stop(ctx)
 
 	// 5. Update state based on result
 	if err != nil {
 		// Transition to failed state
-		transitionErr := workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateFailed, "stop", err)
+		transitionErr := processEntry.StateMachine.Transition(processstatemachine.ProcessStateFailed, "stop", err)
 		if transitionErr != nil {
-			pm.logger.Errorf("Failed to transition worker to failed state, id: %s, error: %v", id, transitionErr)
+			pm.logger.Errorf("Failed to transition process to failed state, id: %s, error: %v", id, transitionErr)
 		}
 
-		pm.logger.Errorf("Failed to stop worker, id: %s, error: %v", id, err)
+		pm.logger.Errorf("Failed to stop process, id: %s, error: %v", id, err)
 
 		// Check if the error is a context cancellation
 		if ctx.Err() != nil {
-			return errors.NewCancelledError("worker stop was cancelled", ctx.Err()).WithContext("worker_id", id)
+			return errors.NewCancelledError("process stop was cancelled", ctx.Err()).WithContext("process_id", id)
 		}
-		return errors.NewProcessError("failed to stop worker", err).WithContext("worker_id", id)
+		return errors.NewProcessError("failed to stop process", err).WithContext("process_id", id)
 	}
 
 	// 6. Transition to stopped state on success
-	if err := workerEntry.StateMachine.Transition(workerstatemachine.WorkerStateStopped, "stop", nil); err != nil {
-		pm.logger.Errorf("Failed to transition worker to stopped state, id: %s, error: %v", id, err)
+	if err := processEntry.StateMachine.Transition(processstatemachine.ProcessStateStopped, "stop", nil); err != nil {
+		pm.logger.Errorf("Failed to transition process to stopped state, id: %s, error: %v", id, err)
 		// Note: Process is actually stopped, but state tracking failed
 	}
 
-	pm.logger.Infof("Managed process stopped successfully, id: %s, state: %s", id, workerEntry.StateMachine.GetCurrentState())
+	pm.logger.Infof("Managed process stopped successfully, id: %s, state: %s", id, processEntry.StateMachine.GetCurrentState())
 	return nil
 }
 
@@ -365,11 +365,11 @@ func (pm *processManager) Stop(ctx context.Context) error {
 		forcedShutdownTimeout = 30 * time.Second // Timeout super-default
 	}
 
-	// Set forced shutdown timeout, it will be used for both server and workers
+	// Set forced shutdown timeout, it will be used for both server and processes
 	ctx, _ = context.WithTimeout(ctx, forcedShutdownTimeout)
 
-	// Stop workers
-	err := pm.stopWorkerProcessControls(ctx)
+	// Stop processes
+	err := pm.stopProcessControls(ctx)
 
 	// Transition to stopped state
 	pm.setManagerState(ProcessManagerStateStopped)
@@ -379,89 +379,89 @@ func (pm *processManager) Stop(ctx context.Context) error {
 	return err
 }
 
-// GetAllWorkerStatesWithDiagnostics returns comprehensive state and diagnostic information for all workers
-func (pm *processManager) GetAllWorkerStatesWithDiagnostics() map[string]WorkerStateWithDiagnostics {
-	workerEntriesCopy := pm.getAllWorkers()
+// GetAllProcessStatesWithDiagnostics returns comprehensive state and diagnostic information for all processes
+func (pm *processManager) GetAllProcessStatesWithDiagnostics() map[string]ProcessStateWithDiagnostics {
+	processEntriesCopy := pm.getAllProcesses()
 
-	result := make(map[string]WorkerStateWithDiagnostics)
-	for id, workerEntry := range workerEntriesCopy {
-		processDiagnostics := workerEntry.ProcessControl.GetDiagnostics()
-		workerStateInfo := workerEntry.StateMachine.GetStateInfo()
+	result := make(map[string]ProcessStateWithDiagnostics)
+	for id, processEntry := range processEntriesCopy {
+		processDiagnostics := processEntry.ProcessControl.GetDiagnostics()
+		processStateInfo := processEntry.StateMachine.GetStateInfo()
 
-		result[id] = WorkerStateWithDiagnostics{
-			WorkerStateInfo:    workerStateInfo,
+		result[id] = ProcessStateWithDiagnostics{
+			ProcessStateInfo:   processStateInfo,
 			ProcessDiagnostics: processDiagnostics,
 		}
 	}
 	return result
 }
 
-// GetWorkerState returns the current state of a worker
-func (pm *processManager) GetWorkerState(id string) (workerstatemachine.WorkerState, error) {
-	// Validate worker ID
-	if err := ValidateWorkerID(id); err != nil {
-		return workerstatemachine.WorkerStateUnknown, errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
+// GetProcessState returns the current state of a process
+func (pm *processManager) GetProcessState(id string) (processstatemachine.ProcessState, error) {
+	// Validate process ID
+	if err := ValidateProcessID(id); err != nil {
+		return processstatemachine.ProcessStateUnknown, errors.NewValidationError("invalid process ID", err).WithContext("process_id", id)
 	}
 
-	workerEntry, _, exists := pm.getWorkerAndManagerState(id)
+	processEntry, _, exists := pm.getProcessAndManagerState(id)
 
 	if !exists {
-		return workerstatemachine.WorkerStateUnknown, errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
+		return processstatemachine.ProcessStateUnknown, errors.NewNotFoundError("process not found", nil).WithContext("process_id", id)
 	}
 
-	return workerEntry.StateMachine.GetCurrentState(), nil
+	return processEntry.StateMachine.GetCurrentState(), nil
 }
 
-func (pm *processManager) GetWorkerContext(id string) (map[string]string, error) {
-	// Validate worker ID
-	if err := ValidateWorkerID(id); err != nil {
-		return nil, errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
+func (pm *processManager) GetProcessContext(id string) (map[string]string, error) {
+	// Validate process ID
+	if err := ValidateProcessID(id); err != nil {
+		return nil, errors.NewValidationError("invalid process ID", err).WithContext("process_id", id)
 	}
 
-	workerEntry, _, exists := pm.getWorkerAndManagerState(id)
+	processEntry, _, exists := pm.getProcessAndManagerState(id)
 	if !exists {
-		return nil, errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
+		return nil, errors.NewNotFoundError("process not found", nil).WithContext("process_id", id)
 	}
 
-	return workerEntry.ProcessControl.GetContext(), nil
+	return processEntry.ProcessControl.GetContext(), nil
 }
 
-// GetWorkerStateWithDiagnostics returns comprehensive state and diagnostic information for a worker
-func (pm *processManager) GetWorkerStateWithDiagnostics(id string) (WorkerStateWithDiagnostics, error) {
-	// Validate worker ID
-	if err := ValidateWorkerID(id); err != nil {
-		return WorkerStateWithDiagnostics{}, errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
+// GetProcessStateWithDiagnostics returns comprehensive state and diagnostic information for a process
+func (pm *processManager) GetProcessStateWithDiagnostics(id string) (ProcessStateWithDiagnostics, error) {
+	// Validate process ID
+	if err := ValidateProcessID(id); err != nil {
+		return ProcessStateWithDiagnostics{}, errors.NewValidationError("invalid process ID", err).WithContext("process_id", id)
 	}
 
-	workerEntry, _, exists := pm.getWorkerAndManagerState(id)
+	processEntry, _, exists := pm.getProcessAndManagerState(id)
 
 	if !exists {
-		return WorkerStateWithDiagnostics{}, errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
+		return ProcessStateWithDiagnostics{}, errors.NewNotFoundError("process not found", nil).WithContext("process_id", id)
 	}
 
-	processDiagnostics := workerEntry.ProcessControl.GetDiagnostics()
-	workerStateInfo := workerEntry.StateMachine.GetStateInfo()
+	processDiagnostics := processEntry.ProcessControl.GetDiagnostics()
+	processStateInfo := processEntry.StateMachine.GetStateInfo()
 
-	return WorkerStateWithDiagnostics{
-		WorkerStateInfo:    workerStateInfo,
+	return ProcessStateWithDiagnostics{
+		ProcessStateInfo:   processStateInfo,
 		ProcessDiagnostics: processDiagnostics,
 	}, nil
 }
 
-// IsWorkerOperationAllowed checks if an operation is allowed for a worker
-func (pm *processManager) IsWorkerOperationAllowed(id string, operation string) (bool, error) {
-	// Validate worker ID
-	if err := ValidateWorkerID(id); err != nil {
-		return false, errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
+// IsProcessOperationAllowed checks if an operation is allowed for a process
+func (pm *processManager) IsProcessOperationAllowed(id string, operation string) (bool, error) {
+	// Validate process ID
+	if err := ValidateProcessID(id); err != nil {
+		return false, errors.NewValidationError("invalid process ID", err).WithContext("process_id", id)
 	}
 
-	workerEntry, _, exists := pm.getWorkerAndManagerState(id)
+	processEntry, _, exists := pm.getProcessAndManagerState(id)
 
 	if !exists {
-		return false, errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
+		return false, errors.NewNotFoundError("process not found", nil).WithContext("process_id", id)
 	}
 
-	return workerEntry.StateMachine.IsOperationAllowed(operation), nil
+	return processEntry.StateMachine.IsOperationAllowed(operation), nil
 }
 
 // GetManagerState returns the current state of the process manager
@@ -471,29 +471,29 @@ func (pm *processManager) GetManagerState() ProcessManagerState {
 	return pm.state
 }
 
-// WorkerStateWithDiagnostics combines worker state info with process diagnostics
-type WorkerStateWithDiagnostics struct {
-	workerstatemachine.WorkerStateInfo
+// ProcessStateWithDiagnostics combines process state info with process diagnostics
+type ProcessStateWithDiagnostics struct {
+	processstatemachine.ProcessStateInfo
 	ProcessDiagnostics processcontrol.ProcessDiagnostics // Detailed process diagnostics (includes State)
 }
 
-// GetWorkerProcessDiagnostics returns detailed process diagnostics for a worker
-func (pm *processManager) GetWorkerProcessDiagnostics(id string) (processcontrol.ProcessDiagnostics, error) {
-	// Validate worker ID
-	if err := ValidateWorkerID(id); err != nil {
-		return processcontrol.ProcessDiagnostics{}, errors.NewValidationError("invalid worker ID", err).WithContext("worker_id", id)
+// GetProcessProcessDiagnostics returns detailed process diagnostics for a process
+func (pm *processManager) GetProcessProcessDiagnostics(id string) (processcontrol.ProcessDiagnostics, error) {
+	// Validate process ID
+	if err := ValidateProcessID(id); err != nil {
+		return processcontrol.ProcessDiagnostics{}, errors.NewValidationError("invalid process ID", err).WithContext("process_id", id)
 	}
 
-	workerEntry, _, exists := pm.getWorkerAndManagerState(id)
+	processEntry, _, exists := pm.getProcessAndManagerState(id)
 
 	if !exists {
-		return processcontrol.ProcessDiagnostics{}, errors.NewNotFoundError("worker not found", nil).WithContext("worker_id", id)
+		return processcontrol.ProcessDiagnostics{}, errors.NewNotFoundError("process not found", nil).WithContext("process_id", id)
 	}
 
-	return workerEntry.ProcessControl.GetDiagnostics(), nil
+	return processEntry.ProcessControl.GetDiagnostics(), nil
 }
 
-func (pm *processManager) stopWorkerProcessControls(ctx context.Context) error {
+func (pm *processManager) stopProcessControls(ctx context.Context) error {
 	pm.logger.Infof("Stopping process controls...")
 
 	if ctx == nil {
@@ -501,16 +501,16 @@ func (pm *processManager) stopWorkerProcessControls(ctx context.Context) error {
 	}
 
 	// 1. Get all process controls under lock
-	workerEntriesCopy := pm.getAllWorkers()
+	processEntriesCopy := pm.getAllProcesses()
 
 	// 2. Stop processes outside of lock
 	errorCollection := errors.NewErrorCollection()
-	for id, workerEntry := range workerEntriesCopy {
-		err := workerEntry.ProcessControl.Stop(ctx)
+	for id, processEntry := range processEntriesCopy {
+		err := processEntry.ProcessControl.Stop(ctx)
 		if err != nil {
 			pm.logger.Errorf("Failed to stop process control, id: %s, error: %v", id, err)
 			// Add context to the error for better debugging
-			contextualErr := errors.NewProcessError("failed to stop process control", err).WithContext("worker_id", id)
+			contextualErr := errors.NewProcessError("failed to stop process control", err).WithContext("process_id", id)
 			errorCollection.Add(contextualErr)
 		}
 	}
@@ -524,26 +524,26 @@ func (pm *processManager) stopWorkerProcessControls(ctx context.Context) error {
 	return errorCollection.ToError()
 }
 
-// getAllWorkers returns a copy of all worker entries under lock
-func (pm *processManager) getAllWorkers() map[string]*workerEntry {
+// getAllProcesses returns a copy of all process entries under lock
+func (pm *processManager) getAllProcesses() map[string]*processEntry {
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
 
-	workerEntriesCopy := make(map[string]*workerEntry)
-	for id, workerEntry := range pm.workers {
-		workerEntriesCopy[id] = workerEntry
+	processEntriesCopy := make(map[string]*processEntry)
+	for id, processEntry := range pm.processes {
+		processEntriesCopy[id] = processEntry
 	}
-	return workerEntriesCopy
+	return processEntriesCopy
 }
 
-// getWorkerAndManagerState returns worker entry and process manager state under lock
-// Returns: workerEntry, state, exists
-func (pm *processManager) getWorkerAndManagerState(id string) (*workerEntry, ProcessManagerState, bool) {
+// getProcessAndManagerState returns process entry and process manager state under lock
+// Returns: processEntry, state, exists
+func (pm *processManager) getProcessAndManagerState(id string) (*processEntry, ProcessManagerState, bool) {
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
 
-	workerEntry, exists := pm.workers[id]
-	return workerEntry, pm.state, exists
+	processEntry, exists := pm.processes[id]
+	return processEntry, pm.state, exists
 }
 
 // setManagerState sets the process manager state and releases the lock
@@ -562,13 +562,13 @@ func (pm *processManager) SetLogCollectionService(service logcollection.LogColle
 	pm.logger.Infof("Log collection service configured for process manager")
 }
 
-// getLogCollectionConfig creates a default log collection config for workers
-func (pm *processManager) getLogCollectionConfig() *logconfig.WorkerLogConfig {
+// getLogCollectionConfig creates a default log collection config for processes
+func (pm *processManager) getLogCollectionConfig() *logconfig.ProcessLogConfig {
 	if pm.logCollectionService == nil {
 		return nil
 	}
 
-	// Create default worker log configuration
-	defaultConfig := logconfig.DefaultWorkerLogConfig()
+	// Create default process log configuration
+	defaultConfig := logconfig.DefaultProcessLogConfig()
 	return &defaultConfig
 }

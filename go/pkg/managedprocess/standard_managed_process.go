@@ -12,7 +12,7 @@ import (
 	"github.com/core-tools/hsu-core/pkg/processfile"
 )
 
-type ManagedUnit struct {
+type StandardManagedProcessConfig struct {
 	// Metadata
 	Metadata ProcessMetadata `yaml:"metadata"`
 
@@ -35,7 +35,7 @@ type standardManagedProcessDescription struct {
 	pidManager           *processfile.ProcessFileManager
 }
 
-func NewStandardManagedProcessDescription(id string, unit *ManagedUnit, logger logging.Logger) ProcessDescription {
+func NewStandardManagedProcessDescription(id string, unit *StandardManagedProcessConfig, logger logging.Logger) ProcessDescription {
 	return &standardManagedProcessDescription{
 		id:                   id,
 		metadata:             unit.Metadata,
@@ -70,7 +70,7 @@ func (pd *standardManagedProcessDescription) ProcessControlOptions() processcont
 }
 
 func (pd *standardManagedProcessDescription) AttachCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
-	pd.logger.Infof("Attaching to managed worker, id: %s", pd.id)
+	pd.logger.Infof("Attaching to standard managed process, id: %s", pd.id)
 
 	pidFile := pd.pidManager.GeneratePIDFilePath(pd.id)
 
@@ -85,7 +85,7 @@ func (pd *standardManagedProcessDescription) AttachCmd(ctx context.Context) (*pr
 		return nil, err
 	}
 
-	pd.logger.Infof("Managed worker attached successfully, id: %s, PID: %d", pd.id, process.Pid)
+	pd.logger.Infof("Standard managed process attached successfully, id: %s, PID: %d", pd.id, process.Pid)
 
 	return &processcontrol.CommandResult{
 		Process:           process,
@@ -96,25 +96,25 @@ func (pd *standardManagedProcessDescription) AttachCmd(ctx context.Context) (*pr
 }
 
 func (pd *standardManagedProcessDescription) ExecuteCmd(ctx context.Context) (*processcontrol.CommandResult, error) {
-	pd.logger.Infof("Executing managed worker command, id: %s", pd.id)
+	pd.logger.Infof("Executing standard managed process command, id: %s", pd.id)
 
 	// Create the standard execute command
 	stdExecuteCmd := process.NewStdExecuteCmd(pd.processControlConfig.Execution, pd.id, pd.logger)
 	process, stdout, err := stdExecuteCmd(ctx)
 	if err != nil {
-		return nil, errors.NewProcessError("failed to execute managed worker command", err).WithContext("worker_id", pd.id)
+		return nil, errors.NewProcessError("failed to execute standard managed process command", err).WithContext("process_id", pd.id)
 	}
 
 	// Write PID file
 	if err := pd.pidManager.WritePIDFile(pd.id, process.Pid); err != nil {
 		// Log error but don't fail - the process is already running
-		pd.logger.Errorf("Failed to write PID file for worker %s: %v", pd.id, err)
+		pd.logger.Errorf("Failed to write PID file for standard managed process %s: %v", pd.id, err)
 	} else {
 		pidFile := pd.pidManager.GeneratePIDFilePath(pd.id)
-		pd.logger.Infof("PID file written for worker %s: %s (PID: %d)", pd.id, pidFile, process.Pid)
+		pd.logger.Infof("PID file written for standard managed process %s: %s (PID: %d)", pd.id, pidFile, process.Pid)
 	}
 
-	pd.logger.Infof("Managed worker command executed successfully, id: %s, PID: %d", pd.id, process.Pid)
+	pd.logger.Infof("Standard managed process command executed successfully, id: %s, PID: %d", pd.id, process.Pid)
 
 	return &processcontrol.CommandResult{
 		Process:           process,

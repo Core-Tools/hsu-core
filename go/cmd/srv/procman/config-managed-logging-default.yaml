@@ -13,7 +13,7 @@ log_collection:
       - type: "file" 
         path: "process_manager-aggregated.log"
         format: "enhanced_plain"
-  default_worker:
+  default:
     enabled: true
     capture_stdout: true
     capture_stderr: true
@@ -21,11 +21,11 @@ log_collection:
       separate:
         stdout:
           - type: "file"
-            path: "{worker_id}-stdout.log"
+            path: "{process_id}-stdout.log"
             format: "enhanced_plain"
         stderr:
           - type: "file"
-            path: "{worker_id}-stderr.log"
+            path: "{process_id}-stderr.log"
             format: "enhanced_plain"
           - type: "process_manager_stdout"
             format: "enhanced_plain"
@@ -33,10 +33,10 @@ log_collection:
 
 managed_processes:
   - id: "test-managed-1"
-    type: "managed"
+    type: "standard_managed"
     profile_type: "web"  # ✅ NEW: Echo gRPC server is a web service
     unit:
-      managed:
+      standard_managed:
         metadata:
           name: "Echo gRPC server with logging"
         control:
@@ -49,14 +49,14 @@ managed_processes:
               max_retries: 3
               retry_delay: "5s"
               backoff_rate: 1.5
-          # ===== WORKER-SPECIFIC LOG COLLECTION (OPTIONAL) =====
+          # ===== PROCESS-SPECIFIC LOG COLLECTION (OPTIONAL) =====
           log_collection:
             enabled: true
             outputs:
               separate:
                 stdout:
                   - type: "file"
-                    path: "{worker_id}-detailed.log"
+                    path: "{process_id}-detailed.log"
                     format: "enhanced_plain"
         health_check:
           type: "process"
@@ -68,10 +68,10 @@ managed_processes:
             retries: 2
   
   - id: "test-managed-2"
-    type: "managed"
+    type: "standard_managed"
     profile_type: "web"  # ✅ NEW: Echo gRPC server is a web service
     unit:
-      managed:
+      standard_managed:
         metadata:
           name: "Echo gRPC server with default logging"
         control:

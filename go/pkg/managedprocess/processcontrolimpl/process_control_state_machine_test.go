@@ -47,7 +47,7 @@ func TestProcessState_AllTransitions(t *testing.T) {
 				CanTerminate: true,
 			}
 
-			pc := NewProcessControl(config, "test-worker", logger)
+			pc := NewProcessControl(config, "test-process", logger)
 			impl := pc.(*processControl)
 			impl.state = tt.currentState
 
@@ -128,7 +128,7 @@ func TestProcessControl_Start_StateTransitions(t *testing.T) {
 				GracefulTimeout: 30 * time.Second,
 			}
 
-			pc := NewProcessControl(config, "test-worker", logger)
+			pc := NewProcessControl(config, "test-process", logger)
 			impl := pc.(*processControl)
 			impl.state = tt.initialState
 
@@ -208,7 +208,7 @@ func TestProcessControl_Stop_StateTransitions(t *testing.T) {
 				GracefulTimeout: 30 * time.Second,
 			}
 
-			pc := NewProcessControl(config, "test-worker", logger)
+			pc := NewProcessControl(config, "test-process", logger)
 			impl := pc.(*processControl)
 			impl.state = tt.initialState
 
@@ -320,7 +320,7 @@ func TestProcessControl_Restart_StateTransitions(t *testing.T) {
 				GracefulTimeout: 30 * time.Second,
 			}
 
-			pc := NewProcessControl(config, "test-worker", logger)
+			pc := NewProcessControl(config, "test-process", logger)
 			impl := pc.(*processControl)
 			impl.state = tt.initialState
 
@@ -384,7 +384,7 @@ func TestProcessControl_StateTransitionConsistency(t *testing.T) {
 		},
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	// Test state transition logic using defer-only helpers
@@ -441,7 +441,7 @@ func TestProcessControl_StateValidation_EdgeCases(t *testing.T) {
 		CanTerminate: true,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	// Test all possible state values for completeness
@@ -494,7 +494,7 @@ func TestProcessControl_InvalidStateHandling(t *testing.T) {
 		CanTerminate: true,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	// Test with invalid/unknown state

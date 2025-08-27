@@ -25,18 +25,18 @@ type StructuredLogger interface {
 	// Fluent interface for building context
 	WithFields(fields ...LogField) StructuredLogger
 	WithError(err error) StructuredLogger
-	WithWorker(workerID string) StructuredLogger
+	WithProcess(processID string) StructuredLogger
 	WithContext(ctx context.Context) StructuredLogger
 }
 
-// LogCollector handles real-time log collection from worker processes
+// LogCollector handles real-time log collection from managed processes
 type LogCollector interface {
 	// Stream collection (Phase 1 - Process Control Integration)
-	CollectFromStream(workerID string, stream io.Reader, streamType StreamType) error
-	CollectFromProcess(workerID string, stdout, stderr io.Reader) error
+	CollectFromStream(processID string, stream io.Reader, streamType StreamType) error
+	CollectFromProcess(processID string, stdout, stderr io.Reader) error
 
 	// Log processing
-	ProcessLogLine(workerID string, line string, metadata LogMetadata) error
+	ProcessLogLine(processID string, line string, metadata LogMetadata) error
 
 	// Output management
 	ForwardLogs(targets []LogOutputTarget) error
@@ -51,15 +51,15 @@ type LogCollectionService interface {
 	LogCollector
 
 	// Managed process management
-	RegisterWorker(workerID string, workerConfig config.WorkerLogConfig) error
-	UnregisterWorker(workerID string) error
+	RegisterProcess(processID string, processConfig config.ProcessLogConfig) error
+	UnregisterProcess(processID string) error
 
 	// Configuration management
 	UpdateConfiguration(config config.LogCollectionConfig) error
 	GetConfiguration() config.LogCollectionConfig
 
 	// Status and metrics
-	GetWorkerStatus(workerID string) (*WorkerLogStatus, error)
+	GetProcessStatus(processID string) (*ProcessLogStatus, error)
 	GetSystemStatus() *SystemLogStatus
 }
 
@@ -147,7 +147,7 @@ type LogEntry struct {
 	Timestamp time.Time              `json:"timestamp"`
 	Level     string                 `json:"level,omitempty"`
 	Message   string                 `json:"message"`
-	WorkerID  string                 `json:"worker_id"`
+	ProcessID string                 `json:"process_id"`
 	Stream    StreamType             `json:"stream"`
 	Fields    map[string]interface{} `json:"fields,omitempty"`
 	Raw       string                 `json:"raw_line"`
@@ -157,14 +157,14 @@ type LogEntry struct {
 // LogMetadata contains contextual information about a log entry
 type LogMetadata struct {
 	Timestamp time.Time
-	WorkerID  string
+	ProcessID string
 	Stream    StreamType
 	LineNum   int64
 }
 
-// RawLogEntry represents an unprocessed log line from a worker
+// RawLogEntry represents an unprocessed log line from a process
 type RawLogEntry struct {
-	WorkerID  string
+	ProcessID string
 	Stream    StreamType
 	Line      string
 	Timestamp time.Time
@@ -187,26 +187,26 @@ type EnhancedLogEntry struct {
 
 // ===== STATUS TYPES =====
 
-// WorkerLogStatus provides status information for a specific worker
-type WorkerLogStatus struct {
-	WorkerID       string                 `json:"worker_id"`
-	Active         bool                   `json:"active"`
-	LinesProcessed int64                  `json:"lines_processed"`
-	BytesProcessed int64                  `json:"bytes_processed"`
-	LastActivity   time.Time              `json:"last_activity"`
-	Errors         []string               `json:"errors,omitempty"`
-	Config         config.WorkerLogConfig `json:"config"`
+// ProcessLogStatus provides status information for a specific process
+type ProcessLogStatus struct {
+	ProcessID      string                  `json:"process_id"`
+	Active         bool                    `json:"active"`
+	LinesProcessed int64                   `json:"lines_processed"`
+	BytesProcessed int64                   `json:"bytes_processed"`
+	LastActivity   time.Time               `json:"last_activity"`
+	Errors         []string                `json:"errors,omitempty"`
+	Config         config.ProcessLogConfig `json:"config"`
 }
 
 // SystemLogStatus provides overall log collection system status
 type SystemLogStatus struct {
-	Active           bool                        `json:"active"`
-	WorkersActive    int                         `json:"workers_active"`
-	TotalWorkers     int                         `json:"total_workers"`
-	TotalLines       int64                       `json:"total_lines_processed"`
-	TotalBytes       int64                       `json:"total_bytes_processed"`
-	StartTime        time.Time                   `json:"start_time"`
-	LastActivity     time.Time                   `json:"last_activity"`
-	ManagedProcesses map[string]*WorkerLogStatus `json:"managed_processes"`
-	OutputTargets    []string                    `json:"output_targets"`
+	Active           bool                         `json:"active"`
+	ProcessesActive  int                          `json:"processes_active"`
+	TotalProcesses   int                          `json:"total_processes"`
+	TotalLines       int64                        `json:"total_lines_processed"`
+	TotalBytes       int64                        `json:"total_bytes_processed"`
+	StartTime        time.Time                    `json:"start_time"`
+	LastActivity     time.Time                    `json:"last_activity"`
+	ManagedProcesses map[string]*ProcessLogStatus `json:"managed_processes"`
+	OutputTargets    []string                     `json:"output_targets"`
 }

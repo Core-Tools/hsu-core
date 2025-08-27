@@ -18,7 +18,7 @@ func BenchmarkProcessControl_StateReads(b *testing.B) {
 		CanTerminate: true,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	b.ResetTimer()
@@ -35,7 +35,7 @@ func BenchmarkProcessControl_ConcurrentReads(b *testing.B) {
 		CanTerminate: true,
 	}
 
-	pc := NewProcessControl(config, "test-worker", logger)
+	pc := NewProcessControl(config, "test-process", logger)
 	impl := pc.(*processControl)
 
 	b.ResetTimer()
