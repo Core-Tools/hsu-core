@@ -1,0 +1,84 @@
+process_manager:
+  port: 50055
+  log_level: "info"
+  force_shutdown_timeout: "30s"
+
+managed_processes:
+  - id: "echo-test"
+    type: "standard_managed"
+    profile_type: "short_running_task"
+    enabled: true
+    management:
+      control:
+        executable: "echo"
+        arguments: ["Hello from HSU Rust Process Manager!"]
+        working_directory: "."
+        environment:
+          RUST_LOG: "info"
+          HSU_PROCESS_ID: "echo-test"
+        startup_timeout: "10s"
+        shutdown_timeout: "5s"
+      health_check:
+        enabled: false
+      resource_limits:
+        max_memory_mb: 128
+        max_cpu_percent: 50.0
+      restart_policy:
+        strategy: "on_failure"
+        max_attempts: 3
+        restart_delay: "5s"
+        backoff_multiplier: 1.5
+      logging:
+        capture_stdout: true
+        capture_stderr: true
+        buffer_size: 8192
+
+  - id: "long-running-service"
+    type: "standard_managed"
+    profile_type: "long_running_service"
+    enabled: false  # Disabled by default
+    management:
+      control:
+        executable: "sleep"
+        arguments: ["300"]  # Sleep for 5 minutes
+        working_directory: "."
+        environment: {}
+        startup_timeout: "30s"
+        shutdown_timeout: "10s"
+      health_check:
+        enabled: true
+        interval: "30s"
+        timeout: "5s"
+        failure_threshold: 3
+      resource_limits:
+        max_memory_mb: 256
+        max_cpu_percent: 25.0
+      restart_policy:
+        strategy: "always"
+        max_attempts: 5
+        restart_delay: "10s"
+        backoff_multiplier: 2.0
+      logging:
+        capture_stdout: true
+        capture_stderr: true
+        buffer_size: 16384
+
+log_collection:
+  enabled: true
+  global_aggregation:
+    enabled: true
+    targets:
+      - type: "process_manager_stdout"
+        format: "enhanced_plain"
+        prefix: "[HSU-RUST]"
+      - type: "file"
+        path: "hsu-process-manager.log"
+        format: "json"
+  enhancement:
+    enabled: true
+    metadata:
+      add_process_manager_id: true
+      add_hostname: true
+      add_timestamp: true
+      add_sequence: true
+      add_line_number: false

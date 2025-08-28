@@ -1,0 +1,76 @@
+[package]
+name = "hsu-process-manager"
+version = "0.1.0"
+edition = "2021"
+authors = ["HSU Core Team"]
+description = "HSU Process Manager - A Rust implementation of the HSU process orchestration system"
+license = "Apache-2.0"
+
+[[bin]]
+name = "hsu-process-manager"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime and utilities
+tokio = { version = "1.35", features = ["full"] }
+tokio-util = "0.7"
+
+# Serialization and configuration
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1.0"
+
+# Command line interface
+clap = { version = "4.4", features = ["derive", "env"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# System information and process management
+sysinfo = "0.29"
+nix = { version = "0.27", features = ["signal", "process"] }
+
+# gRPC for integrated processes
+tonic = "0.10"
+prost = "0.12"
+
+# Utilities
+uuid = { version = "1.6", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+futures = "0.3"
+
+# Configuration management
+config = "0.13"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["processthreadsapi", "handleapi", "winnt", "jobapi2"] }
+
+[build-dependencies]
+tonic-build = "0.10"
+
+[dev-dependencies]
+tempfile = "3.8"
+mockall = "0.12"
+proptest = "1.4"
+
+# Optimize for development
+[profile.dev]
+opt-level = 0
+debug = true
+
+# Optimize for release
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+# Test profile
+[profile.test]
+opt-level = 0
+debug = true
