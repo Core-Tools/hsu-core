@@ -11,12 +11,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-type gatewayFactory struct {
-	factoryInfoReader modules.GatewayFactoryInfoReader
-	processLifecycle  processmanager.ProcessLifecycle
-	logger            logging.Logger
-}
-
 func NewGatewayFactory(factoryInfoReader modules.GatewayFactoryInfoReader, processLifecycle processmanager.ProcessLifecycle, logger logging.Logger) modules.GatewayFactory {
 	gf := &gatewayFactory{
 		factoryInfoReader: factoryInfoReader,
@@ -25,6 +19,12 @@ func NewGatewayFactory(factoryInfoReader modules.GatewayFactoryInfoReader, proce
 	}
 	logger.Infof("Gateway factory created (has process lifecycle: %t)", processLifecycle != nil)
 	return gf
+}
+
+type gatewayFactory struct {
+	factoryInfoReader modules.GatewayFactoryInfoReader
+	processLifecycle  processmanager.ProcessLifecycle
+	logger            logging.Logger
 }
 
 func (gf *gatewayFactory) NewGateway(ctx context.Context, moduleID, endpointID string) (interface{}, error) {
