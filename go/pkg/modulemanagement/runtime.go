@@ -54,7 +54,7 @@ func NewRuntime(options RuntimeOptions) (Runtime, error) {
 		moduleID := module.ID()
 
 		_, ok := localAPIMap[moduleID]
-		if !ok {
+		if ok {
 			return nil, fmt.Errorf("duplicate module ID: %v", moduleID)
 		}
 

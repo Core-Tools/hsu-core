@@ -30,6 +30,9 @@ type serviceRegistryClient struct {
 }
 
 func (c *serviceRegistryClient) PublishAPIs(apis []RemoteAPI) error {
+	if len(apis) == 0 {
+		return nil
+	}
 	return fmt.Errorf("not implemented")
 }
 
