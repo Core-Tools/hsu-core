@@ -188,7 +188,7 @@ func (gf *gatewayFactory) newRemoteServiceGateway(ctx context.Context, request r
 			WithContext("protocol", request.Protocol)
 	}
 
-	// TODO: cache connection, close it if when appropriate
+	// TODO: cache connection, close it when appropriate
 
 	// Create and return the gateway
 	serviceGateway := targetGatewayFactoryFunc(connection.GatewaysClientConnection(), gf.logger)
