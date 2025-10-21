@@ -38,6 +38,14 @@ func NewLogger(prefix string, funcs LogFuncs) Logger {
 	}
 }
 
+// NewNullLogger creates a logger that discards all log messages
+func NewNullLogger() Logger {
+	return &logger{
+		prefix: "",
+		funcs:  LogFuncs{},
+	}
+}
+
 func (l *logger) logf(level int, msg string, args ...interface{}) {
 	if l.prefix != "" {
 		msg = l.prefix + msg

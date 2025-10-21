@@ -24,7 +24,7 @@ type RuntimeOptions struct {
 
 func (o *RuntimeOptions) OptLogger() logging.Logger {
 	if o.Logger == nil {
-		return nil // TODO: use null logger here
+		return logging.NewNullLogger()
 	}
 	return o.Logger
 }
