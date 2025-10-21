@@ -7,7 +7,7 @@ import (
 	sprintflogging "github.com/core-tools/hsu-core/pkg/logging/sprintf"
 
 	"github.com/core-tools/hsu-core/pkg/logging"
-	"github.com/core-tools/hsu-core/pkg/processmanager"
+	"github.com/core-tools/hsu-core/pkg/processmanagement"
 
 	flags "github.com/jessevdk/go-flags"
 )
@@ -44,7 +44,7 @@ func main() {
 			Errorf: sprintfLogger.Errorf,
 		})
 
-	err = processmanager.Run(opts.RunDuration, opts.Config, opts.EnableLog, logger)
+	err = processmanagement.Run(opts.RunDuration, opts.Config, opts.EnableLog, logger)
 	if err != nil {
 		logger.Errorf("Failed to run: %v", err)
 		os.Exit(1)

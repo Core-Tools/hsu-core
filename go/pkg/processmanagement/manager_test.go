@@ -1,4 +1,4 @@
-package processmanager
+package processmanagement
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/core-tools/hsu-core/pkg/managedprocess"
 	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
 	"github.com/core-tools/hsu-core/pkg/process"
-	"github.com/core-tools/hsu-core/pkg/processmanager/processstatemachine"
+	"github.com/core-tools/hsu-core/pkg/processmanagement/processstatemachine"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
