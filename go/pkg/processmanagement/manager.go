@@ -33,10 +33,9 @@ type ProcessLifecycle interface {
 	GetManagerState() ProcessManagerState
 	GetAllProcessStatesWithDiagnostics() map[string]ProcessStateWithDiagnostics
 	GetProcessState(id string) (processstatemachine.ProcessState, error)
-	GetProcessContext(id string) (map[string]string, error)
+	GetProcessProcessDiagnostics(id string) (processcontrol.ProcessDiagnostics, error)
 	GetProcessStateWithDiagnostics(id string) (ProcessStateWithDiagnostics, error)
 	IsProcessOperationAllowed(id string, operation string) (bool, error)
-	GetProcessProcessDiagnostics(id string) (processcontrol.ProcessDiagnostics, error)
 }
 
 type ProcessManager interface {
@@ -410,20 +409,6 @@ func (pm *processManager) GetProcessState(id string) (processstatemachine.Proces
 	}
 
 	return processEntry.StateMachine.GetCurrentState(), nil
-}
-
-func (pm *processManager) GetProcessContext(id string) (map[string]string, error) {
-	// Validate process ID
-	if err := ValidateProcessID(id); err != nil {
-		return nil, errors.NewValidationError("invalid process ID", err).WithContext("process_id", id)
-	}
-
-	processEntry, _, exists := pm.getProcessAndManagerState(id)
-	if !exists {
-		return nil, errors.NewNotFoundError("process not found", nil).WithContext("process_id", id)
-	}
-
-	return processEntry.ProcessControl.GetContext(), nil
 }
 
 // GetProcessStateWithDiagnostics returns comprehensive state and diagnostic information for a process

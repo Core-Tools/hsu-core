@@ -28,16 +28,12 @@ type ProcessControl interface {
 	// GetState returns the current process state
 	GetState() ProcessState
 
-	// GetContext returns the current process context
-	GetContext() map[string]string
-
 	// GetDiagnostics returns detailed process diagnostics including error information
 	GetDiagnostics() ProcessDiagnostics
 }
 
 type CommandResult struct {
 	Process           *os.Process
-	ProcessContext    map[string]string
 	Stdout            io.ReadCloser
 	HealthCheckConfig *monitoring.HealthCheckConfig
 }

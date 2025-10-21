@@ -89,7 +89,6 @@ func (pd *standardManagedProcessOptions) AttachCmd(ctx context.Context) (*proces
 
 	return &processcontrol.CommandResult{
 		Process:           process,
-		ProcessContext:    nil,
 		Stdout:            stdout,
 		HealthCheckConfig: &pd.healthCheckConfig,
 	}, nil
@@ -118,7 +117,6 @@ func (pd *standardManagedProcessOptions) ExecuteCmd(ctx context.Context) (*proce
 
 	return &processcontrol.CommandResult{
 		Process:           process,
-		ProcessContext:    nil,
 		Stdout:            stdout,
 		HealthCheckConfig: &pd.healthCheckConfig,
 	}, nil

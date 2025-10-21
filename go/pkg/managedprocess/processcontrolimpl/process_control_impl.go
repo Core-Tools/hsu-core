@@ -46,7 +46,6 @@ type processControl struct {
 
 	// Running process tracking
 	process           *os.Process
-	processContext    map[string]string
 	processDoneSignal chan error
 
 	// Health monitor
@@ -181,14 +180,6 @@ func (pc *processControl) GetState() processcontrol.ProcessState {
 	return pc.safeGetState()
 }
 
-// GetContext returns the current process context
-func (pc *processControl) GetContext() map[string]string {
-	pc.mutex.RLock()
-	defer pc.mutex.RUnlock()
-
-	return pc.processContext
-}
-
 // GetDiagnostics returns detailed process diagnostics including error information
 func (pc *processControl) GetDiagnostics() processcontrol.ProcessDiagnostics {
 	pc.mutex.RLock()
@@ -221,7 +212,6 @@ func (pc *processControl) GetDiagnostics() processcontrol.ProcessDiagnostics {
 
 	return processcontrol.ProcessDiagnostics{
 		State:            pc.state,
-		Context:          pc.processContext,
 		LastError:        pc.lastError,
 		ProcessID:        processID,
 		StartTime:        pc.startTime,
@@ -264,12 +254,10 @@ func (pc *processControl) startInternal(ctx context.Context) error {
 	}
 
 	process := cmdResult.Process
-	processContext := cmdResult.ProcessContext
 	stdout := cmdResult.Stdout
 	healthCheckConfig := cmdResult.HealthCheckConfig
 
 	pc.process = process
-	pc.processContext = processContext
 	pc.stdout = stdout
 	pc.startTime = &pc.lastAttemptTime // Record successful start time
 	pc.lastError = nil                 // Clear any previous error
@@ -361,7 +349,6 @@ func (pc *processControl) startProcess(ctx context.Context) (*processcontrol.Com
 			pc.logger.Warnf("Failed to attach to existing process, process: %s, error: %v", pc.processID, err)
 		} else {
 			process = cmdResult.Process
-			processContext = cmdResult.ProcessContext
 			stdout = cmdResult.Stdout
 			healthCheckConfig = cmdResult.HealthCheckConfig // Overrides healthCheckConfig
 
@@ -379,7 +366,6 @@ func (pc *processControl) startProcess(ctx context.Context) (*processcontrol.Com
 		}
 
 		process = cmdResult.Process
-		processContext = cmdResult.ProcessContext
 		stdout = cmdResult.Stdout
 		healthCheckConfig = cmdResult.HealthCheckConfig // Overrides healthCheckConfig
 
@@ -405,7 +391,6 @@ func (pc *processControl) startProcess(ctx context.Context) (*processcontrol.Com
 
 	return &processcontrol.CommandResult{
 		Process:           process,
-		ProcessContext:    processContext,
 		Stdout:            stdout,
 		HealthCheckConfig: healthCheckConfig,
 	}, nil

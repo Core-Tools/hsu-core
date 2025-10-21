@@ -83,7 +83,6 @@ func (pd *unmanagedProcessOptions) AttachCmd(ctx context.Context) (*processcontr
 
 	return &processcontrol.CommandResult{
 		Process:           process,
-		ProcessContext:    nil,
 		Stdout:            stdout,
 		HealthCheckConfig: &pd.healthCheckConfig,
 	}, nil

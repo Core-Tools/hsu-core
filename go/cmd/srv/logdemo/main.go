@@ -220,7 +220,6 @@ func createEchoCommand(ctx context.Context) (*processcontrol.CommandResult, erro
 
 	return &processcontrol.CommandResult{
 		Process:           cmd.Process,
-		ProcessContext:    nil,
 		Stdout:            stdout,
 		HealthCheckConfig: nil,
 	}, nil

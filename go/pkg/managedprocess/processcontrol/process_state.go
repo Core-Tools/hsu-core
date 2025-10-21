@@ -39,7 +39,6 @@ const (
 // ProcessDiagnostics provides detailed process status information
 type ProcessDiagnostics struct {
 	State            ProcessState
-	Context          map[string]string
 	LastError        *ProcessError
 	ProcessID        int
 	StartTime        *time.Time

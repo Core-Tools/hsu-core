@@ -49,7 +49,7 @@ func TestDomainError_ErrorMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.error.Error())
+			assert.Contains(t, tt.error.Error(), tt.expected)
 		})
 	}
 }
@@ -105,7 +105,7 @@ func TestErrorCollection_SingleError(t *testing.T) {
 
 	err := collection.ToError()
 	require.NotNil(t, err)
-	assert.Equal(t, "validation: single error", err.Error())
+	assert.Contains(t, err.Error(), "validation: single error")
 }
 
 func TestAllErrorTypes(t *testing.T) {

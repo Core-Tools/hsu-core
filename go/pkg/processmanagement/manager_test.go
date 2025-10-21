@@ -108,7 +108,6 @@ func createTestProcess(id string) *mockProcess {
 		process, stdout, err := stdCmd(ctx)
 		return &processcontrol.CommandResult{
 			Process:           process,
-			ProcessContext:    nil,
 			Stdout:            stdout,
 			HealthCheckConfig: nil,
 		}, err

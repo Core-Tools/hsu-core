@@ -101,15 +101,10 @@ func (w *integratedManagedProcessOptions) AttachCmd(ctx context.Context) (*proce
 
 	healthCheckConfig := w.newDynamicHealthCheckConfig(address, process.Pid)
 
-	processContext := map[string]string{
-		"server_address": address,
-	}
-
 	w.logger.Infof("Integrated managed process attached successfully, id: %s, PID: %d", w.id, process.Pid)
 
 	return &processcontrol.CommandResult{
 		Process:           process,
-		ProcessContext:    processContext,
 		Stdout:            stdout,
 		HealthCheckConfig: healthCheckConfig,
 	}, nil
@@ -158,15 +153,10 @@ func (w *integratedManagedProcessOptions) ExecuteCmd(ctx context.Context) (*proc
 
 	healthCheckConfig := w.newDynamicHealthCheckConfig(address, process.Pid)
 
-	processContext := map[string]string{
-		"server_address": address,
-	}
-
 	w.logger.Infof("Integrated managed process executed successfully, id: %s, PID: %d", w.id, process.Pid)
 
 	return &processcontrol.CommandResult{
 		Process:           process,
-		ProcessContext:    processContext,
 		Stdout:            stdout,
 		HealthCheckConfig: healthCheckConfig,
 	}, nil
