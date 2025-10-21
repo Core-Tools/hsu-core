@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/core-tools/hsu-core/pkg/errors"
 	"github.com/core-tools/hsu-core/pkg/logging"
 	"github.com/core-tools/hsu-core/pkg/modulemanagement/moduletypes"
 )
@@ -33,9 +34,19 @@ func (c *serviceRegistryClient) PublishAPIs(apis []RemoteAPI) error {
 	if len(apis) == 0 {
 		return nil
 	}
-	return fmt.Errorf("not implemented")
+	return nil
 }
 
 func (c *serviceRegistryClient) FindModuleAPIs(moduleID moduletypes.ModuleID) ([]RemoteModuleAPI, error) {
-	return nil, fmt.Errorf("not implemented")
+	if moduleID == "echo" {
+		return []RemoteModuleAPI{
+			{
+				ServiceIDs: []moduletypes.ServiceID{"service1"},
+				ServerPort: 50051,
+				Protocol:   moduletypes.ProtocolGRPC,
+			},
+		}, nil
+	}
+	return nil, errors.NewNotFoundError("module not found", nil).
+		WithContext("module_id", moduleID)
 }

@@ -35,9 +35,9 @@ type DomainError struct {
 
 func (e *DomainError) Error() string {
 	if e.Cause != nil {
-		return fmt.Sprintf("%s: %s: %v", e.Type, e.Message, e.Cause)
+		return fmt.Sprintf("%s: %s: %v: %+v", e.Type, e.Message, e.Cause, e.Context)
 	}
-	return fmt.Sprintf("%s: %s", e.Type, e.Message)
+	return fmt.Sprintf("%s: %s: %+v", e.Type, e.Message, e.Context)
 }
 
 func (e *DomainError) Unwrap() error {

@@ -13,10 +13,9 @@ type ModuleHandlersConfig struct {
 	HandlersRegistrarFunc ProtocolHandlersRegistrarFunc
 }
 
-type ModuleGatewaysConfig struct {
-	ModuleID              moduletypes.ModuleID
-	ServiceGatewayConfigs []ServiceGatewayConfig
-}
+type ModuleHandlersConfigList []ModuleHandlersConfig
+
+type ModuleGatewaysConfigMap map[moduletypes.ModuleID][]ServiceGatewayConfig
 
 type ProtocolHandlersRegistrarFunc func(
 	serviceHandlersMap moduletypes.ServiceHandlersMap,
@@ -34,13 +33,6 @@ type ProtocolServiceGatewayFactoryFunc func(
 	protocolClientConnection moduleproto.ProtocolClientConnection,
 	logger logging.Logger,
 ) moduletypes.ServiceGateway
-
-type LocalModuleAPI struct {
-	HandlersMap    moduletypes.ServiceHandlersMap
-	GatewayConfigs []ServiceGatewayConfig
-}
-
-type LocalAPI map[moduletypes.ModuleID]LocalModuleAPI
 
 type RemoteModuleAPI struct {
 	ServiceIDs []moduletypes.ServiceID

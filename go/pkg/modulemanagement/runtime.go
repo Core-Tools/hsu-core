@@ -12,17 +12,12 @@ import (
 	"github.com/core-tools/hsu-core/pkg/modulemanagement/moduletypes"
 )
 
-type ServerOptions struct {
-	ServerID              moduleproto.ServerID
-	Protocol              moduletypes.Protocol
-	ProtocolServerOptions moduleproto.ProtocolServerOptions
-}
-
 type RuntimeOptions struct {
 	Modules               []moduletypes.Module
-	ServerOptions         []ServerOptions
-	ModuleGatewaysConfigs []moduleapi.ModuleGatewaysConfig
-	ModuleHandlersConfigs []moduleapi.ModuleHandlersConfig
+	ServerOptions         moduleproto.ServerOptionsList
+	ClientOptions         moduleproto.ClientOptionsMap
+	ModuleHandlersConfigs moduleapi.ModuleHandlersConfigList
+	ModuleGatewaysConfigs moduleapi.ModuleGatewaysConfigMap
 	ServerRegistryURL     string
 	Logger                logging.Logger
 }
@@ -44,7 +39,8 @@ func NewRuntime(options RuntimeOptions) (Runtime, error) {
 	// 1. Gather module API handlers to local API map
 
 	modules := make([]moduletypes.Module, 0)
-	localAPIMap := make(map[moduletypes.ModuleID]moduleapi.LocalModuleAPI)
+
+	localModuleHandlers := make(map[moduletypes.ModuleID]moduletypes.ServiceHandlersMap)
 
 	for _, module := range options.Modules {
 		if module == nil {
@@ -53,37 +49,24 @@ func NewRuntime(options RuntimeOptions) (Runtime, error) {
 
 		moduleID := module.ID()
 
-		_, ok := localAPIMap[moduleID]
+		_, ok := localModuleHandlers[moduleID]
 		if ok {
 			return nil, fmt.Errorf("duplicate module ID: %v", moduleID)
 		}
 
-		localAPIMap[moduleID] = moduleapi.LocalModuleAPI{
-			HandlersMap: module.ServiceHandlersMap(),
-		}
+		localModuleHandlers[moduleID] = module.ServiceHandlersMap()
 
 		modules = append(modules, module)
 	}
 
-	// 2. Save module gateway configs to local API map
-
-	for _, gatewaysConfig := range options.ModuleGatewaysConfigs {
-		localModuleAPI, ok := localAPIMap[gatewaysConfig.ModuleID]
-		if !ok {
-			return nil, fmt.Errorf("gateways config module not found: %s", gatewaysConfig.ModuleID)
-		}
-		localModuleAPI.GatewayConfigs = gatewaysConfig.ServiceGatewayConfigs
-		localAPIMap[gatewaysConfig.ModuleID] = localModuleAPI
-	}
-
-	// 3. Create service manager and protocol servers
+	// 2. Create service manager and protocol servers
 
 	serverManager := moduleproto.NewServerManager(logger)
 
 	for _, serverOptions := range options.ServerOptions {
 		serverID := serverOptions.ServerID
 		protocol := serverOptions.Protocol
-		protocolServerOptions := serverOptions.ProtocolServerOptions
+		protocolServerOptions := serverOptions.ProtocolOptions
 
 		protocolServer, err := moduleproto.NewProtocolServer(protocol, protocolServerOptions, logger)
 		if err != nil {
@@ -96,7 +79,7 @@ func NewRuntime(options RuntimeOptions) (Runtime, error) {
 		}
 	}
 
-	// 4. Register module handlers and gather remote module APIs
+	// 3. Register module handlers and gather remote module APIs
 
 	remoteModuleAPIsMap := make(map[moduletypes.ModuleID][]moduleapi.RemoteModuleAPI)
 	for _, handlersConfig := range options.ModuleHandlersConfigs {
@@ -107,12 +90,11 @@ func NewRuntime(options RuntimeOptions) (Runtime, error) {
 		if handlersConfig.Protocol != protocolServer.Protocol() {
 			return nil, fmt.Errorf("protocol mismatch: %s != %s", handlersConfig.Protocol, protocolServer.Protocol())
 		}
-		localModuleAPI, ok := localAPIMap[handlersConfig.ModuleID]
+		localServiceHandlersMap, ok := localModuleHandlers[handlersConfig.ModuleID]
 		if !ok {
 			return nil, fmt.Errorf("module router not found: %s", handlersConfig.ModuleID)
 		}
 
-		localServiceHandlersMap := localModuleAPI.HandlersMap
 		serviceIDs := make([]moduletypes.ServiceID, 0, len(localServiceHandlersMap))
 		for serviceID := range localServiceHandlersMap {
 			serviceIDs = append(serviceIDs, serviceID)
@@ -132,16 +114,22 @@ func NewRuntime(options RuntimeOptions) (Runtime, error) {
 		remoteModuleAPIsMap[handlersConfig.ModuleID] = remoteModuleAPIs
 	}
 
-	// 5. Create service registry client and service gateway factory
+	// 4. Create service registry client and service gateway factory
 
 	serviceRegistryClient, err := moduleapi.NewServiceRegistryClient(options.ServerRegistryURL, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create service registry client: %v", err)
 	}
 
-	serviceGatewayFactory := moduleapi.NewServiceGatewayFactory(localAPIMap, serviceRegistryClient, logger)
+	serviceGatewayFactory := moduleapi.NewServiceGatewayFactory(moduleapi.ServiceGatewayFactoryOptions{
+		LocalModuleHandlers:   localModuleHandlers,
+		LocalModuleGateways:   options.ModuleGatewaysConfigs,
+		ServiceRegistryClient: serviceRegistryClient,
+		ClientOptionsMap:      options.ClientOptions,
+		Logger:                logger,
+	})
 
-	// 6. Publish remote module APIs to service registry
+	// 5. Publish remote module APIs to service registry
 
 	remoteAPIs := make([]moduleapi.RemoteAPI, 0)
 	for moduleID, remoteModuleAPIs := range remoteModuleAPIsMap {
@@ -156,7 +144,7 @@ func NewRuntime(options RuntimeOptions) (Runtime, error) {
 		return nil, fmt.Errorf("failed to publish remote APIs: %v", err)
 	}
 
-	// 7. Create module lifecycle manager, add modules to it and set service gateway factory
+	// 6. Create module lifecycle manager, add modules to it and set service gateway factory
 
 	moduleLifecycleManager := modulelifecycle.NewLifecycleManager(logger)
 

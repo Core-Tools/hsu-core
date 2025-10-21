@@ -9,8 +9,6 @@ import (
 	"github.com/core-tools/hsu-core/pkg/modulemanagement/moduletypes"
 )
 
-type ServerID string
-
 type ServerManager interface {
 	RegisterProtocolServer(serverID ServerID, server ProtocolServer) error
 	FindProtocolServer(serverID ServerID) ProtocolServer

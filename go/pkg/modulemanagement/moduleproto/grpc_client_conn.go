@@ -10,24 +10,26 @@ import (
 	"google.golang.org/grpc"
 )
 
-func connectToGRPCServer(ctx context.Context, port int, logger logging.Logger) (ClientConnection, error) {
+type GRPCClientOptions struct {
+	DialOptions []grpc.DialOption
+}
+
+func connectToGRPCServer(ctx context.Context, options GRPCClientOptions, port int, logger logging.Logger) (ClientConnection, error) {
 	address := fmt.Sprintf("localhost:%d", port)
 
 	logger.Debugf("Connecting to gRPC server at address: %s", address)
 
 	// Setup dial options
-	options := []grpc.DialOption{
-		grpc.WithInsecure(),
-	}
-	if len(options) == 0 {
-		options = []grpc.DialOption{
+	dialOptions := options.DialOptions
+	if len(dialOptions) == 0 {
+		dialOptions = []grpc.DialOption{
 			grpc.WithInsecure(),
 		}
 		logger.Debugf("Using default insecure gRPC dial options")
 	}
 
 	// Create gRPC connection
-	conn, err := grpc.DialContext(ctx, address, options...)
+	conn, err := grpc.DialContext(ctx, address, dialOptions...)
 	if err != nil {
 		return nil, errors.NewIOError("failed to establish gRPC connection", err).
 			WithContext("address", address)

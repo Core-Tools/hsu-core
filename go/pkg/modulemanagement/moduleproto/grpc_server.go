@@ -13,8 +13,8 @@ import (
 )
 
 type GRPCServerOptions struct {
-	Port    int // this is only a config hint, could be 0 for dynamic port allocation
-	Options []grpc.ServerOption
+	Port          int // this is only a config hint, could be 0 for dynamic port allocation
+	ServerOptions []grpc.ServerOption
 }
 
 func (o *GRPCServerOptions) OptPort() int {
@@ -39,7 +39,12 @@ func NewGRPCServer(options GRPCServerOptions, logger logging.Logger) (*grpcServe
 
 	logger.Infof("gRPC server listening at %s", listener.Addr().String())
 
-	impl := grpc.NewServer(options.Options...)
+	serverOptions := options.ServerOptions
+	if len(serverOptions) == 0 {
+		serverOptions = []grpc.ServerOption{}
+		logger.Debugf("Using default gRPC server options")
+	}
+	impl := grpc.NewServer(serverOptions...)
 
 	// update the port to the actual port used
 	port = listener.Addr().(*net.TCPAddr).Port

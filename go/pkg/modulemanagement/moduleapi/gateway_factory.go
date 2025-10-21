@@ -9,37 +9,56 @@ import (
 	"github.com/core-tools/hsu-core/pkg/modulemanagement/moduletypes"
 )
 
-func NewServiceGatewayFactory(localAPIMap LocalAPI, serviceRegistryClient ServiceRegistryClient, logger logging.Logger) moduletypes.ServiceGatewayFactory {
-	gf := &gatewayFactory{
-		localAPIMap:           localAPIMap,
-		serviceRegistryClient: serviceRegistryClient,
-		logger:                logger,
+type ServiceGatewayFactoryOptions struct {
+	LocalModuleHandlers   map[moduletypes.ModuleID]moduletypes.ServiceHandlersMap // local service handlers
+	LocalModuleGateways   ModuleGatewaysConfigMap                                 // local service gateways
+	ServiceRegistryClient ServiceRegistryClient                                   // provider of remote API
+	ClientOptionsMap      moduleproto.ClientOptionsMap
+	Logger                logging.Logger
+}
+
+func (o *ServiceGatewayFactoryOptions) OptLogger() logging.Logger {
+	if o.Logger == nil {
+		return nil // TODO: use null logger here
 	}
+	return o.Logger
+}
+
+func NewServiceGatewayFactory(options ServiceGatewayFactoryOptions) moduletypes.ServiceGatewayFactory {
+	logger := options.OptLogger()
+
+	gf := &gatewayFactory{
+		localModuleHandlers:   options.LocalModuleHandlers,
+		localModuleGateways:   options.LocalModuleGateways,
+		serviceRegistryClient: options.ServiceRegistryClient,
+		clientOptionsMap:      options.ClientOptionsMap,
+		logger:                options.Logger,
+	}
+
 	logger.Infof("Service gateway factory created")
+
 	return gf
 }
 
 type gatewayFactory struct {
-	localAPIMap           map[moduletypes.ModuleID]LocalModuleAPI // local API
-	serviceRegistryClient ServiceRegistryClient                   // provider of remote API
+	localModuleHandlers   map[moduletypes.ModuleID]moduletypes.ServiceHandlersMap // local module handlers
+	localModuleGateways   ModuleGatewaysConfigMap                                 // local module gateways
+	serviceRegistryClient ServiceRegistryClient                                   // provider of remote API
+	clientOptionsMap      moduleproto.ClientOptionsMap
 	logger                logging.Logger
 }
 
 func (gf *gatewayFactory) NewServiceGateway(ctx context.Context, moduleID moduletypes.ModuleID, serviceID moduletypes.ServiceID, protocol moduletypes.Protocol) (moduletypes.ServiceGateway, error) {
 	gf.logger.Debugf("Creating gateway for module: %s, service: %s, protocol: %s", moduleID, serviceID, protocol)
 
-	localModuleAPI, ok := gf.localAPIMap[moduleID]
-	if !ok {
-		return nil, errors.NewNotFoundError("module API not found", nil).
-			WithContext("module_id", moduleID)
+	localServiceHandlersMap := gf.localModuleHandlers[moduleID]
+	if localServiceHandlersMap == nil {
+		localServiceHandlersMap = make(moduletypes.ServiceHandlersMap)
 	}
-
-	localGatewayConfigs := localModuleAPI.GatewayConfigs
-	localServiceHandlerMap := localModuleAPI.HandlersMap
+	localServiceHandler := localServiceHandlersMap[serviceID]
 
 	switch protocol {
 	case moduletypes.ProtocolDirect:
-		localServiceHandler := localServiceHandlerMap[serviceID]
 		if localServiceHandler != nil {
 			// have local service handler for the requested module
 			return localServiceHandler, nil
@@ -49,7 +68,6 @@ func (gf *gatewayFactory) NewServiceGateway(ctx context.Context, moduleID module
 			WithContext("service_id", serviceID)
 
 	case moduletypes.ProtocolAuto:
-		localServiceHandler := localServiceHandlerMap[serviceID]
 		if localServiceHandler != nil {
 			// have local service handler for the requested module
 			return localServiceHandler, nil
@@ -60,7 +78,7 @@ func (gf *gatewayFactory) NewServiceGateway(ctx context.Context, moduleID module
 			ModuleID:            moduleID,
 			ServiceID:           serviceID,
 			Protocol:            protocol,
-			LocalGatewayConfigs: localGatewayConfigs,
+			LocalGatewayConfigs: gf.localModuleGateways[moduleID],
 		})
 
 	case moduletypes.ProtocolGRPC:
@@ -69,7 +87,7 @@ func (gf *gatewayFactory) NewServiceGateway(ctx context.Context, moduleID module
 			ModuleID:            moduleID,
 			ServiceID:           serviceID,
 			Protocol:            protocol,
-			LocalGatewayConfigs: localGatewayConfigs,
+			LocalGatewayConfigs: gf.localModuleGateways[moduleID],
 		})
 	}
 
@@ -159,7 +177,10 @@ func (gf *gatewayFactory) newRemoteServiceGateway(ctx context.Context, request r
 			WithContext("protocol", request.Protocol)
 	}
 
-	conn, err := moduleproto.ConnectToProtocolServer(ctx, targetProtocol, targetServerPort, gf.logger)
+	targetProtocolClientOptions := gf.clientOptionsMap[targetProtocol]
+
+	connection, err := moduleproto.ConnectToProtocolServer(ctx, targetProtocol,
+		targetProtocolClientOptions, targetServerPort, gf.logger)
 	if err != nil {
 		return nil, errors.NewProcessError("failed to connect to protocol server", err).
 			WithContext("module_id", request.ModuleID).
@@ -167,10 +188,12 @@ func (gf *gatewayFactory) newRemoteServiceGateway(ctx context.Context, request r
 			WithContext("protocol", request.Protocol)
 	}
 
+	// TODO: cache connection, close it if when appropriate
+
 	// Create and return the gateway
-	serviceGateway := targetGatewayFactoryFunc(conn, gf.logger)
+	serviceGateway := targetGatewayFactoryFunc(connection.GatewaysClientConnection(), gf.logger)
 	if serviceGateway == nil {
-		conn.Close() // Clean up connection if factory returns nil
+		connection.Close() // Clean up connection if factory returns nil
 		return nil, errors.NewInternalError("gateway factory function returned nil", nil).
 			WithContext("module_id", request.ModuleID).
 			WithContext("service_id", request.ServiceID).

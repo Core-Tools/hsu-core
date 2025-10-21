@@ -28,6 +28,9 @@ func NewProtocolServer(protocol moduletypes.Protocol, options ProtocolServerOpti
 
 	switch protocol {
 	case moduletypes.ProtocolGRPC:
+		if options == nil {
+			options = GRPCServerOptions{}
+		}
 		grpcServerOptions, ok := options.(GRPCServerOptions)
 		if !ok {
 			return nil, errors.NewDomainError(errors.ErrorTypeValidation, "invalid protocol server options", nil).
