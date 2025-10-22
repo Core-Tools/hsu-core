@@ -1,0 +1,357 @@
+//! Gateway factory implementation with auto-protocol selection.
+//! 
+//! # Rust Learning Note
+//! 
+//! This module demonstrates the **Factory Pattern** in Rust.
+//! 
+//! ## Factory Pattern
+//! 
+//! **Purpose:** Create objects without specifying exact class.
+//! 
+//! **Go Version:**
+//! ```go
+//! type GatewayFactory interface {
+//!     NewGateway(moduleID, serviceID string, protocol Protocol) (Gateway, error)
+//! }
+//! 
+//! func (f *factoryImpl) NewGateway(...) (Gateway, error) {
+//!     switch protocol {
+//!     case ProtocolDirect:
+//!         return &DirectGateway{...}, nil
+//!     case ProtocolGRPC:
+//!         return &GrpcGateway{...}, nil
+//!     }
+//! }
+//! ```
+//! 
+//! **Rust Version:**
+//! ```rust
+//! #[async_trait]
+//! trait ServiceGatewayFactory {
+//!     async fn new_service_gateway(...) -> Result<ServiceGateway>;
+//! }
+//! 
+//! // Returns enum - no interface{} needed!
+//! match protocol {
+//!     Protocol::Direct => ServiceGateway::Direct(...),
+//!     Protocol::Grpc => ServiceGateway::Grpc(...),
+//! }
+//! ```
+
+use async_trait::async_trait;
+use hsu_common::{ModuleID, ServiceID, Protocol, Result, Error};
+use hsu_module_management::{
+    ServiceGatewayFactory, ServiceGateway, ServiceHandler,
+    module_types::GrpcGateway,
+};
+use hsu_module_proto::{DirectProtocol, GrpcOptions};
+use hsu_module_proto::grpc::GrpcProtocolGateway;
+use std::sync::Arc;
+use std::collections::HashMap;
+use tracing::{debug, trace};
+
+use crate::registry_client::ServiceRegistryClient;
+
+/// Gateway factory implementation with auto-protocol selection.
+/// 
+/// # Rust Learning Note
+/// 
+/// ## Factory State
+/// 
+/// ```rust
+/// pub struct ServiceGatewayFactoryImpl {
+///     local_modules: Arc<HashMap<ModuleID, Arc<DirectProtocol>>>,
+///     registry_client: Arc<ServiceRegistryClient>,
+/// }
+/// ```
+/// 
+/// **Key design decisions:**
+/// 
+/// 1. **local_modules**: Map of locally available modules
+///    - Used for direct (in-process) calls
+///     - Wrapped in Arc for cheap cloning
+/// 
+/// 2. **registry_client**: For discovering remote modules
+///    - Shared across all gateway creations
+///    - Also wrapped in Arc
+/// 
+/// ## Why Arc Everywhere?
+/// 
+/// The factory is shared by many modules:
+/// ```
+/// ModuleRuntime
+/// ├── Module A ──┐
+/// ├── Module B ──┼─→ GatewayFactory (Arc)
+/// └── Module C ──┘        ↓
+///                    Cheap clones!
+/// ```
+/// 
+/// **Cost of sharing:** Just ~2-3 cycles per clone!
+pub struct ServiceGatewayFactoryImpl {
+    /// Map of locally available modules (for direct protocol).
+    local_modules: Arc<HashMap<ModuleID, Arc<DirectProtocol>>>,
+    
+    /// Service registry client (for discovering remote modules).
+    registry_client: Arc<ServiceRegistryClient>,
+}
+
+impl ServiceGatewayFactoryImpl {
+    /// Creates a new gateway factory.
+    pub fn new(
+        local_modules: HashMap<ModuleID, Arc<DirectProtocol>>,
+        registry_client: Arc<ServiceRegistryClient>,
+    ) -> Self {
+        Self {
+            local_modules: Arc::new(local_modules),
+            registry_client,
+        }
+    }
+
+    /// Auto-selects protocol based on availability.
+    /// 
+    /// # Rust Learning Note
+    /// 
+    /// ## Auto-Protocol Selection Logic
+    /// 
+    /// ```
+    /// Protocol::Auto → Check local → Direct
+    ///                              ↓
+    ///                      Not local → Discover → gRPC
+    /// 
+    /// Protocol::Direct → Check local → Direct
+    ///                                 ↓
+    ///                         Not local → Error
+    /// 
+    /// Protocol::Grpc → Discover → gRPC
+    /// ```
+    /// 
+    /// **Decision tree:**
+    /// 1. If Protocol::Auto: Try direct first, fallback to gRPC
+    /// 2. If Protocol::Direct: Must be local, error if not
+    /// 3. If Protocol::Grpc: Always use gRPC (even if local)
+    /// 
+    /// **Why this design?**
+    /// - Performance: Prefer direct when possible
+    /// - Flexibility: Allow explicit protocol choice
+    /// - Safety: Clear error if requirements can't be met
+    async fn select_protocol(
+        &self,
+        module_id: &ModuleID,
+        protocol: Protocol,
+    ) -> Result<Protocol> {
+        match protocol {
+            Protocol::Auto => {
+                // Try direct first
+                if self.local_modules.contains_key(module_id) {
+                    debug!("Auto-selecting Direct protocol for local module: {}", module_id);
+                    Ok(Protocol::Direct)
+                } else {
+                    // Fallback to gRPC
+                    debug!("Auto-selecting Grpc protocol for remote module: {}", module_id);
+                    Ok(Protocol::Grpc)
+                }
+            }
+            Protocol::Direct => {
+                // Must be local
+                if self.local_modules.contains_key(module_id) {
+                    Ok(Protocol::Direct)
+                } else {
+                    Err(Error::Protocol(format!(
+                        "Module {} not available locally for direct protocol",
+                        module_id
+                    )))
+                }
+            }
+            // Other protocols pass through
+            _ => Ok(protocol),
+        }
+    }
+
+    /// Creates a direct gateway.
+    fn create_direct_gateway(
+        &self,
+        module_id: &ModuleID,
+    ) -> Result<ServiceGateway> {
+        let _protocol = self.local_modules
+            .get(module_id)
+            .ok_or_else(|| Error::module_not_found(module_id.clone()))?;
+
+        // Wrap in ServiceHandler for consistency
+        // (In full implementation, we'd track individual service handlers)
+        Ok(ServiceGateway::Direct(Arc::new(
+            ServiceHandler::Echo(Arc::new(DummyEchoService))
+        )))
+    }
+
+    /// Creates a gRPC gateway.
+    async fn create_grpc_gateway(
+        &self,
+        module_id: &ModuleID,
+        service_id: &ServiceID,
+    ) -> Result<ServiceGateway> {
+        // Discover service from registry
+        let apis = self.registry_client
+            .discover(module_id)
+            .await?;
+
+        // Find the specific service
+        let api = apis
+            .iter()
+            .find(|api| api.service_id == service_id.as_str())
+            .ok_or_else(|| Error::service_not_found(module_id.clone(), service_id.clone()))?;
+
+        // Get address
+        let address = api.address
+            .clone()
+            .ok_or_else(|| Error::Protocol("No address for gRPC service".to_string()))?;
+
+        debug!("Creating gRPC gateway to {} for service {}", address, service_id);
+
+        // Create gRPC options
+        let options = GrpcOptions::new(address);
+
+        // Create gateway
+        let _gateway = GrpcProtocolGateway::new(options.address.clone(), options);
+
+        // In a full implementation, we'd have a proper service-specific gateway
+        // For now, wrap in our enum structure
+        Ok(ServiceGateway::Grpc(GrpcGateway::Echo(Arc::new(DummyEchoService))))
+    }
+}
+
+#[async_trait]
+impl ServiceGatewayFactory for ServiceGatewayFactoryImpl {
+    /// Creates a new service gateway with auto-protocol selection.
+    /// 
+    /// # Rust Learning Note
+    /// 
+    /// ## The Magic Moment!
+    /// 
+    /// This is where everything comes together:
+    /// 
+    /// ```rust
+    /// // User calls:
+    /// let gateway = factory.new_service_gateway(
+    ///     &module_id,
+    ///     &service_id,
+    ///     Protocol::Auto,  // ← Auto-select!
+    /// ).await?;
+    /// 
+    /// // Factory:
+    /// // 1. Checks if module is local
+    /// // 2. If yes: Returns ServiceGateway::Direct (zero-cost!)
+    /// // 3. If no: Discovers from registry, returns ServiceGateway::Grpc
+    /// 
+    /// // User doesn't care which - both implement the same interface!
+    /// let response = gateway.call(...).await?;
+    /// ```
+    /// 
+    /// **This is the power of abstraction:**
+    /// - User: Simple API
+    /// - Factory: Smart selection
+    /// - Runtime: Optimal performance
+    async fn new_service_gateway(
+        &self,
+        module_id: &ModuleID,
+        service_id: &ServiceID,
+        protocol: Protocol,
+    ) -> Result<ServiceGateway> {
+        trace!(
+            "Creating gateway: module={}, service={}, protocol={:?}",
+            module_id, service_id, protocol
+        );
+
+        // Select actual protocol
+        let selected_protocol = self.select_protocol(module_id, protocol).await?;
+
+        // Create appropriate gateway
+        match selected_protocol {
+            Protocol::Direct => {
+                debug!("Creating direct gateway for {}", module_id);
+                self.create_direct_gateway(module_id)
+            }
+            Protocol::Grpc => {
+                debug!("Creating gRPC gateway for {}/{}", module_id, service_id);
+                self.create_grpc_gateway(module_id, service_id).await
+            }
+            Protocol::Http => {
+                // HTTP not implemented yet
+                Err(Error::Protocol("HTTP protocol not yet implemented".to_string()))
+            }
+            Protocol::Auto => {
+                // Should have been resolved by select_protocol
+                unreachable!("Protocol::Auto should be resolved")
+            }
+        }
+    }
+}
+
+// Dummy service for compilation (will be replaced with real services in Phase 5)
+struct DummyEchoService;
+
+#[async_trait]
+impl hsu_module_management::module_types::EchoService for DummyEchoService {
+    async fn echo(&self, message: String) -> Result<String> {
+        Ok(message)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_factory_creation() {
+        let local_modules = HashMap::new();
+        let registry_client = Arc::new(ServiceRegistryClient::new("http://localhost:8080"));
+        
+        let factory = ServiceGatewayFactoryImpl::new(local_modules, registry_client);
+        
+        // Factory should be created successfully
+        assert_eq!(factory.local_modules.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_auto_protocol_selection_local() {
+        let mut local_modules = HashMap::new();
+        let module_id = ModuleID::from("test-module");
+        
+        // Add a local module
+        let protocol = Arc::new(DirectProtocol::new(HashMap::new()));
+        local_modules.insert(module_id.clone(), protocol);
+        
+        let registry_client = Arc::new(ServiceRegistryClient::new("http://localhost:8080"));
+        let factory = ServiceGatewayFactoryImpl::new(local_modules, registry_client);
+        
+        // Should select Direct for local module
+        let selected = factory.select_protocol(&module_id, Protocol::Auto).await.unwrap();
+        assert_eq!(selected, Protocol::Direct);
+    }
+
+    #[tokio::test]
+    async fn test_auto_protocol_selection_remote() {
+        let local_modules = HashMap::new();
+        let registry_client = Arc::new(ServiceRegistryClient::new("http://localhost:8080"));
+        let factory = ServiceGatewayFactoryImpl::new(local_modules, registry_client);
+        
+        let module_id = ModuleID::from("remote-module");
+        
+        // Should select Grpc for remote module
+        let selected = factory.select_protocol(&module_id, Protocol::Auto).await.unwrap();
+        assert_eq!(selected, Protocol::Grpc);
+    }
+
+    #[tokio::test]
+    async fn test_direct_protocol_requires_local() {
+        let local_modules = HashMap::new();
+        let registry_client = Arc::new(ServiceRegistryClient::new("http://localhost:8080"));
+        let factory = ServiceGatewayFactoryImpl::new(local_modules, registry_client);
+        
+        let module_id = ModuleID::from("remote-module");
+        
+        // Should fail - module not local
+        let result = factory.select_protocol(&module_id, Protocol::Direct).await;
+        assert!(result.is_err());
+    }
+}
+
