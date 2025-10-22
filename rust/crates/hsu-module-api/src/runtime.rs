@@ -14,7 +14,7 @@
 //! 
 //! **Think of it as the "main" for HSU modules!**
 
-use hsu_common::{ModuleID, Result};
+use hsu_common::Result;
 use hsu_module_management::Module;
 use hsu_module_proto::DirectProtocol;
 use std::sync::Arc;

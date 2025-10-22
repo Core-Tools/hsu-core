@@ -15,4 +15,4 @@ pub mod runtime;
 // Re-export commonly used items
 pub use registry_client::ServiceRegistryClient;
 pub use gateway_factory::ServiceGatewayFactoryImpl;
-pub use runtime::ModuleRuntime;
+pub use runtime::{ModuleRuntime, RuntimeConfig};
