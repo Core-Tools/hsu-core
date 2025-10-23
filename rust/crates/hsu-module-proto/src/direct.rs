@@ -170,7 +170,7 @@ impl ProtocolHandler for DirectProtocol {
         );
 
         // Get the handler
-        let handler = self.get_handler(service_id)?;
+        let _handler = self.get_handler(service_id)?;
 
         // For demonstration, we'll just echo the request
         // In a real implementation, this would:

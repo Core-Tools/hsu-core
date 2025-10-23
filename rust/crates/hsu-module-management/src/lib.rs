@@ -6,6 +6,7 @@
 
 pub mod module_types;
 pub mod lifecycle;
+pub mod config_types;
 
 // Re-export commonly used items
 pub use module_types::{
@@ -16,4 +17,10 @@ pub use module_types::{
     ServiceGatewayFactory,
 };
 pub use lifecycle::Lifecycle;
+pub use config_types::{
+    ServerOptions,
+    HandlersConfig,
+    GatewayConfig,
+    GatewayConfigMap,
+};
 
