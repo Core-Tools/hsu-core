@@ -127,6 +127,12 @@ impl std::fmt::Debug for ServiceGateway {
     }
 }
 
+// No domain-specific methods here!
+// Framework stays domain-agnostic.
+//
+// For Go-like simplicity, use extension traits in your application code.
+// See the echo example for the pattern.
+
 /// gRPC gateway variants for different services.
 /// 
 /// # Rust Learning Note
@@ -207,6 +213,81 @@ pub trait ServiceGatewayFactory: Send + Sync {
         service_id: &ServiceID,
         protocol: Protocol,
     ) -> Result<ServiceGateway>;
+}
+
+/// User-provided factory for creating protocol-specific service gateways.
+/// 
+/// # Rust Learning Note
+/// 
+/// This trait allows users to provide their own gateway creation logic,
+/// similar to Go's `GatewayFactoryFunc` pattern.
+/// 
+/// ## Pattern: User-Provided Factory
+/// 
+/// **Go equivalent:**
+/// ```go
+/// type ProtocolServiceGatewayFactoryFunc func(
+///     protocolClientConnection moduleproto.ProtocolClientConnection,
+///     logger logging.Logger,
+/// ) moduletypes.ServiceGateway
+/// 
+/// // User provides:
+/// GatewayFactoryFunc: grpcapi.NewGRPCGateway1
+/// ```
+/// 
+/// **Rust version:**
+/// ```rust
+/// #[async_trait]
+/// impl ProtocolGatewayFactory for EchoGrpcGatewayFactory {
+///     async fn create_gateway(&self, address: String) -> Result<ServiceGateway> {
+///         let gateway = EchoGrpcGateway::connect(address).await?;
+///         Ok(ServiceGateway::Grpc(GrpcGateway::Echo(Arc::new(gateway))))
+///     }
+/// }
+/// ```
+/// 
+/// ## Why This Design?
+/// 
+/// 1. **Type Safety**: User creates properly-typed gateway
+/// 2. **Flexibility**: User controls connection/initialization
+/// 3. **Testability**: Easy to mock factories
+/// 4. **Async-friendly**: Native async support via async_trait
+/// 
+/// ## Comparison to ServiceGatewayFactory
+/// 
+/// - `ServiceGatewayFactory`: Framework-level, handles discovery & routing
+/// - `ProtocolGatewayFactory`: User-level, creates service-specific gateways
+/// 
+/// The framework calls user factories to create the actual gateway implementations.
+#[async_trait]
+pub trait ProtocolGatewayFactory: Send + Sync {
+    /// Creates a service-specific gateway for the given address.
+    /// 
+    /// # Arguments
+    /// - `address`: The service address (from service discovery)
+    /// 
+    /// # Returns
+    /// A `ServiceGateway` with the concrete service implementation.
+    /// 
+    /// # Example
+    /// 
+    /// ```rust,ignore
+    /// use hsu_module_management::ProtocolGatewayFactory;
+    /// 
+    /// pub struct EchoGrpcGatewayFactory;
+    /// 
+    /// #[async_trait]
+    /// impl ProtocolGatewayFactory for EchoGrpcGatewayFactory {
+    ///     async fn create_gateway(&self, address: String) -> Result<ServiceGateway> {
+    ///         // Connect to service
+    ///         let gateway = EchoGrpcGateway::connect(address).await?;
+    ///         
+    ///         // Wrap in ServiceGateway enum
+    ///         Ok(ServiceGateway::Grpc(GrpcGateway::Echo(Arc::new(gateway))))
+    ///     }
+    /// }
+    /// ```
+    async fn create_gateway(&self, address: String) -> Result<ServiceGateway>;
 }
 
 /// Module trait - represents a module in the HSU system.

@@ -15,6 +15,7 @@ pub use module_types::{
     ServiceGateway,
     ServiceHandlersMap,
     ServiceGatewayFactory,
+    ProtocolGatewayFactory,  // New: User-provided factory trait
 };
 pub use lifecycle::Lifecycle;
 pub use config_types::{

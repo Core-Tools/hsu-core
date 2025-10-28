@@ -99,7 +99,11 @@ func NewRuntime(options RuntimeOptions) (Runtime, error) {
 		for serviceID := range localServiceHandlersMap {
 			serviceIDs = append(serviceIDs, serviceID)
 		}
-		handlersConfig.HandlersRegistrarFunc(localServiceHandlersMap, protocolServer.HandlersRegistrar(), logger)
+		for serviceID := range localServiceHandlersMap {
+			handler := localServiceHandlersMap[serviceID]
+			handlerRegistrarFunc := handlersConfig.HandlerRegistrarFuncs[serviceID]
+			handlerRegistrarFunc(protocolServer.HandlersRegistrar(), handler, logger)
+		}
 
 		remoteModuleAPI := moduleapi.RemoteModuleAPI{
 			ServiceIDs: serviceIDs,

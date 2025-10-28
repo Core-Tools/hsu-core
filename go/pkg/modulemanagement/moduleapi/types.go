@@ -10,7 +10,7 @@ type ModuleHandlersConfig struct {
 	ModuleID              moduletypes.ModuleID
 	ServerID              moduleproto.ServerID
 	Protocol              moduletypes.Protocol
-	HandlersRegistrarFunc ProtocolHandlersRegistrarFunc
+	HandlerRegistrarFuncs map[moduletypes.ServiceID]ProtocolHandlersRegistrarFunc
 }
 
 type ModuleHandlersConfigList []ModuleHandlersConfig
@@ -18,8 +18,8 @@ type ModuleHandlersConfigList []ModuleHandlersConfig
 type ModuleGatewaysConfigMap map[moduletypes.ModuleID][]ServiceGatewayConfig
 
 type ProtocolHandlersRegistrarFunc func(
-	serviceHandlersMap moduletypes.ServiceHandlersMap,
 	protocolServerRegistrar moduleproto.ProtocolServerRegistrar,
+	handler moduletypes.ServiceHandler,
 	logger logging.Logger,
 )
 

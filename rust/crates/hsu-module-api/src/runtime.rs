@@ -293,7 +293,7 @@ impl ModuleRuntime {
                 }
             }
             
-            // In a full implementation with real gRPC services:
+            // TODO: In a full implementation with real gRPC services:
             // 1. Get module's handlers
             // 2. Get server's HandlersRegistrar (grpc::Server)
             // 3. Call proto-generated registration function
@@ -318,10 +318,12 @@ impl ModuleRuntime {
 
         debug!("Registered {} local modules", local_modules.len());
 
-        // 5. Create gateway factory
-        let factory = Arc::new(ServiceGatewayFactoryImpl::new(
+        // 5. Create gateway factory with user-provided gateway configs
+        // This is where we pass the user's factory configurations!
+        let factory: Arc<ServiceGatewayFactoryImpl> = Arc::new(ServiceGatewayFactoryImpl::new(
             local_modules,
             registry_client,
+            self.config.gateway_configs.clone(),  // ← User-provided factories!
         ));
         self.gateway_factory = Some(Arc::clone(&factory));
 

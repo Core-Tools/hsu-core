@@ -167,17 +167,26 @@ impl HandlersConfig {
 /// This specifies how to create gateways for calling remote services:
 /// - Which service to call
 /// - What protocol to use
+/// - User-provided factory for creating the gateway
 /// - Any protocol-specific options
 ///
 /// Example:
-/// ```rust
-/// let config = GatewayConfig {
-///     service_id: ServiceID::from("echo-service"),
-///     protocol: Protocol::Grpc,
-///     address: Some("localhost:50051".to_string()),
-/// };
+/// ```rust,ignore
+/// let config = GatewayConfig::new(ServiceID::from("echo-service"), Protocol::Grpc)
+///     .with_factory(Arc::new(EchoGrpcGatewayFactory));
 /// ```
-#[derive(Debug, Clone)]
+///
+/// ## Factory Pattern
+///
+/// The factory is a trait object that implements `ProtocolGatewayFactory`.
+/// The framework calls `factory.create_gateway(address)` to create the
+/// service-specific gateway implementation.
+///
+/// **This matches the Go pattern:**
+/// ```go
+/// GatewayFactoryFunc: grpcapi.NewGRPCGateway1
+/// ```
+#[derive(Clone)]
 pub struct GatewayConfig {
     /// ID of the service this gateway calls.
     pub service_id: ServiceID,
@@ -187,6 +196,23 @@ pub struct GatewayConfig {
     
     /// Optional direct address (skips service discovery).
     pub address: Option<String>,
+    
+    /// User-provided factory for creating the gateway.
+    /// 
+    /// This is the key addition that matches Go's `GatewayFactoryFunc`.
+    /// The framework will call this factory to create the actual gateway.
+    pub factory: Option<std::sync::Arc<dyn crate::module_types::ProtocolGatewayFactory>>,
+}
+
+impl std::fmt::Debug for GatewayConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GatewayConfig")
+            .field("service_id", &self.service_id)
+            .field("protocol", &self.protocol)
+            .field("address", &self.address)
+            .field("factory", &if self.factory.is_some() { "Some(...)" } else { "None" })
+            .finish()
+    }
 }
 
 impl GatewayConfig {
@@ -196,12 +222,39 @@ impl GatewayConfig {
             service_id,
             protocol,
             address: None,
+            factory: None,
         }
     }
     
     /// Sets a direct address (skips service discovery).
     pub fn with_address(mut self, address: impl Into<String>) -> Self {
         self.address = Some(address.into());
+        self
+    }
+    
+    /// Sets the user-provided factory for creating gateways.
+    /// 
+    /// # Rust Learning Note
+    /// 
+    /// This builder method allows users to provide their own gateway factory,
+    /// matching Go's `GatewayFactoryFunc` pattern.
+    /// 
+    /// ## Example
+    /// 
+    /// ```rust,ignore
+    /// use hsu_module_management::{GatewayConfig, ProtocolGatewayFactory};
+    /// 
+    /// let config = GatewayConfig::new(ServiceID::from("echo-service"), Protocol::Grpc)
+    ///     .with_factory(Arc::new(EchoGrpcGatewayFactory));
+    /// ```
+    /// 
+    /// The framework will call `factory.create_gateway(address)` when
+    /// creating gateways for this service.
+    pub fn with_factory(
+        mut self, 
+        factory: std::sync::Arc<dyn crate::module_types::ProtocolGatewayFactory>
+    ) -> Self {
+        self.factory = Some(factory);
         self
     }
 }

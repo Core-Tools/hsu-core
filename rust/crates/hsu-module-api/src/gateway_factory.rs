@@ -42,10 +42,8 @@ use async_trait::async_trait;
 use hsu_common::{ModuleID, ServiceID, Protocol, Result, Error};
 use hsu_module_management::{
     ServiceGatewayFactory, ServiceGateway, ServiceHandler,
-    module_types::GrpcGateway,
 };
-use hsu_module_proto::{DirectProtocol, GrpcOptions};
-use hsu_module_proto::grpc::GrpcProtocolGateway;
+use hsu_module_proto::DirectProtocol;
 use std::sync::Arc;
 use std::collections::HashMap;
 use tracing::{debug, trace};
@@ -93,6 +91,13 @@ pub struct ServiceGatewayFactoryImpl {
     
     /// Service registry client (for discovering remote modules).
     registry_client: Arc<ServiceRegistryClient>,
+    
+    /// User-provided gateway configurations with factories.
+    /// 
+    /// This is the key to matching Go's functionality!
+    /// Maps: ModuleID -> Vec<GatewayConfig>
+    /// where GatewayConfig contains the user's factory.
+    gateway_configs: Arc<HashMap<ModuleID, Vec<hsu_module_management::GatewayConfig>>>,
 }
 
 impl ServiceGatewayFactoryImpl {
@@ -100,10 +105,12 @@ impl ServiceGatewayFactoryImpl {
     pub fn new(
         local_modules: HashMap<ModuleID, Arc<DirectProtocol>>,
         registry_client: Arc<ServiceRegistryClient>,
+        gateway_configs: HashMap<ModuleID, Vec<hsu_module_management::GatewayConfig>>,
     ) -> Self {
         Self {
             local_modules: Arc::new(local_modules),
             registry_client,
+            gateway_configs: Arc::new(gateway_configs),
         }
     }
 
@@ -177,45 +184,91 @@ impl ServiceGatewayFactoryImpl {
             .ok_or_else(|| Error::module_not_found(module_id.clone()))?;
 
         // Wrap in ServiceHandler for consistency
-        // (In full implementation, we'd track individual service handlers)
+        // TODO: in full implementation, we'd track individual service handlers
+        // TODO: remove Echo dependency
         Ok(ServiceGateway::Direct(Arc::new(
             ServiceHandler::Echo(Arc::new(DummyEchoService))
         )))
     }
 
-    /// Creates a gRPC gateway.
+    /// Creates a gRPC gateway using user-provided factory.
+    /// 
+    /// # Rust Learning Note
+    /// 
+    /// This is where we call the user's factory - matching Go's pattern!
+    /// 
+    /// **Go equivalent:**
+    /// ```go
+    /// serviceGateway := targetGatewayFactoryFunc(connection.GatewaysClientConnection(), gf.logger)
+    /// ```
+    /// 
+    /// **Rust version:**
+    /// ```rust
+    /// let gateway = factory.create_gateway(address).await?;
+    /// ```
     async fn create_grpc_gateway(
         &self,
         module_id: &ModuleID,
         service_id: &ServiceID,
     ) -> Result<ServiceGateway> {
-        // Discover service from registry
-        let apis = self.registry_client
-            .discover(module_id)
-            .await?;
+        debug!("Creating gRPC gateway for {}/{}", module_id, service_id);
+        
+        // 1. Find the user-provided gateway config for this service
+        let gateway_config = self.gateway_configs
+            .get(module_id)
+            .and_then(|configs| {
+                configs.iter().find(|cfg| &cfg.service_id == service_id)
+            })
+            .ok_or_else(|| Error::Validation {
+                message: format!(
+                    "No gateway config found for module {} service {}",
+                    module_id, service_id
+                )
+            })?;
+        
+        // 2. Get the user-provided factory
+        let factory = gateway_config.factory.as_ref()
+            .ok_or_else(|| Error::Validation {
+                message: format!(
+                    "No factory provided for module {} service {} - use .with_factory()",
+                    module_id, service_id
+                )
+            })?;
+        
+        // 3. Determine address (direct or from service discovery)
+        let address = if let Some(direct_address) = &gateway_config.address {
+            // User provided direct address (skips service discovery)
+            debug!("Using direct address: {}", direct_address);
+            direct_address.clone()
+        } else {
+            // Discover service from registry
+            debug!("Discovering service from registry...");
+            let apis = self.registry_client
+                .discover(module_id)
+                .await?;
 
-        // Find the specific service
-        let api = apis
-            .iter()
-            .find(|api| api.service_id == service_id.as_str())
-            .ok_or_else(|| Error::service_not_found(module_id.clone(), service_id.clone()))?;
+            // Find the specific service
+            let api = apis
+                .iter()
+                .find(|api| api.service_id == service_id.as_str())
+                .ok_or_else(|| Error::service_not_found(module_id.clone(), service_id.clone()))?;
 
-        // Get address
-        let address = api.address
-            .clone()
-            .ok_or_else(|| Error::Protocol("No address for gRPC service".to_string()))?;
+            // Get address
+            let discovered_address = api.address
+                .clone()
+                .ok_or_else(|| Error::Protocol("No address for gRPC service".to_string()))?;
+            
+            debug!("Discovered service at: {}", discovered_address);
+            discovered_address
+        };
 
-        debug!("Creating gRPC gateway to {} for service {}", address, service_id);
-
-        // Create gRPC options
-        let options = GrpcOptions::new(address);
-
-        // Create gateway
-        let _gateway = GrpcProtocolGateway::new(options.address.clone(), options);
-
-        // In a full implementation, we'd have a proper service-specific gateway
-        // For now, wrap in our enum structure
-        Ok(ServiceGateway::Grpc(GrpcGateway::Echo(Arc::new(DummyEchoService))))
+        // 4. Call user-provided factory to create the gateway!
+        // This is the key moment - we delegate to user code.
+        debug!("Calling user factory to create gateway...");
+        let gateway = factory.create_gateway(address).await?;
+        
+        debug!("✅ Gateway created successfully via user factory");
+        Ok(gateway)
     }
 }
 
@@ -304,8 +357,9 @@ mod tests {
     async fn test_factory_creation() {
         let local_modules = HashMap::new();
         let registry_client = Arc::new(ServiceRegistryClient::new("http://localhost:8080"));
+        let gateway_configs = HashMap::new();
         
-        let factory = ServiceGatewayFactoryImpl::new(local_modules, registry_client);
+        let factory = ServiceGatewayFactoryImpl::new(local_modules, registry_client, gateway_configs);
         
         // Factory should be created successfully
         assert_eq!(factory.local_modules.len(), 0);
@@ -321,7 +375,8 @@ mod tests {
         local_modules.insert(module_id.clone(), protocol);
         
         let registry_client = Arc::new(ServiceRegistryClient::new("http://localhost:8080"));
-        let factory = ServiceGatewayFactoryImpl::new(local_modules, registry_client);
+        let gateway_configs = HashMap::new();
+        let factory = ServiceGatewayFactoryImpl::new(local_modules, registry_client, gateway_configs);
         
         // Should select Direct for local module
         let selected = factory.select_protocol(&module_id, Protocol::Auto).await.unwrap();
@@ -332,7 +387,8 @@ mod tests {
     async fn test_auto_protocol_selection_remote() {
         let local_modules = HashMap::new();
         let registry_client = Arc::new(ServiceRegistryClient::new("http://localhost:8080"));
-        let factory = ServiceGatewayFactoryImpl::new(local_modules, registry_client);
+        let gateway_configs = HashMap::new();
+        let factory = ServiceGatewayFactoryImpl::new(local_modules, registry_client, gateway_configs);
         
         let module_id = ModuleID::from("remote-module");
         
@@ -345,7 +401,8 @@ mod tests {
     async fn test_direct_protocol_requires_local() {
         let local_modules = HashMap::new();
         let registry_client = Arc::new(ServiceRegistryClient::new("http://localhost:8080"));
-        let factory = ServiceGatewayFactoryImpl::new(local_modules, registry_client);
+        let gateway_configs = HashMap::new();
+        let factory = ServiceGatewayFactoryImpl::new(local_modules, registry_client, gateway_configs);
         
         let module_id = ModuleID::from("remote-module");
         
