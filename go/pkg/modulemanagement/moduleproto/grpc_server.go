@@ -72,8 +72,8 @@ func (s *grpcServer) Protocol() moduletypes.Protocol {
 	return moduletypes.ProtocolGRPC
 }
 
-func (s *grpcServer) HandlersRegistrar() ProtocolServerRegistrar {
-	return s.impl
+func (s *grpcServer) RegisterHandlers(visitor ProtocolServerHandlersVisitor) error {
+	return visitor.RegisterHandlersGRPC(s.impl)
 }
 
 func (s *grpcServer) Start(ctx context.Context) error {

@@ -22,15 +22,38 @@ type ServiceRegistryClient interface {
 	FindModuleAPIs(moduleID moduletypes.ModuleID) ([]RemoteModuleAPI, error)
 }
 
-func NewServiceRegistryClient(serverRegistryURL string, logger logging.Logger) (ServiceRegistryClient, error) {
-	if logger == nil {
-		logger = logging.NewNullLogger()
+type ServiceRegistryClientOptions struct {
+	URL     string
+	Timeout time.Duration
+	Logger  logging.Logger
+}
+
+func (o *ServiceRegistryClientOptions) OptLogger() logging.Logger {
+	if o.Logger == nil {
+		return logging.NewNullLogger()
 	}
+	return o.Logger
+}
+
+func (o *ServiceRegistryClientOptions) OptURL() string {
+	if o.URL == "" {
+		return getDefaultRegistryURL()
+	}
+	return o.URL
+}
+
+func (o *ServiceRegistryClientOptions) OptTimeout() time.Duration {
+	if o.Timeout == 0 {
+		return 5 * time.Second
+	}
+	return o.Timeout
+}
+
+func NewServiceRegistryClient(options ServiceRegistryClientOptions) (ServiceRegistryClient, error) {
+	logger := options.OptLogger()
 
 	// If no URL provided, use default for platform
-	if serverRegistryURL == "" {
-		serverRegistryURL = getDefaultRegistryURL()
-	}
+	serverRegistryURL := options.OptURL()
 
 	parsedURL, err := url.Parse(serverRegistryURL)
 	if err != nil {
@@ -47,7 +70,7 @@ func NewServiceRegistryClient(serverRegistryURL string, logger logging.Logger) (
 		baseURL: "http://localhost", // Actual address handled by transport
 		httpClient: &http.Client{
 			Transport: transport,
-			Timeout:   5 * time.Second,
+			Timeout:   options.OptTimeout(),
 		},
 		logger: logger,
 	}, nil

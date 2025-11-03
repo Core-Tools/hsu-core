@@ -6,17 +6,29 @@ import (
 	"github.com/core-tools/hsu-core/pkg/errors"
 	"github.com/core-tools/hsu-core/pkg/logging"
 	"github.com/core-tools/hsu-core/pkg/modulemanagement/moduletypes"
+	"google.golang.org/grpc"
 )
 
-// ProtocolServerRegistrar is an abstraction for a protocol server registration mechanism
-// E.g. for gRPC this is a grpc.ServiceRegistrar
-type ProtocolServerRegistrar interface{}
+type ProtocolServerHandlersVisitor interface {
+	RegisterHandlersGRPC(grpcServerRegistrar grpc.ServiceRegistrar) error
+	RegisterHandlersHTTP(httpServerRegistrar any /*TODO: ...*/) error
+}
 
 type ProtocolServer interface {
 	Protocol() moduletypes.Protocol
 	Port() int
-	HandlersRegistrar() ProtocolServerRegistrar
+	RegisterHandlers(visitor ProtocolServerHandlersVisitor) error
 	moduletypes.Lifecycle
+}
+
+func ApplyToProtocolServers[Visitor ProtocolServerHandlersVisitor](protocolServers []ProtocolServer, visitor Visitor) error {
+	for _, protocolServer := range protocolServers {
+		err := protocolServer.RegisterHandlers(visitor)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ProtocolServerOptions is an abstraction for a protocol server configuration

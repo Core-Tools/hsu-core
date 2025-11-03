@@ -1,4 +1,4 @@
-package modulemanagement
+package modulewiring
 
 import (
 	"context"
