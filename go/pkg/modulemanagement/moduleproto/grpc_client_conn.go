@@ -48,8 +48,8 @@ type grpcClientConnection struct {
 	logger logging.Logger
 }
 
-func (c *grpcClientConnection) GatewaysClientConnection() ProtocolClientConnection {
-	return c.conn
+func (c *grpcClientConnection) ApplyVisitor(visitor ClientConnectionVisitor) error {
+	return visitor.ProtocolIsGRPC(c.conn)
 }
 
 func (c *grpcClientConnection) Close() error {

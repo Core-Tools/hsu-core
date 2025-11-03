@@ -31,25 +31,18 @@ func ApplyToProtocolServers[Visitor ProtocolServerHandlersVisitor](protocolServe
 	return nil
 }
 
-// ProtocolServerOptions is an abstraction for a protocol server configuration
-// E.g. for gRPC this is a GRPCServerOptions
-type ProtocolServerOptions interface{}
+// ProtocolServerOptions is a union type for server configuration
+type ProtocolServerOptions struct {
+	GRPC GRPCServerOptions
+	// HTTP HttpServerOptions // TODO: implement
+}
 
 func NewProtocolServer(protocol moduletypes.Protocol, options ProtocolServerOptions, logger logging.Logger) (ProtocolServer, error) {
 	logger.Infof("Creating new protocol server for protocol: %s", protocol)
 
 	switch protocol {
 	case moduletypes.ProtocolGRPC:
-		if options == nil {
-			options = GRPCServerOptions{}
-		}
-		grpcServerOptions, ok := options.(GRPCServerOptions)
-		if !ok {
-			return nil, errors.NewDomainError(errors.ErrorTypeValidation, "invalid protocol server options", nil).
-				WithContext("protocol", protocol).
-				WithContext("options", options)
-		}
-		grpcServer, err := NewGRPCServer(grpcServerOptions, logger)
+		grpcServer, err := NewGRPCServer(options.GRPC, logger)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gRPC server: %w", err)
 		}

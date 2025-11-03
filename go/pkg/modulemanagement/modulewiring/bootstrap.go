@@ -37,6 +37,8 @@ func RunWithConfig(cfg *Config, logger logging.Logger) error {
 		return fmt.Errorf("failed to create service registry client: %v", err)
 	}
 
+	logger.Infof("Service registry client created")
+
 	// 2. Create service connector
 
 	serviceConnectorOptions := moduleapi.ServiceConnectorOptions{
@@ -45,6 +47,8 @@ func RunWithConfig(cfg *Config, logger logging.Logger) error {
 		Logger:                logger,
 	}
 	serviceConnector := moduleapi.NewServiceConnector(serviceConnectorOptions)
+
+	logger.Infof("Service connector created")
 
 	// 3. Create service providers and build their index maps
 
@@ -83,9 +87,16 @@ func RunWithConfig(cfg *Config, logger logging.Logger) error {
 		}
 	}
 
+	logger.Infof("Service providers created")
+	for moduleID, _ := range serviceProviderMap {
+		logger.Infof("Module: %s", moduleID)
+	}
+
 	// 4. Create server manager and register protocol servers
 
 	serverManager := moduleproto.NewServerManager(logger)
+
+	logger.Infof("Server manager created")
 
 	for _, serverCfg := range cfg.Runtime.Servers {
 		if !serverCfg.Enabled {
@@ -94,7 +105,15 @@ func RunWithConfig(cfg *Config, logger logging.Logger) error {
 
 		serverID := serverCfg.ID
 		protocol := serverCfg.Protocol
-		protocolServerOptions := serverCfg.Options
+		protocolServerOptions := moduleproto.ProtocolServerOptions{
+			GRPC: moduleproto.GRPCServerOptions{
+				Port: serverCfg.GRPC.Port,
+			},
+			// TODO: implement HTTP server options
+			//HTTP: moduleproto.HTTPServerOptions{
+			//	Port: serverCfg.HTTP.Port,
+			//},
+		}
 
 		protocolServer, err := moduleproto.NewProtocolServer(protocol, protocolServerOptions, logger)
 		if err != nil {
@@ -105,6 +124,8 @@ func RunWithConfig(cfg *Config, logger logging.Logger) error {
 		if err != nil {
 			return fmt.Errorf("failed to register protocol server: %w", err)
 		}
+
+		logger.Infof("Protocol server %s registered with protocol %s", serverID, protocol)
 	}
 
 	// 5. Create modules (with registering their handlers)
@@ -129,21 +150,27 @@ func RunWithConfig(cfg *Config, logger logging.Logger) error {
 			}
 
 			protocolServers = append(protocolServers, protocolServer)
+
+			logger.Infof("Protocol server %s (%s) found for module %s",
+				serverID, protocolServer.Protocol(), moduleID)
 		}
 
 		// Create module and register handlers
 
 		moduleOptions := CreateModuleOptions{
-			ServiceProvider: serviceProviderMap[moduleID],
-			ServiceGateways: serviceGatewaysArrayMap[moduleID],
-			ProtocolServers: protocolServers,
-			Logger:          logger,
+			ServiceConnector: serviceConnector,
+			ServiceProvider:  serviceProviderMap[moduleID],
+			ServiceGateways:  serviceGatewaysArrayMap[moduleID],
+			ProtocolServers:  protocolServers,
+			Logger:           logger,
 		}
 
 		module, protocolToServicesMap, err := CreateModule(moduleID, moduleOptions)
 		if err != nil {
 			return fmt.Errorf("failed to create module %s: %w", moduleID, err)
 		}
+
+		logger.Infof("Module %s created", moduleID)
 
 		// Evaluate remote module APIs
 
@@ -162,7 +189,12 @@ func RunWithConfig(cfg *Config, logger logging.Logger) error {
 		})
 
 		modules = append(modules, module)
+
+		logger.Infof("Module %s remote APIs: %+v", moduleID, remoteModuleAPIs)
 	}
+
+	logger.Infof("Modules created: %d", len(modules))
+	logger.Infof("Remote APIs: %+v", remoteAPIs)
 
 	// 6. Publish remote APIs to service registry
 
@@ -170,6 +202,8 @@ func RunWithConfig(cfg *Config, logger logging.Logger) error {
 	if err != nil {
 		return fmt.Errorf("failed to publish remote APIs: %v", err)
 	}
+
+	logger.Infof("Remote APIs published")
 
 	// 7. Create runtime
 
@@ -182,6 +216,8 @@ func RunWithConfig(cfg *Config, logger logging.Logger) error {
 	if err != nil {
 		return fmt.Errorf("failed to create runtime: %w", err)
 	}
+
+	logger.Infof("Runtime created")
 
 	// 8. Start runtime
 

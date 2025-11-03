@@ -31,20 +31,20 @@ type GatewayFactoryFuncs[Contract any] struct {
 	HTTP   GatewayFactoryFuncHTTP[Contract]
 }
 
-type gatewayProtocolVisitor[Contract any] struct {
+type gatewayFactoryVisitor[Contract any] struct {
 	factoryFuncs GatewayFactoryFuncs[Contract]
 	logger       logging.Logger
 	gateway      Contract
 }
 
-func NewGatewayProtocolVisitor[Contract any](factoryFuncs GatewayFactoryFuncs[Contract], logger logging.Logger) *gatewayProtocolVisitor[Contract] {
-	return &gatewayProtocolVisitor[Contract]{
+func NewGatewayFactoryVisitor[Contract any](factoryFuncs GatewayFactoryFuncs[Contract], logger logging.Logger) *gatewayFactoryVisitor[Contract] {
+	return &gatewayFactoryVisitor[Contract]{
 		factoryFuncs: factoryFuncs,
 		logger:       logger,
 	}
 }
 
-func (v *gatewayProtocolVisitor[Contract]) SelectedProtocolIsDirect() error {
+func (v *gatewayFactoryVisitor[Contract]) ProtocolIsDirect() error {
 	gateway, err := v.factoryFuncs.Direct()
 	if err != nil {
 		return err
@@ -53,7 +53,7 @@ func (v *gatewayProtocolVisitor[Contract]) SelectedProtocolIsDirect() error {
 	return nil
 }
 
-func (v *gatewayProtocolVisitor[Contract]) SelectedProtocolIsGRPC(grpcClientConnection *grpc.ClientConn) error {
+func (v *gatewayFactoryVisitor[Contract]) ProtocolIsGRPC(grpcClientConnection *grpc.ClientConn) error {
 	gateway, err := v.factoryFuncs.GRPC(grpcClientConnection, v.logger)
 	if err != nil {
 		return err
@@ -62,7 +62,7 @@ func (v *gatewayProtocolVisitor[Contract]) SelectedProtocolIsGRPC(grpcClientConn
 	return nil
 }
 
-func (v *gatewayProtocolVisitor[Contract]) SelectedProtocolIsHTTP(httpClientConnection any /*TODO: ...*/) error {
+func (v *gatewayFactoryVisitor[Contract]) ProtocolIsHTTP(httpClientConnection any /*TODO: ...*/) error {
 	gateway, err := v.factoryFuncs.HTTP(httpClientConnection, v.logger)
 	if err != nil {
 		return err
@@ -71,6 +71,6 @@ func (v *gatewayProtocolVisitor[Contract]) SelectedProtocolIsHTTP(httpClientConn
 	return nil
 }
 
-func (v *gatewayProtocolVisitor[Contract]) Gateway() Contract {
+func (v *gatewayFactoryVisitor[Contract]) Gateway() Contract {
 	return v.gateway
 }

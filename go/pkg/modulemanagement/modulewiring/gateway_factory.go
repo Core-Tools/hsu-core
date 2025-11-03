@@ -17,10 +17,10 @@ type ServiceGatewayFactory[Contract any] struct {
 }
 
 func (f *ServiceGatewayFactory[Contract]) NewServiceGateway(ctx context.Context, protocol moduletypes.Protocol) (Contract, error) {
-	gatewayProtocolVisitor := NewGatewayProtocolVisitor(f.GatewayFactoryFuncs, f.Logger)
-	err := f.ServiceConnector.Connect(ctx, f.ModuleID, f.ServiceID, protocol, gatewayProtocolVisitor)
+	gatewayFactoryVisitor := NewGatewayFactoryVisitor(f.GatewayFactoryFuncs, f.Logger)
+	err := f.ServiceConnector.Connect(ctx, f.ModuleID, f.ServiceID, protocol, gatewayFactoryVisitor)
 	if err != nil {
 		return *new(Contract), err
 	}
-	return gatewayProtocolVisitor.Gateway(), nil
+	return gatewayFactoryVisitor.Gateway(), nil
 }

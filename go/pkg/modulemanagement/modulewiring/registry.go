@@ -31,7 +31,7 @@ type CreateServiceProviderOptions struct {
 	Logger           logging.Logger
 }
 
-type ServiceProviderFactoryFunc func(options CreateServiceProviderOptions) (moduletypes.ServiceProviderHandle, error)
+type ServiceProviderFactoryFunc func(options CreateServiceProviderOptions) moduletypes.ServiceProviderHandle
 
 type DirectClosureEnableOptions[SG any, SH any] struct {
 	ServiceConnector moduleapi.ServiceConnector
@@ -39,8 +39,8 @@ type DirectClosureEnableOptions[SG any, SH any] struct {
 	ServiceHandlers  SH
 }
 
-type TypedServiceProviderFactoryFunc[SP any] func(serviceConnector moduleapi.ServiceConnector, logger logging.Logger) (moduletypes.ServiceProviderHandle, error)
-type TypedModuleFactoryFunc[SP any, SH any] func(serviceProvider SP, logger logging.Logger) (moduletypes.Module, SH, error)
+type TypedServiceProviderFactoryFunc[SP any] func(serviceConnector moduleapi.ServiceConnector, logger logging.Logger) moduletypes.ServiceProviderHandle
+type TypedModuleFactoryFunc[SP any, SH any] func(serviceProvider SP, logger logging.Logger) (moduletypes.Module, SH)
 type TypedHandlersRegistrarFactoryFunc[SH any] func(protocolServers []moduleproto.ProtocolServer, logger logging.Logger) (HandlersRegistrar[SH], error)
 type TypedDirectClosureEnableFunc[SG any, SH any] func(options DirectClosureEnableOptions[SG, SH])
 
@@ -58,7 +58,7 @@ var (
 )
 
 func RegisterModule[SP any, SG any, SH any](moduleID moduletypes.ModuleID, moduleDesc ModuleDescriptor[SP, SG, SH]) {
-	createServiceProvider := func(options CreateServiceProviderOptions) (moduletypes.ServiceProviderHandle, error) {
+	createServiceProvider := func(options CreateServiceProviderOptions) moduletypes.ServiceProviderHandle {
 		return moduleDesc.ServiceProviderFactoryFunc(options.ServiceConnector, options.Logger)
 	}
 
@@ -79,10 +79,7 @@ func RegisterModule[SP any, SG any, SH any](moduleID moduletypes.ModuleID, modul
 			)
 		}
 
-		module, typedServiceHandlers, err := moduleDesc.ModuleFactoryFunc(typedServiceProvider, logger)
-		if err != nil {
-			return nil, nil, err
-		}
+		module, typedServiceHandlers := moduleDesc.ModuleFactoryFunc(typedServiceProvider, logger)
 
 		var protocolToServicesMap ProtocolToServicesMap
 		if moduleDesc.HandlersRegistrarFactoryFunc != nil {
@@ -166,5 +163,5 @@ func CreateServiceProvider(moduleID moduletypes.ModuleID, options CreateServiceP
 		return moduletypes.ServiceProviderHandle{}, err
 	}
 
-	return factory(options)
+	return factory(options), nil
 }

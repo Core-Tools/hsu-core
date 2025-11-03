@@ -43,10 +43,12 @@ func (r *Registry) Publish(req PublishRequest) error {
 		return errors.NewValidationError("module ID is required", nil)
 	}
 
+	/* If no APIs are provided - it's OK
 	if len(req.APIs) == 0 {
 		return errors.NewValidationError("at least one API must be provided", nil).
 			WithContext("module_id", req.ModuleID)
 	}
+	*/
 
 	// Validate APIs
 	for i, api := range req.APIs {

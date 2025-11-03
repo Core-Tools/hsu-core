@@ -23,8 +23,17 @@ type RuntimeConfig struct {
 type ServerConfig struct {
 	ID       moduleproto.ServerID `yaml:"id"`
 	Protocol moduletypes.Protocol `yaml:"protocol"`
-	Options  map[string]any       `yaml:"options"`
+	GRPC     GRPCServerConfig     `yaml:"grpc"`
+	HTTP     HTTPServerConfig     `yaml:"http"`
 	Enabled  bool                 `yaml:"enabled"`
+}
+
+type GRPCServerConfig struct {
+	Port int `yaml:"port"`
+}
+
+type HTTPServerConfig struct {
+	Port int `yaml:"port"`
 }
 
 type ServiceRegistryConfig struct {

@@ -7,23 +7,14 @@ import (
 	"github.com/core-tools/hsu-core/pkg/logging"
 	"github.com/core-tools/hsu-core/pkg/modulemanagement/moduleproto"
 	"github.com/core-tools/hsu-core/pkg/modulemanagement/moduletypes"
-
-	"google.golang.org/grpc"
 )
-
-type GatewayProtocolVisitor interface {
-	SelectedProtocolIsDirect() error
-	SelectedProtocolIsGRPC(grpcClientConnection *grpc.ClientConn) error
-	SelectedProtocolIsHTTP(any /*TODO: ...*/) error
-}
 
 type ServiceConnector interface {
 	EnableDirectClosure(moduleID moduletypes.ModuleID, serviceIDs []moduletypes.ServiceID)
-	Connect(ctx context.Context, moduleID moduletypes.ModuleID, serviceID moduletypes.ServiceID, protocol moduletypes.Protocol, visitor GatewayProtocolVisitor) error
+	Connect(ctx context.Context, moduleID moduletypes.ModuleID, serviceID moduletypes.ServiceID, protocol moduletypes.Protocol, visitor moduleproto.ClientConnectionVisitor) error
 }
 
 type ServiceConnectorOptions struct {
-	//LocalModuleHandlers   map[moduletypes.ModuleID]moduletypes.ServiceHandlersMap // local service handlers
 	ServiceRegistryClient ServiceRegistryClient // provider of remote API
 	ClientOptionsMap      moduleproto.ClientOptionsMap
 	Logger                logging.Logger
@@ -37,18 +28,12 @@ func (o *ServiceConnectorOptions) OptLogger() logging.Logger {
 }
 
 func NewServiceConnector(options ServiceConnectorOptions) ServiceConnector {
-	logger := options.OptLogger()
-
-	sc := &serviceConnector{
-		//localModuleHandlers:   options.LocalModuleHandlers,
+	return &serviceConnector{
+		directClosureMap:      make(map[moduletypes.ModuleID][]moduletypes.ServiceID),
 		serviceRegistryClient: options.ServiceRegistryClient,
 		clientOptionsMap:      options.ClientOptionsMap,
-		logger:                options.Logger,
+		logger:                options.OptLogger(),
 	}
-
-	logger.Infof("Service gateway factory created")
-
-	return sc
 }
 
 type serviceConnector struct {
@@ -63,7 +48,7 @@ func (sc *serviceConnector) EnableDirectClosure(moduleID moduletypes.ModuleID, s
 	sc.directClosureMap[moduleID] = serviceIDs
 }
 
-func (sc *serviceConnector) Connect(ctx context.Context, moduleID moduletypes.ModuleID, serviceID moduletypes.ServiceID, protocol moduletypes.Protocol, visitor GatewayProtocolVisitor) error {
+func (sc *serviceConnector) Connect(ctx context.Context, moduleID moduletypes.ModuleID, serviceID moduletypes.ServiceID, protocol moduletypes.Protocol, visitor moduleproto.ClientConnectionVisitor) error {
 	sc.logger.Debugf("Connecting to module: %s, service: %s, protocol: %s", moduleID, serviceID, protocol)
 
 	directClosureMap := sc.directClosureMap[moduleID]
@@ -86,13 +71,13 @@ func (sc *serviceConnector) Connect(ctx context.Context, moduleID moduletypes.Mo
 				WithContext("service_id", serviceID)
 		}
 		// have local service handler for the requested module
-		return visitor.SelectedProtocolIsDirect()
+		return visitor.ProtocolIsDirect()
 
 	case moduletypes.ProtocolAuto:
 		var err error
 		if hasDirectClosure {
 			// have local service handler for the requested module
-			err = visitor.SelectedProtocolIsDirect()
+			err = visitor.ProtocolIsDirect()
 			if err == nil {
 				return nil
 			}
@@ -126,7 +111,7 @@ type remoteServiceConnectionRequest struct {
 	ModuleID  moduletypes.ModuleID
 	ServiceID moduletypes.ServiceID
 	Protocol  moduletypes.Protocol
-	Visitor   GatewayProtocolVisitor
+	Visitor   moduleproto.ClientConnectionVisitor
 }
 
 func (sc *serviceConnector) newRemoteServiceConnection(ctx context.Context, request remoteServiceConnectionRequest) error {
@@ -181,13 +166,5 @@ func (sc *serviceConnector) newRemoteServiceConnection(ctx context.Context, requ
 
 	// TODO: cache connection, close it when appropriate
 
-	switch request.Protocol {
-	case moduletypes.ProtocolGRPC:
-		return request.Visitor.SelectedProtocolIsGRPC(connection.GatewaysClientConnection().(*grpc.ClientConn))
-	case moduletypes.ProtocolHTTP:
-		return request.Visitor.SelectedProtocolIsHTTP(connection.GatewaysClientConnection().(any /*TODO: ...*/))
-	default:
-		return errors.NewValidationError("invalid protocol", nil).
-			WithContext("protocol", request.Protocol)
-	}
+	return connection.ApplyVisitor(request.Visitor)
 }
