@@ -33,6 +33,7 @@ use tracing::{trace, debug};
 
 use crate::traits::{ProtocolHandler, ProtocolGateway};
 use crate::options::GrpcOptions;
+use crate::client_connection::{ClientConnection, ClientConnectionVisitor};
 
 /// gRPC protocol handler (server-side).
 /// 
@@ -380,6 +381,42 @@ impl ProtocolGateway for GrpcProtocolGateway {
                 module_id, service_id
             )
         ))
+    }
+}
+
+/// Implementation of ClientConnection for GrpcProtocolGateway.
+///
+/// This enables the visitor pattern for gRPC connections, allowing
+/// protocol-agnostic code to interact with gRPC channels through the visitor interface.
+///
+/// # Rust Learning Note
+///
+/// ## Visitor Pattern in Rust
+///
+/// The visitor pattern enables "double dispatch" - a way to achieve type-safe
+/// polymorphism when dealing with multiple types:
+///
+/// ```text
+/// 1. Caller creates a visitor
+/// 2. Caller calls connection.accept_visitor(visitor)
+/// 3. Connection (knows it's gRPC) calls visitor.protocol_is_grpc(channel)
+/// 4. Visitor stores the typed result
+/// 5. Caller extracts the result
+/// ```
+///
+/// This is similar to Go's approach, but Rust's async traits require the `async_trait` macro.
+#[async_trait]
+impl ClientConnection for GrpcProtocolGateway {
+    async fn accept_visitor(&self, visitor: &mut dyn ClientConnectionVisitor) -> Result<()> {
+        let channel = self.channel.as_ref()
+            .ok_or_else(|| Error::Internal(
+                "gRPC channel not initialized".to_string(),
+            ))?;
+        
+        debug!("Accepting visitor for gRPC connection: {}", self.address);
+        
+        // Double dispatch: call the gRPC-specific visitor method
+        visitor.protocol_is_grpc(channel.clone()).await
     }
 }
 

@@ -19,6 +19,7 @@ serde_json = { workspace = true }
 hyper = { workspace = true, features = ["client", "http1"] }
 hyper-util = { workspace = true, features = ["client-legacy", "http1"] }
 http-body-util = { workspace = true }
+tonic = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }

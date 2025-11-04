@@ -11,8 +11,12 @@
 pub mod registry_client;
 pub mod gateway_factory;
 pub mod runtime;
+pub mod service_connector;
+pub mod gateway_factory_typed;
 
 // Re-export commonly used items
 pub use registry_client::ServiceRegistryClient;
 pub use gateway_factory::ServiceGatewayFactoryImpl;
 pub use runtime::{ModuleRuntime, RuntimeConfig};
+pub use service_connector::{ServiceConnector, ServiceConnectorImpl};
+pub use gateway_factory_typed::{ServiceGatewayFactory, GatewayFactoryFuncs};
