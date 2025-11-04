@@ -119,8 +119,14 @@ pub trait ServiceConnector: Send + Sync {
     ///
     /// * `module_id` - Module whose services are available locally
     /// * `service_ids` - List of service IDs available for direct calls
+    ///
+    /// # Rust Learning Note
+    ///
+    /// Takes `&self` (not `&mut self`) because implementations use
+    /// interior mutability (`RwLock`) to allow mutation through shared
+    /// references. This is necessary for `Arc<dyn ServiceConnector>`.
     fn enable_direct_closure(
-        &mut self,
+        &self,
         module_id: ModuleID,
         service_ids: Vec<ServiceID>,
     );
@@ -316,7 +322,7 @@ impl ServiceConnector for ServiceConnectorImpl {
     }
     
     fn enable_direct_closure(
-        &mut self,
+        &self,
         module_id: ModuleID,
         service_ids: Vec<ServiceID>,
     ) {

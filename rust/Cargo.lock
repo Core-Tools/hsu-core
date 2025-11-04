@@ -455,6 +455,7 @@ dependencies = [
  "http-body-util",
  "hyper 1.7.0",
  "hyper-util",
+ "lazy_static",
  "serde",
  "serde_json",
  "tokio",

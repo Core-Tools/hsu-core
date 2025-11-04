@@ -17,6 +17,8 @@ pub use module_types::{
     ServiceGatewayFactory,
     ProtocolGatewayFactory,  // New: User-provided factory trait
 };
+// Re-export from hsu-common
+pub use hsu_common::{Protocol, ServiceID};
 pub use lifecycle::Lifecycle;
 pub use config_types::{
     ServerOptions,
