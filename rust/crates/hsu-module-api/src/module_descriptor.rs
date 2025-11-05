@@ -100,6 +100,7 @@ use crate::{ServiceConnector, Module};
 #[derive(Clone)]
 pub struct CreateServiceProviderOptions {
     pub service_connector: Arc<dyn ServiceConnector>,
+    pub protocol_servers: Vec<Arc<dyn ProtocolServer>>,
 }
 
 /// Handle returned by service provider factory.

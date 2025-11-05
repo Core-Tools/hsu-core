@@ -256,7 +256,7 @@ pub trait ProtocolServer: Send + Sync {
     /// - Port already in use
     /// - Invalid configuration
     /// - Resource allocation failure
-    async fn start(&mut self) -> Result<()>;
+    async fn start(&self) -> Result<()>;
 
     /// Stops the protocol server gracefully.
     ///
@@ -290,7 +290,7 @@ pub trait ProtocolServer: Send + Sync {
     /// Using `Option::take()` makes this idempotent:
     /// - First call: stops server
     /// - Subsequent calls: no-op (already stopped)
-    async fn stop(&mut self) -> Result<()>;
+    async fn stop(&self) -> Result<()>;
 
     /// Returns the server's listen address (host:port).
     ///

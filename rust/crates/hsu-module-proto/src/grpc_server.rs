@@ -46,7 +46,7 @@
 use async_trait::async_trait;
 use hsu_common::{Protocol, Result, Error};
 use std::net::{TcpListener, SocketAddr};
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, RwLock};
 use tokio::task::JoinHandle;
 use tracing::{info, debug, error, warn};
 
@@ -130,20 +130,56 @@ impl Default for GrpcServerOptions {
     }
 }
 
+/// Mutable state for gRPC protocol server.
+///
+/// # Rust Learning Note
+///
+/// ## Interior Mutability Pattern
+///
+/// We separate mutable state into its own struct to use with `RwLock`:
+/// - Clear separation of immutable vs mutable data
+/// - Only lock what needs mutation
+/// - Interior mutability enables `&self` methods
+struct ServerState {
+    /// Actual port server is listening on (after binding).
+    actual_port: u16,
+    
+    /// Handle to the background server task.
+    server_handle: Option<JoinHandle<Result<()>>>,
+    
+    /// Shutdown signal sender.
+    shutdown_tx: Option<oneshot::Sender<()>>,
+}
+
+impl ServerState {
+    fn new(port: u16) -> Self {
+        Self {
+            actual_port: port,
+            server_handle: None,
+            shutdown_tx: None,
+        }
+    }
+}
+
 /// gRPC protocol server implementation.
 ///
 /// # Rust Learning Note
 ///
-/// ## State Management
+/// ## Interior Mutability with RwLock
 ///
 /// ```rust
 /// pub struct GrpcProtocolServer {
-///     options: GrpcServerOptions,        // Configuration
-///     actual_port: u16,                  // Resolved port (after bind)
-///     server_handle: Option<JoinHandle>, // Background task
-///     shutdown_tx: Option<Sender>,       // Shutdown signal
+///     options: GrpcServerOptions,      // Immutable configuration
+///     state: RwLock<ServerState>,      // Mutable state
 /// }
 /// ```
+///
+/// **Why `RwLock` instead of `Mutex`?**
+/// - `RwLock` allows multiple readers OR one writer
+/// - `Mutex` allows only one accessor at a time
+/// - We read `actual_port` often (port(), address())
+/// - We write only during start/stop
+/// - RwLock provides better concurrency!
 ///
 /// ## Option for Optional State
 ///
@@ -161,17 +197,11 @@ impl Default for GrpcServerOptions {
 /// - Dropping handle = task continues (detached)
 /// - Awaiting handle = wait for task to complete
 pub struct GrpcProtocolServer {
-    /// Server configuration.
+    /// Server configuration (immutable).
     options: GrpcServerOptions,
     
-    /// Actual port server is listening on (after binding).
-    actual_port: u16,
-    
-    /// Handle to the background server task.
-    server_handle: Option<JoinHandle<Result<()>>>,
-    
-    /// Shutdown signal sender.
-    shutdown_tx: Option<oneshot::Sender<()>>,
+    /// Mutable server state (interior mutability).
+    state: RwLock<ServerState>,
 }
 
 impl GrpcProtocolServer {
@@ -192,11 +222,10 @@ impl GrpcProtocolServer {
     /// server.start().await?;                         // Slow, async
     /// ```
     pub fn new(options: GrpcServerOptions) -> Self {
+        let port = options.port;
         Self {
-            actual_port: options.port,
             options,
-            server_handle: None,
-            shutdown_tx: None,
+            state: RwLock::new(ServerState::new(port)),
         }
     }
 
@@ -223,7 +252,7 @@ impl GrpcProtocolServer {
     /// - All ports exhausted (very rare)
     /// - Permission denied (< 1024 without root)
     /// - Network interface down
-    fn allocate_port(&mut self) -> Result<SocketAddr> {
+    async fn allocate_port(&self) -> Result<SocketAddr> {
         let bind_addr = self.options.bind_address();
         debug!("Attempting to bind to: {}", bind_addr);
 
@@ -234,9 +263,11 @@ impl GrpcProtocolServer {
         let actual_addr = listener.local_addr()
             .map_err(|e| Error::Internal(format!("Failed to get local address: {}", e)))?;
 
-        self.actual_port = actual_addr.port();
+        // Update state with actual port
+        let mut state = self.state.write().await;
+        state.actual_port = actual_addr.port();
         
-        info!("Allocated port {} for gRPC server", self.actual_port);
+        info!("Allocated port {} for gRPC server", state.actual_port);
         
         Ok(actual_addr)
     }
@@ -249,14 +280,20 @@ impl ProtocolServer for GrpcProtocolServer {
     }
 
     fn port(&self) -> u16 {
-        self.actual_port
+        // Note: This is a blocking read, but RwLock::blocking_read() is not available in tokio
+        // For production, we'd want to make this async or use a different pattern
+        // For now, we use try_read() which doesn't block
+        self.state.try_read()
+            .map(|state| state.actual_port)
+            .unwrap_or(self.options.port)  // Fallback to configured port if locked
     }
     
     async fn register_handlers(
         &self,
         _visitor: Arc<dyn crate::server::ProtocolServerHandlersVisitor>,
     ) -> Result<()> {
-        debug!("Registering handlers with gRPC server on port {}", self.actual_port);
+        let state = self.state.read().await;
+        debug!("Registering handlers with gRPC server on port {}", state.actual_port);
         
         // TODO: Actual handler registration
         //
@@ -275,20 +312,20 @@ impl ProtocolServer for GrpcProtocolServer {
         Ok(())
     }
 
-    async fn start(&mut self) -> Result<()> {
+    async fn start(&self) -> Result<()> {
         info!("Starting gRPC protocol server on {}", self.options.bind_address());
 
-        // Allocate port (handles dynamic allocation)
-        let addr = self.allocate_port()?;
+        // Allocate port (handles dynamic allocation and updates state)
+        let addr = self.allocate_port().await?;
 
         // Create shutdown channel
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
-        // Build tonic server
-        // Note: In a full implementation, services would be registered here
-        // For now, we create a basic server structure
-        
-        let actual_port = self.actual_port;
+        // Get actual port for logging
+        let actual_port = {
+            let state = self.state.read().await;
+            state.actual_port
+        };
         
         // Spawn server in background
         let handle = tokio::spawn(async move {
@@ -307,20 +344,34 @@ impl ProtocolServer for GrpcProtocolServer {
             Ok(())
         });
 
-        // Store handle and shutdown channel
-        self.server_handle = Some(handle);
-        self.shutdown_tx = Some(shutdown_tx);
+        // Store handle and shutdown channel in state
+        {
+            let mut state = self.state.write().await;
+            state.server_handle = Some(handle);
+            state.shutdown_tx = Some(shutdown_tx);
+        }
 
-        info!("✅ gRPC server started on {}:{}", self.options.host, self.actual_port);
+        info!("✅ gRPC server started on {}:{}", self.options.host, actual_port);
         
         Ok(())
     }
 
-    async fn stop(&mut self) -> Result<()> {
-        info!("Stopping gRPC protocol server on port {}", self.actual_port);
+    async fn stop(&self) -> Result<()> {
+        let actual_port = {
+            let state = self.state.read().await;
+            state.actual_port
+        };
+        
+        info!("Stopping gRPC protocol server on port {}", actual_port);
+
+        // Take shutdown channel and server handle from state
+        let (shutdown_tx, server_handle) = {
+            let mut state = self.state.write().await;
+            (state.shutdown_tx.take(), state.server_handle.take())
+        };
 
         // Send shutdown signal
-        if let Some(tx) = self.shutdown_tx.take() {
+        if let Some(tx) = shutdown_tx {
             debug!("Sending shutdown signal to gRPC server");
             if tx.send(()).is_err() {
                 warn!("gRPC server already shut down (receiver dropped)");
@@ -328,7 +379,7 @@ impl ProtocolServer for GrpcProtocolServer {
         }
 
         // Wait for server to stop
-        if let Some(handle) = self.server_handle.take() {
+        if let Some(handle) = server_handle {
             debug!("Waiting for gRPC server task to complete...");
             match handle.await {
                 Ok(Ok(())) => {
@@ -349,7 +400,8 @@ impl ProtocolServer for GrpcProtocolServer {
     }
 
     fn address(&self) -> String {
-        format!("{}:{}", self.options.host, self.actual_port)
+        let port = self.port();  // Use port() method which handles locking
+        format!("{}:{}", self.options.host, port)
     }
 }
 
@@ -395,7 +447,7 @@ mod tests {
     #[tokio::test]
     async fn test_grpc_server_lifecycle() {
         let options = GrpcServerOptions::new().with_port(0); // Dynamic port
-        let mut server = GrpcProtocolServer::new(options);
+        let server = GrpcProtocolServer::new(options);
 
         // Start server
         server.start().await.unwrap();
@@ -412,7 +464,7 @@ mod tests {
     #[tokio::test]
     async fn test_grpc_server_idempotent_stop() {
         let options = GrpcServerOptions::new().with_port(0);
-        let mut server = GrpcProtocolServer::new(options);
+        let server = GrpcProtocolServer::new(options);
 
         server.start().await.unwrap();
         
@@ -426,7 +478,7 @@ mod tests {
     #[tokio::test]
     async fn test_grpc_server_dynamic_port() {
         let options = GrpcServerOptions::new().with_port(0);
-        let mut server = GrpcProtocolServer::new(options);
+        let server = GrpcProtocolServer::new(options);
 
         server.start().await.unwrap();
         
@@ -448,7 +500,7 @@ mod tests {
             .with_port(port)
             .with_host("127.0.0.1");
         
-        let mut server = GrpcProtocolServer::new(options);
+        let server = GrpcProtocolServer::new(options);
 
         server.start().await.unwrap();
         assert_eq!(server.port(), port);

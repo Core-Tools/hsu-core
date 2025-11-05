@@ -39,7 +39,6 @@ use crate::{
     Config,
     Module,
     service_connector::ServiceConnectorImpl,
-    registry::{get_module_descriptor, create_module_from_descriptor},
     ServiceRegistryClient,
 };
 
@@ -97,6 +96,34 @@ pub async fn run_with_config(config: Config) -> Result<()> {
     let registry_client = Arc::new(ServiceRegistryClient::new(&config.runtime.service_registry.url));
     info!("✅ Service registry client created: {}", config.runtime.service_registry.url);
     
+    // Step 1.5: Create protocol servers from config
+    //
+    // NOTE: We use hsu_module_proto::new_protocol_server which returns Arc<dyn ProtocolServer>.
+    // Protocol servers will be started later, but for now we just create them.
+    // Handler registration happens during module creation (modules receive Arc references).
+    debug!("[Bootstrap] Creating {} protocol server(s)", config.runtime.servers.len());
+    let protocol_servers_arc: Vec<Arc<dyn hsu_module_proto::ProtocolServer>> = {
+        let mut servers = Vec::new();
+        for server_config in &config.runtime.servers {
+            info!("[Bootstrap] Creating protocol server: {:?} on {}", 
+                server_config.protocol, server_config.listen_address);
+            
+            let server = hsu_module_proto::new_protocol_server(
+                server_config.protocol,
+                server_config.listen_address.clone(),
+            )?;
+            
+            servers.push(server);
+            debug!("[Bootstrap]   - Protocol server created");
+        }
+        servers
+    };
+    
+    if !protocol_servers_arc.is_empty() {
+        info!("✅ Created {} protocol server(s)", protocol_servers_arc.len());
+        debug!("[Bootstrap] Note: Servers will be started after modules are created");
+    }
+    
     // Step 2: Create service connector
     debug!("[Bootstrap] Creating service connector");
     let service_connector = Arc::new(ServiceConnectorImpl::new(registry_client));
@@ -125,9 +152,10 @@ pub async fn run_with_config(config: Config) -> Result<()> {
         
         info!("[Bootstrap] Creating service provider for module: {}", module_config.id);
         
-        // Create service provider options
+        // Create service provider options with protocol servers
         let options = crate::module_descriptor::CreateServiceProviderOptions {
             service_connector: service_connector.clone(),
+            protocol_servers: protocol_servers_arc.clone(),  // Pass servers!
         };
         
         // Create service provider from registry
@@ -152,7 +180,7 @@ pub async fn run_with_config(config: Config) -> Result<()> {
     type ServiceGatewaysMap = HashMap<hsu_common::ModuleID, Vec<Box<dyn Any + Send + Sync>>>;
     let mut service_gateways_map: ServiceGatewaysMap = HashMap::new();
     
-    for (module_id, mut service_provider_handle) in service_provider_map.iter_mut() {
+    for (module_id, service_provider_handle) in service_provider_map.iter_mut() {
         // For each service gateway this module provides
         // We take ownership (move) of the gateways from the map
         for (target_module_id, service_gateway) in service_provider_handle.service_gateways_map.drain() {
@@ -199,13 +227,12 @@ pub async fn run_with_config(config: Config) -> Result<()> {
         debug!("[Bootstrap]   - Got {} service gateway(s) for this module", service_gateways.len());
         
         // Create module from registry with gateway support
-        // NOTE: protocol_servers is empty for now (would be added in full implementation)
         use crate::module_descriptor::CreateModuleOptions;
         let options = CreateModuleOptions {
             service_connector: service_connector.clone(),
             service_provider: service_provider_handle.service_provider,  // Move the Box
             service_gateways,  // Pass gateways for direct closure!
-            protocol_servers: Vec::new(),  // TODO: Add protocol server support
+            protocol_servers: protocol_servers_arc.clone(),  // ✅ Protocol servers passed!
         };
         
         let (module, _protocol_map) = crate::registry::create_module_with_options(&module_config.id, options)?;
@@ -231,6 +258,26 @@ pub async fn run_with_config(config: Config) -> Result<()> {
     }
     
     info!("\n🎉 All modules started successfully!");
+    
+    // Step 5.5: Start protocol servers
+    //
+    // NOW IMPLEMENTED! Protocol servers use interior mutability (RwLock) so they can be
+    // started with &self (works with Arc<dyn ProtocolServer>).
+    if !protocol_servers_arc.is_empty() {
+        info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        info!("🌐 Starting {} protocol server(s)", protocol_servers_arc.len());
+        
+        for (idx, server) in protocol_servers_arc.iter().enumerate() {
+            debug!("[Bootstrap] Starting protocol server {} ({:?})...", idx + 1, server.protocol());
+            
+            server.start().await?;
+            
+            info!("✅ Protocol server {} started on port {}", idx + 1, server.port());
+        }
+        
+        info!("✅ All protocol servers started successfully");
+    }
+    
     info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     info!("📝 Runtime is operational");
     info!("Press Ctrl+C to stop...\n");
@@ -252,6 +299,23 @@ pub async fn run_with_config(config: Config) -> Result<()> {
         } else {
             info!("✅ Module '{}' stopped", module_id);
         }
+    }
+    
+    // Step 7.5: Stop protocol servers
+    if !protocol_servers_arc.is_empty() {
+        info!("\n🔄 Stopping {} protocol server(s)...", protocol_servers_arc.len());
+        
+        for (idx, server) in protocol_servers_arc.iter().enumerate() {
+            debug!("[Bootstrap] Stopping protocol server {} ({:?})...", idx + 1, server.protocol());
+            
+            if let Err(e) = server.stop().await {
+                error!("❌ Error stopping protocol server {}: {}", idx + 1, e);
+            } else {
+                info!("✅ Protocol server {} stopped", idx + 1);
+            }
+        }
+        
+        info!("✅ All protocol servers stopped");
     }
     
     info!("\n✅ Clean shutdown complete!");

@@ -13,7 +13,6 @@
 
 pub mod registry_client;
 pub mod gateway_factory;
-pub mod runtime;
 pub mod service_connector;
 pub mod gateway_factory_typed;
 pub mod module_trait;
@@ -25,7 +24,6 @@ pub mod bootstrap;
 // Re-export commonly used items
 pub use registry_client::ServiceRegistryClient;
 pub use gateway_factory::ServiceGatewayFactoryImpl;
-pub use runtime::ModuleRuntime;
 pub use service_connector::{ServiceConnector, ServiceConnectorImpl};
 pub use gateway_factory_typed::{ServiceGatewayFactory, GatewayFactoryFuncs};
 pub use module_trait::Module;
