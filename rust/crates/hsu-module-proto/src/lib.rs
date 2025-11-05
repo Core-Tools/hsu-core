@@ -20,7 +20,7 @@ pub mod client_connection;
 pub use traits::{ProtocolHandler, ProtocolGateway};
 pub use direct::DirectProtocol;
 pub use options::{ProtocolOptions, GrpcOptions};
-pub use server::ProtocolServer;
+pub use server::{ProtocolServer, ProtocolServerHandlersVisitor};
 pub use grpc_server::{GrpcProtocolServer, GrpcServerOptions};
 pub use server_manager::{ServerManager, ServerID};
 pub use client_connection::{ClientConnection, ClientConnectionVisitor};

@@ -51,6 +51,7 @@ use tokio::task::JoinHandle;
 use tracing::{info, debug, error, warn};
 
 use crate::server::ProtocolServer;
+use std::sync::Arc;
 
 /// gRPC protocol server configuration.
 ///
@@ -249,6 +250,29 @@ impl ProtocolServer for GrpcProtocolServer {
 
     fn port(&self) -> u16 {
         self.actual_port
+    }
+    
+    async fn register_handlers(
+        &self,
+        _visitor: Arc<dyn crate::server::ProtocolServerHandlersVisitor>,
+    ) -> Result<()> {
+        debug!("Registering handlers with gRPC server on port {}", self.actual_port);
+        
+        // TODO: Actual handler registration
+        //
+        // In a full implementation, we would:
+        // 1. Have a tonic Router stored in this struct
+        // 2. Call visitor.register_handlers_grpc() passing a registration context
+        // 3. The visitor would add services to the router
+        //
+        // For now, we just log that registration was requested.
+        // The actual service registration happens in the old server.rs module.
+        //
+        // This is a known limitation that will be addressed when we refactor
+        // the tonic server integration.
+        
+        debug!("✅ Handler registration requested (actual registration pending tonic Router integration)");
+        Ok(())
     }
 
     async fn start(&mut self) -> Result<()> {

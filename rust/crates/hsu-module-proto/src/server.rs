@@ -51,6 +51,101 @@
 
 use async_trait::async_trait;
 use hsu_common::{Protocol, Result};
+use std::sync::Arc;
+
+/// Visitor for registering protocol-specific service handlers.
+///
+/// # Architecture
+///
+/// This trait uses the **visitor pattern** to handle protocol-specific
+/// service handler registration. Each protocol server (gRPC, HTTP, etc.)
+/// implements its own registrar that knows how to register services for
+/// that specific protocol.
+///
+/// ## The Pattern
+///
+/// ```text
+/// HandlersRegistrar
+///     ↓
+/// Creates ProtocolServerHandlersVisitor
+///     ↓
+/// Passes visitor to each ProtocolServer
+///     ↓
+/// ProtocolServer calls visitor.register_handlers_X()
+///     ↓
+/// Visitor registers service with protocol-specific logic
+/// ```
+///
+/// ## Comparison with Go
+///
+/// **Go version:**
+/// ```go
+/// type ProtocolServerHandlersVisitor interface {
+///     RegisterHandlersGRPC(registrar GRPCServiceRegistrar) error
+///     RegisterHandlersHTTP(registrar HTTPServiceRegistrar) error
+/// }
+/// ```
+///
+/// **Rust version (this trait):**
+/// ```rust
+/// #[async_trait]
+/// pub trait ProtocolServerHandlersVisitor: Send + Sync {
+///     async fn register_handlers_grpc(&self, server: Arc<dyn ProtocolServer>) -> Result<()>;
+///     async fn register_handlers_http(&self, server: Arc<dyn ProtocolServer>) -> Result<()>;
+/// }
+/// ```
+///
+/// Nearly identical! Main differences:
+/// - Rust: `async fn` (Go uses context)
+/// - Rust: `Send + Sync` bounds (thread safety)
+/// - Rust: `Arc<dyn ProtocolServer>` (shared ownership)
+///
+/// # Rust Learning Note
+///
+/// ## Why Arc<dyn ProtocolServer>?
+///
+/// We pass `Arc<dyn ProtocolServer>` instead of a separate registrar because:
+/// 1. **Simplicity**: The server itself can act as the registrar
+/// 2. **Flexibility**: Server can store registered services internally
+/// 3. **Ownership**: Arc allows shared access without borrowing issues
+///
+/// ## Double Dispatch Pattern
+///
+/// This is a classic double dispatch:
+/// 1. Server calls `visitor.register_handlers_grpc(self)`
+/// 2. Visitor casts self to concrete type and registers services
+/// 3. Type-safe at runtime!
+#[async_trait]
+pub trait ProtocolServerHandlersVisitor: Send + Sync {
+    /// Register handlers with a gRPC server.
+    ///
+    /// The visitor will downcast the server to a concrete gRPC server type
+    /// and register its service implementations.
+    ///
+    /// # Arguments
+    ///
+    /// * `server` - The gRPC protocol server
+    ///
+    /// # Errors
+    ///
+    /// Returns error if:
+    /// - Server is not a gRPC server (wrong protocol)
+    /// - Registration fails (duplicate service, etc.)
+    async fn register_handlers_grpc(&self, server: Arc<dyn ProtocolServer>) -> Result<()>;
+    
+    /// Register handlers with an HTTP server.
+    ///
+    /// # Arguments
+    ///
+    /// * `server` - The HTTP protocol server
+    ///
+    /// # Errors
+    ///
+    /// Returns error if:
+    /// - Server is not an HTTP server (wrong protocol)
+    /// - Registration fails
+    async fn register_handlers_http(&self, server: Arc<dyn ProtocolServer>) -> Result<()>;
+}
 
 /// Protocol server trait for different communication protocols.
 ///
@@ -97,6 +192,34 @@ pub trait ProtocolServer: Send + Sync {
     ///
     /// Compare to Golang's `int` which requires validation.
     fn port(&self) -> u16;
+    
+    /// Register service handlers with this server.
+    ///
+    /// Uses the visitor pattern to allow protocol-specific handler registration.
+    /// The visitor will call the appropriate `register_handlers_X()` method based
+    /// on this server's protocol.
+    ///
+    /// # Arguments
+    ///
+    /// * `visitor` - Visitor that knows how to register services
+    ///
+    /// # Errors
+    ///
+    /// Returns error if registration fails.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// // Create a visitor for your service
+    /// let visitor = EchoHandlersVisitor::new(service_handlers);
+    ///
+    /// // Register with server (protocol-agnostic!)
+    /// server.register_handlers(Arc::new(visitor)).await?;
+    /// ```
+    async fn register_handlers(
+        &self,
+        visitor: Arc<dyn ProtocolServerHandlersVisitor>,
+    ) -> Result<()>;
 
     /// Starts the protocol server.
     ///
