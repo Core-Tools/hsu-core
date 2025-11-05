@@ -323,13 +323,12 @@ pub fn get_module_descriptor(module_id: &ModuleID) -> Result<()> {
     Ok(())
 }
 
-/// Creates a module from the registry using its module ID.
+/// Creates a module from the registry using its module ID (simple version).
 ///
 /// This is a convenience function that:
 /// 1. Looks up module factory in registry
-/// 2. Creates service provider
-/// 3. Calls module factory with the service provider
-/// 4. Returns the module and handlers
+/// 2. Creates options with empty gateways/servers
+/// 3. Calls module factory
 ///
 /// # Arguments
 ///
@@ -349,13 +348,10 @@ pub fn get_module_descriptor(module_id: &ModuleID) -> Result<()> {
 pub fn create_module_from_descriptor(
     module_id: &ModuleID,
     service_connector: Arc<dyn crate::ServiceConnector>,
-) -> Result<(Box<dyn Module>, Box<dyn std::any::Any + Send + Sync>)> {
-    debug!("[Registry] Creating module '{}' from registry", module_id);
+) -> Result<(Box<dyn Module>, ProtocolToServicesMap)> {
+    debug!("[Registry] Creating module '{}' from registry (simple)", module_id);
     
-    // Get the factory function from registry
-    let factory = get_module_factory_fn(module_id)?;
-    
-    // Create options for the factory
+    // Create default options
     let options = CreateModuleOptions {
         service_connector,
         service_provider: Box::new(()), // Placeholder, will be created by factory
@@ -363,11 +359,53 @@ pub fn create_module_from_descriptor(
         protocol_servers: Vec::new(),
     };
     
-    // Call the factory
-    let (module, _protocol_map) = factory(options)?;
+    create_module_with_options(module_id, options)
+}
+
+/// Creates a module from the registry with full options (advanced version).
+///
+/// This function allows passing service gateways and protocol servers for:
+/// - Direct closure enabling (requires service_gateways)
+/// - Handler registration (requires protocol_servers)
+///
+/// # Arguments
+///
+/// * `module_id` - The ID of the module to create
+/// * `options` - Complete module creation options
+///
+/// # Returns
+///
+/// * `Ok((module, protocol_map))` - Successfully created module with protocol map
+/// * `Err(_)` - Creation failed
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let options = CreateModuleOptions {
+///     service_connector,
+///     service_provider,
+///     service_gateways: vec![...],  // For direct closure
+///     protocol_servers: vec![...],  // For handler registration
+/// };
+/// let (module, protocol_map) = create_module_with_options(&ModuleID::from("echo"), options)?;
+/// ```
+pub fn create_module_with_options(
+    module_id: &ModuleID,
+    options: CreateModuleOptions,
+) -> Result<(Box<dyn Module>, ProtocolToServicesMap)> {
+    debug!("[Registry] Creating module '{}' with full options", module_id);
+    debug!("[Registry]   - {} service gateway(s)", options.service_gateways.len());
+    debug!("[Registry]   - {} protocol server(s)", options.protocol_servers.len());
     
-    // Return module and empty handlers (we don't expose handlers externally yet)
-    Ok((module, Box::new(())))
+    // Get the factory function from registry
+    let factory = get_module_factory_fn(module_id)?;
+    
+    // Call the factory (which handles handler registration and direct closure internally)
+    let (module, protocol_map) = factory(options)?;
+    
+    debug!("[Registry] Module '{}' created with {} protocol(s)", module_id, protocol_map.len());
+    
+    Ok((module, protocol_map))
 }
 
 #[cfg(test)]

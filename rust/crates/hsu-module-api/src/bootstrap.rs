@@ -140,6 +140,39 @@ pub async fn run_with_config(config: Config) -> Result<()> {
     
     info!("✅ All {} service providers created", service_provider_map.len());
     
+    // Step 3.5: Build service gateway maps (for direct closure)
+    //
+    // This builds a reverse map: target_module_id → Vec<service_gateways>
+    // allowing multiple clients to register their gateways for the same server module.
+    //
+    // Example: Both "echo-client-1" and "echo-client-2" provide gateways for "echo" module.
+    debug!("[Bootstrap] Building service gateway maps");
+    use std::any::Any;
+    
+    type ServiceGatewaysMap = HashMap<hsu_common::ModuleID, Vec<Box<dyn Any + Send + Sync>>>;
+    let mut service_gateways_map: ServiceGatewaysMap = HashMap::new();
+    
+    for (module_id, mut service_provider_handle) in service_provider_map.iter_mut() {
+        // For each service gateway this module provides
+        // We take ownership (move) of the gateways from the map
+        for (target_module_id, service_gateway) in service_provider_handle.service_gateways_map.drain() {
+            debug!("[Bootstrap]   Module '{}' provides gateway for '{}'", module_id, target_module_id);
+            
+            // Get or create the vector for this target module
+            let gateways_vec = service_gateways_map
+                .entry(target_module_id)
+                .or_insert_with(Vec::new);
+            
+            // Move the gateway (no clone needed!)
+            gateways_vec.push(service_gateway);
+        }
+    }
+    
+    debug!("[Bootstrap] Service gateway map built with {} target modules", service_gateways_map.len());
+    for (target_module_id, gateways) in &service_gateways_map {
+        debug!("[Bootstrap]   Target '{}' has {} gateway(s)", target_module_id, gateways.len());
+    }
+    
     // Step 4: Create modules using service providers
     debug!("[Bootstrap] Creating {} modules", config.modules.len());
     let mut modules: Vec<Box<dyn Module>> = Vec::new();
@@ -151,22 +184,34 @@ pub async fn run_with_config(config: Config) -> Result<()> {
         
         info!("[Bootstrap] Creating module: {}", module_config.id);
         
-        // Get service provider for this module
-        let _service_provider = service_provider_map.get(&module_config.id)
+        // Move (not borrow) service provider from map
+        // Each module creation consumes the service provider
+        let service_provider_handle = service_provider_map.remove(&module_config.id)
             .ok_or_else(|| hsu_common::Error::Internal(
                 format!("Service provider not found for module '{}'", module_config.id)
             ))?;
-        debug!("[Bootstrap]   - Got service provider");
+        debug!("[Bootstrap]   - Moved service provider from map");
         
-        // Create module from registry (uses service provider internally)
-        let (module, _handlers) = create_module_from_descriptor(
-            &module_config.id,
-            service_connector.clone(),
-        )?;
+        // Move service gateways for this module (if any clients provide them)
+        let service_gateways = service_gateways_map
+            .remove(&module_config.id)
+            .unwrap_or_else(Vec::new);
+        debug!("[Bootstrap]   - Got {} service gateway(s) for this module", service_gateways.len());
+        
+        // Create module from registry with gateway support
+        // NOTE: protocol_servers is empty for now (would be added in full implementation)
+        use crate::module_descriptor::CreateModuleOptions;
+        let options = CreateModuleOptions {
+            service_connector: service_connector.clone(),
+            service_provider: service_provider_handle.service_provider,  // Move the Box
+            service_gateways,  // Pass gateways for direct closure!
+            protocol_servers: Vec::new(),  // TODO: Add protocol server support
+        };
+        
+        let (module, _protocol_map) = crate::registry::create_module_with_options(&module_config.id, options)?;
         debug!("[Bootstrap]   - Module instance created");
         
-        // TODO: Register handlers with protocol servers (Phase 10)
-        // TODO: Enable direct closure if available (Phase 10)
+        // ✅ Handler registration and direct closure are now handled inside create_module_with_options!
         
         modules.push(module);
         info!("✅ Module '{}' created successfully", module_config.id);

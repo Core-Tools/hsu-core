@@ -50,6 +50,7 @@ pub use registry::{
     list_registered_modules,
     get_module_descriptor,
     create_module_from_descriptor,
+    create_module_with_options,
 };
 pub use config::{
     Config,
