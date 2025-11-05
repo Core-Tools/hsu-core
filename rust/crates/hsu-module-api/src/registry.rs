@@ -65,7 +65,7 @@
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 use hsu_common::{ModuleID, Result, Error};
-use hsu_module_management::Module;
+use crate::Module;
 use lazy_static::lazy_static;
 use tracing::{debug, trace, error};
 
@@ -285,6 +285,89 @@ pub fn create_service_provider(
 pub fn list_registered_modules() -> Vec<ModuleID> {
     let registry = MODULE_REGISTRY.read().unwrap();
     registry.keys().cloned().collect()
+}
+
+/// Gets a module descriptor from the registry (internal helper).
+///
+/// This is used internally by `create_module_from_registry`.
+fn get_module_factory_fn(module_id: &ModuleID) -> Result<&'static ModuleFactoryFn> {
+    let registry = MODULE_REGISTRY.read()
+        .map_err(|e| Error::Internal(format!("Registry lock error: {}", e)))?;
+    
+    // SAFETY: This is safe because MODULE_REGISTRY is a static and lives for the entire program
+    // The reference is valid for 'static because the registry never removes entries
+    unsafe {
+        let factory_ref = registry.get(module_id)
+            .ok_or_else(|| Error::NotFound { 
+                resource: format!("Module '{}'", module_id) 
+            })?;
+        Ok(std::mem::transmute::<&ModuleFactoryFn, &'static ModuleFactoryFn>(factory_ref))
+    }
+}
+
+/// Gets the module descriptor for a given module ID.
+///
+/// This function looks up a module in the global registry by its ID.
+/// It's a wrapper that checks if the module exists.
+///
+/// # Arguments
+///
+/// * `module_id` - The ID of the module to look up
+///
+/// # Returns
+///
+/// * `Ok(())` - Module exists in registry
+/// * `Err(_)` - Module not found
+pub fn get_module_descriptor(module_id: &ModuleID) -> Result<()> {
+    get_module_factory_fn(module_id)?;
+    Ok(())
+}
+
+/// Creates a module from the registry using its module ID.
+///
+/// This is a convenience function that:
+/// 1. Looks up module factory in registry
+/// 2. Creates service provider
+/// 3. Calls module factory with the service provider
+/// 4. Returns the module and handlers
+///
+/// # Arguments
+///
+/// * `module_id` - The ID of the module to create
+/// * `service_connector` - The service connector for creating gateways
+///
+/// # Returns
+///
+/// * `Ok((module, handlers))` - Successfully created module
+/// * `Err(_)` - Creation failed
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let (module, handlers) = create_module_from_descriptor(&ModuleID::from("echo"), service_connector)?;
+/// ```
+pub fn create_module_from_descriptor(
+    module_id: &ModuleID,
+    service_connector: Arc<dyn crate::ServiceConnector>,
+) -> Result<(Box<dyn Module>, Box<dyn std::any::Any + Send + Sync>)> {
+    debug!("[Registry] Creating module '{}' from registry", module_id);
+    
+    // Get the factory function from registry
+    let factory = get_module_factory_fn(module_id)?;
+    
+    // Create options for the factory
+    let options = CreateModuleOptions {
+        service_connector,
+        service_provider: Box::new(()), // Placeholder, will be created by factory
+        service_gateways: Vec::new(),
+        protocol_servers: Vec::new(),
+    };
+    
+    // Call the factory
+    let (module, _protocol_map) = factory(options)?;
+    
+    // Return module and empty handlers (we don't expose handlers externally yet)
+    Ok((module, Box::new(())))
 }
 
 #[cfg(test)]

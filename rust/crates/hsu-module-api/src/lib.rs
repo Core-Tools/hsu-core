@@ -16,15 +16,19 @@ pub mod gateway_factory;
 pub mod runtime;
 pub mod service_connector;
 pub mod gateway_factory_typed;
+pub mod module_trait;
 pub mod module_descriptor;
 pub mod registry;
+pub mod config;
+pub mod bootstrap;
 
 // Re-export commonly used items
 pub use registry_client::ServiceRegistryClient;
 pub use gateway_factory::ServiceGatewayFactoryImpl;
-pub use runtime::{ModuleRuntime, RuntimeConfig};
+pub use runtime::ModuleRuntime;
 pub use service_connector::{ServiceConnector, ServiceConnectorImpl};
 pub use gateway_factory_typed::{ServiceGatewayFactory, GatewayFactoryFuncs};
+pub use module_trait::Module;
 pub use module_descriptor::{
     ModuleDescriptor,
     CreateModuleOptions,
@@ -44,4 +48,14 @@ pub use registry::{
     create_module,
     create_service_provider,
     list_registered_modules,
+    get_module_descriptor,
+    create_module_from_descriptor,
 };
+pub use config::{
+    Config,
+    RuntimeConfig,
+    ServiceRegistryConfig,
+    ProtocolServerConfig,
+    ModuleConfig,
+};
+pub use bootstrap::run_with_config;

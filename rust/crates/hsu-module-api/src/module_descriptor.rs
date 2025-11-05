@@ -87,10 +87,9 @@
 use std::sync::Arc;
 use std::any::Any;
 use std::collections::HashMap;
-use hsu_common::{ModuleID, Result};
-use hsu_module_management::{Module, Protocol, ServiceID};
+use hsu_common::{ModuleID, Result, Protocol, ServiceID};
 use hsu_module_proto::ProtocolServer;
-use crate::ServiceConnector;
+use crate::{ServiceConnector, Module};
 
 /// Options for creating a service provider.
 ///

@@ -15,7 +15,7 @@
 //! **Think of it as the "main" for HSU modules!**
 
 use hsu_common::Result;
-use hsu_module_management::Module;
+use crate::Module;
 use hsu_module_proto::DirectProtocol;
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -300,23 +300,12 @@ impl ModuleRuntime {
             // Example: echo_service_server::EchoServiceServer::new(handler)
         }
 
-        // 4. Build map of local modules for direct protocol
-        let mut local_modules = HashMap::new();
-        
-        for module in &self.modules {
-            let module_id = module.id().clone();
-            
-            if let Some(handlers) = module.service_handlers_map() {
-                let protocol = DirectProtocol::new(
-                    handlers.into_iter()
-                        .map(|(id, handler)| (id, Arc::new(handler)))
-                        .collect()
-                );
-                local_modules.insert(module_id, Arc::new(protocol));
-            }
-        }
+        // 4. Note: In the new architecture, handlers come from the handlers registrar
+        //    in the service provider, not from module.service_handlers_map()
+        //    Direct protocol setup is handled by the direct closure enable function
+        let local_modules: HashMap<hsu_common::ModuleID, Arc<DirectProtocol>> = HashMap::new();
 
-        debug!("Registered {} local modules", local_modules.len());
+        debug!("Registered {} local modules (TODO: populate from handlers registrar)", local_modules.len());
 
         // 5. Create gateway factory with user-provided gateway configs
         // This is where we pass the user's factory configurations!
@@ -327,11 +316,8 @@ impl ModuleRuntime {
         ));
         self.gateway_factory = Some(Arc::clone(&factory));
 
-        // Inject factory into modules
-        for module in &mut self.modules {
-            let factory_trait: Arc<dyn hsu_module_management::ServiceGatewayFactory> = factory.clone();
-            module.set_service_gateway_factory(factory_trait);
-        }
+        // Note: In the new architecture, modules get gateways from their service provider
+        // No need to inject gateway factory - it's already in the service provider!
 
         info!("Runtime initialized successfully");
         Ok(())
@@ -585,14 +571,6 @@ mod tests {
     impl Module for MockModule {
         fn id(&self) -> &ModuleID {
             &self.id
-        }
-
-        fn service_handlers_map(&self) -> Option<ServiceHandlersMap> {
-            None
-        }
-
-        fn set_service_gateway_factory(&mut self, _factory: Arc<dyn ServiceGatewayFactory>) {
-            // No-op for mock
         }
 
         async fn start(&mut self) -> Result<()> {
