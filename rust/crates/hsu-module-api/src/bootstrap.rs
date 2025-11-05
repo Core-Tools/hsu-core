@@ -126,7 +126,7 @@ pub async fn run_with_config(config: Config) -> Result<()> {
     
     // Step 2: Create service connector
     debug!("[Bootstrap] Creating service connector");
-    let service_connector = Arc::new(ServiceConnectorImpl::new(registry_client));
+    let service_connector = Arc::new(ServiceConnectorImpl::new(registry_client.clone()));
     info!("✅ Service connector created");
     
     // Step 3: Create service providers FIRST (matches Golang!)
@@ -276,6 +276,50 @@ pub async fn run_with_config(config: Config) -> Result<()> {
         }
         
         info!("✅ All protocol servers started successfully");
+        
+        // Step 5.6: Publish APIs to service registry
+        info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        info!("📤 Publishing module APIs to service registry...");
+        
+        use crate::registry_client::RemoteAPI;
+        
+        for module_config in &config.modules {
+            if !module_config.enabled {
+                continue;
+            }
+            
+            // Build list of APIs from protocol servers
+            // Note: For now, use "service" as service_id (generic).
+            // Future: Get actual service IDs from module's service handlers.
+            let mut apis = Vec::new();
+            for server in &protocol_servers_arc {
+                let api = RemoteAPI {
+                    service_id: "service".to_string(),  // Generic service ID
+                    protocol: server.protocol(),
+                    address: Some(server.address()),
+                    metadata: None,
+                };
+                apis.push(api);
+            }
+            
+            if !apis.is_empty() {
+                debug!("[Bootstrap] Publishing {} API(s) for module '{}'", apis.len(), module_config.id);
+                
+                // Get process ID
+                let process_id = std::process::id();
+                
+                let num_apis = apis.len();
+                
+                // Publish to registry
+                registry_client
+                    .publish(&module_config.id, process_id, apis)
+                    .await?;
+                
+                info!("✅ Published {} API(s) for module '{}'", num_apis, module_config.id);
+            }
+        }
+        
+        info!("✅ All module APIs published to service registry");
     }
     
     info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");

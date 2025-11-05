@@ -193,6 +193,11 @@ pub trait ProtocolServer: Send + Sync {
     /// Compare to Golang's `int` which requires validation.
     fn port(&self) -> u16;
     
+    /// Returns the full listen address (e.g., "0.0.0.0:50051").
+    ///
+    /// This is used for publishing to the service registry.
+    fn address(&self) -> String;
+    
     /// Register service handlers with this server.
     ///
     /// Uses the visitor pattern to allow protocol-specific handler registration.
@@ -291,13 +296,6 @@ pub trait ProtocolServer: Send + Sync {
     /// - First call: stops server
     /// - Subsequent calls: no-op (already stopped)
     async fn stop(&self) -> Result<()>;
-
-    /// Returns the server's listen address (host:port).
-    ///
-    /// Default implementation for convenience.
-    fn address(&self) -> String {
-        format!("0.0.0.0:{}", self.port())
-    }
 }
 
 #[cfg(test)]

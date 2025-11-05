@@ -288,6 +288,10 @@ impl ProtocolServer for GrpcProtocolServer {
             .unwrap_or(self.options.port)  // Fallback to configured port if locked
     }
     
+    fn address(&self) -> String {
+        format!("{}:{}", self.options.host, self.port())
+    }
+    
     async fn register_handlers(
         &self,
         _visitor: Arc<dyn crate::server::ProtocolServerHandlersVisitor>,
@@ -397,11 +401,6 @@ impl ProtocolServer for GrpcProtocolServer {
         }
 
         Ok(())
-    }
-
-    fn address(&self) -> String {
-        let port = self.port();  // Use port() method which handles locking
-        format!("{}:{}", self.options.host, port)
     }
 }
 

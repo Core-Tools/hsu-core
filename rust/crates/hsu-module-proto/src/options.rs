@@ -174,7 +174,7 @@ impl GrpcOptions {
 
 impl Default for GrpcOptions {
     fn default() -> Self {
-        Self::new("localhost:50051")
+        Self::new("localhost:0")
     }
 }
 
