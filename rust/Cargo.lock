@@ -483,6 +483,7 @@ dependencies = [
  "hsu-module-management",
  "prost",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tracing",
 ]

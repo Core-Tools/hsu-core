@@ -296,6 +296,28 @@ pub trait ProtocolServer: Send + Sync {
     /// - First call: stops server
     /// - Subsequent calls: no-op (already stopped)
     async fn stop(&self) -> Result<()>;
+    
+    /// Adds a gRPC service to this server (gRPC-specific).
+    ///
+    /// This is a protocol-specific method that allows adding gRPC services.
+    /// The service adder knows how to add its service to a tonic Router.
+    /// By default, this returns an error. Only `GrpcProtocolServer` implements this.
+    ///
+    /// # Arguments
+    ///
+    /// * `service_adder` - An object that can add a service to a tonic Router
+    ///
+    /// # Errors
+    ///
+    /// Returns error if this is not a gRPC server or if registration fails.
+    async fn add_grpc_service_adder(
+        &self,
+        _service_adder: Arc<dyn crate::grpc_server::GrpcServiceAdder>,
+    ) -> Result<()> {
+        Err(hsu_common::Error::Validation {
+            message: format!("Protocol server {:?} does not support gRPC services", self.protocol()),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -330,13 +352,24 @@ mod tests {
         fn port(&self) -> u16 {
             self.port
         }
+        
+        fn address(&self) -> String {
+            format!("0.0.0.0:{}", self.port)
+        }
+        
+        async fn register_handlers(
+            &self,
+            _visitor: Arc<dyn ProtocolServerHandlersVisitor>,
+        ) -> Result<()> {
+            Ok(())
+        }
 
-        async fn start(&mut self) -> Result<()> {
+        async fn start(&self) -> Result<()> {
             self.started.store(true, Ordering::SeqCst);
             Ok(())
         }
 
-        async fn stop(&mut self) -> Result<()> {
+        async fn stop(&self) -> Result<()> {
             self.started.store(false, Ordering::SeqCst);
             Ok(())
         }
@@ -344,7 +377,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_protocol_server_lifecycle() {
-        let mut server = MockServer::new(50051);
+        let server = MockServer::new(50051);
 
         assert_eq!(server.protocol(), Protocol::Grpc);
         assert_eq!(server.port(), 50051);
@@ -367,7 +400,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trait_object() {
-        let mut server: Box<dyn ProtocolServer> = Box::new(MockServer::new(3000));
+        let server: Box<dyn ProtocolServer> = Box::new(MockServer::new(3000));
 
         server.start().await.unwrap();
         assert_eq!(server.port(), 3000);

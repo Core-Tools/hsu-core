@@ -52,6 +52,27 @@ use tracing::{info, debug, error, warn};
 
 use crate::server::ProtocolServer;
 use std::sync::Arc;
+use tonic::transport::Server;
+
+/// Trait for adding a service to a tonic Server or Router.
+/// 
+/// This trait abstracts over the operation of adding a gRPC service.
+/// Implementations know their concrete service type and can register it.
+/// 
+/// Note: Both Server and Router can have services added, but Server::add_service returns Router,
+/// while Router::add_service returns Router. We provide both methods for flexibility.
+pub trait GrpcServiceAdder: Send + Sync {
+    /// Adds this service to a Server, returning a Router.
+    /// This is used for the first service registration.
+    fn add_to_server(&self, server: tonic::transport::Server) -> tonic::transport::server::Router;
+    
+    /// Adds this service to a Router, returning a Router.
+    /// This is used for subsequent service registrations.
+    fn add_to_router(&self, router: tonic::transport::server::Router) -> tonic::transport::server::Router;
+}
+
+/// Type alias for a service adder.
+type ServiceAdder = Arc<dyn GrpcServiceAdder>;
 
 /// gRPC protocol server configuration.
 ///
@@ -149,6 +170,10 @@ struct ServerState {
     
     /// Shutdown signal sender.
     shutdown_tx: Option<oneshot::Sender<()>>,
+    
+    /// Service adder functions that know how to add services to a Router.
+    /// Each function takes a Router and returns a Router with one service added.
+    service_adders: Vec<ServiceAdder>,
 }
 
 impl ServerState {
@@ -157,6 +182,7 @@ impl ServerState {
             actual_port: port,
             server_handle: None,
             shutdown_tx: None,
+            service_adders: Vec::new(),
         }
     }
 }
@@ -252,7 +278,7 @@ impl GrpcProtocolServer {
     /// - All ports exhausted (very rare)
     /// - Permission denied (< 1024 without root)
     /// - Network interface down
-    async fn allocate_port(&self) -> Result<SocketAddr> {
+    async fn allocate_port(&self) -> Result<(SocketAddr, TcpListener)> {
         let bind_addr = self.options.bind_address();
         debug!("Attempting to bind to: {}", bind_addr);
 
@@ -269,7 +295,33 @@ impl GrpcProtocolServer {
         
         info!("Allocated port {} for gRPC server", state.actual_port);
         
-        Ok(actual_addr)
+        // Return both the address and the listener (keep it alive!)
+        Ok((actual_addr, listener))
+    }
+    
+    /// Adds a service to this gRPC server.
+    ///
+    /// This method stores a function that knows how to add the service to a tonic Router.
+    /// The function will be called when the server starts to build the complete Router.
+    ///
+    /// # Arguments
+    ///
+    /// * `service_adder` - A function that adds one service to a Router
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let handler = EchoGrpcHandler::new(service);
+    /// let adder = Box::new(move |router| {
+    ///     router.add_service(EchoServiceServer::new(handler.clone()))
+    /// });
+    /// server.add_service_adder(adder).await?;
+    /// ```
+    pub async fn add_service_adder(&self, service_adder: ServiceAdder) -> Result<()> {
+        let mut state = self.state.write().await;
+        state.service_adders.push(service_adder);
+        debug!("Added service adder (total: {})", state.service_adders.len());
+        Ok(())
     }
 }
 
@@ -289,7 +341,14 @@ impl ProtocolServer for GrpcProtocolServer {
     }
     
     fn address(&self) -> String {
-        format!("{}:{}", self.options.host, self.port())
+        // Convert 0.0.0.0 (bind all interfaces) to localhost (connectable address)
+        // Include http:// scheme for gRPC (tonic requires full URI)
+        let host = if self.options.host == "0.0.0.0" {
+            "localhost"
+        } else {
+            &self.options.host
+        };
+        format!("http://{}:{}", host, self.port())
     }
     
     async fn register_handlers(
@@ -319,33 +378,83 @@ impl ProtocolServer for GrpcProtocolServer {
     async fn start(&self) -> Result<()> {
         info!("Starting gRPC protocol server on {}", self.options.bind_address());
 
-        // Allocate port (handles dynamic allocation and updates state)
-        let addr = self.allocate_port().await?;
+        // Allocate port and get listener (handles dynamic allocation and updates state)
+        let (addr, listener) = self.allocate_port().await?;
 
         // Create shutdown channel
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
-        // Get actual port for logging
-        let actual_port = {
+        // Get actual port and service adders for logging and serving
+        let (actual_port, service_adders) = {
             let state = self.state.read().await;
-            state.actual_port
+            (state.actual_port, state.service_adders.clone())
         };
+        
+        info!("Building Router with {} registered services", service_adders.len());
+        
+        // Build Router with all registered services
+        if service_adders.is_empty() {
+            return Err(Error::Validation {
+                message: "Cannot start gRPC server with no registered services".to_string(),
+            });
+        }
+        
+        // Add services one by one
+        // Note: Server::builder() returns Server, first add_service() returns Router
+        let mut router = service_adders[0].add_to_server(Server::builder());
+        for (idx, adder) in service_adders.iter().skip(1).enumerate() {
+            debug!("Adding service {} to Router", idx + 2);
+            router = adder.add_to_router(router);
+        }
+        
+        // Convert std TcpListener to tokio TcpListener
+        listener.set_nonblocking(true)
+            .map_err(|e| Error::Internal(format!("Failed to set listener non-blocking: {}", e)))?;
+        let tokio_listener = tokio::net::TcpListener::from_std(listener)
+            .map_err(|e| Error::Internal(format!("Failed to convert listener: {}", e)))?;
         
         // Spawn server in background
         let handle = tokio::spawn(async move {
-            info!("gRPC server starting on {}", addr);
+            info!("🚀 gRPC server task spawned for port {}", actual_port);
+            info!("gRPC server starting on {} with {} services", addr, service_adders.len());
             
-            // In a real implementation, this would be:
-            // Server::builder()
-            //     .add_service(ServiceServer::new(handler))
-            //     .serve_with_shutdown(addr, async { shutdown_rx.await.ok(); })
-            //     .await?;
+            // Create the TcpListenerStream
+            debug!("Creating TcpListenerStream for listener on {}", addr);
+            let incoming = tokio_stream::wrappers::TcpListenerStream::new(tokio_listener);
             
-            // For now, we simulate a server that waits for shutdown
-            shutdown_rx.await.ok();
+            debug!("Starting serve_with_incoming...");
+            debug!("About to call router.serve_with_incoming()");
+            info!("🎧 Server is ready to accept gRPC connections on {}", addr);
             
-            info!("gRPC server on port {} stopped", actual_port);
-            Ok(())
+            // Serve with graceful shutdown using the pre-bound listener
+            let serve_future = router.serve_with_incoming(incoming);
+            debug!("serve_with_incoming future created, now entering select...");
+            
+            let serve_result = tokio::select! {
+                result = serve_future => {
+                    warn!("⚠️ serve_with_incoming completed (should run forever!)");
+                    match result {
+                        Ok(_) => {
+                            info!("gRPC server on port {} stopped gracefully", actual_port);
+                            Ok(())
+                        }
+                        Err(e) => {
+                            error!("❌ gRPC server on port {} failed: {:?}", actual_port, e);
+                            error!("Error details: {}", e);
+                            Err(Error::Internal(format!("Server error: {}", e)))
+                        }
+                    }
+                }
+                _ = shutdown_rx => {
+                    info!("🛑 gRPC server on port {} received shutdown signal", actual_port);
+                    Ok(())
+                }
+            };
+            
+            debug!("select! completed");
+            
+            error!("⚠️ gRPC server task on port {} exiting with result: {:?}", actual_port, serve_result);
+            serve_result
         });
 
         // Store handle and shutdown channel in state
@@ -401,6 +510,13 @@ impl ProtocolServer for GrpcProtocolServer {
         }
 
         Ok(())
+    }
+    
+    async fn add_grpc_service_adder(
+        &self,
+        service_adder: Arc<dyn GrpcServiceAdder>,
+    ) -> Result<()> {
+        self.add_service_adder(service_adder).await
     }
 }
 

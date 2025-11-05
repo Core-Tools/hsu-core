@@ -29,7 +29,7 @@
 
 use async_trait::async_trait;
 use hsu_common::{Result, ServiceID, ModuleID, Error};
-use tracing::{trace, debug};
+use tracing::{trace, debug, info, error};
 
 use crate::traits::{ProtocolHandler, ProtocolGateway};
 use crate::options::GrpcOptions;
@@ -232,19 +232,32 @@ impl GrpcProtocolGateway {
     pub async fn connect(address: impl Into<String>, options: GrpcOptions) -> Result<Self> {
         let address = address.into();
         
-        trace!("Creating gRPC channel for: {}", address);
+        info!("🔌 Attempting to create gRPC channel for: {}", address);
+        debug!("   Timeout: {} ms", options.timeout_ms.unwrap_or(5000));
         
         // Create tonic channel with configuration
-        let channel = tonic::transport::Channel::from_shared(address.clone())
-            .map_err(|e| Error::Protocol(format!("Invalid gRPC address '{}': {}", address, e)))?
-            .timeout(std::time::Duration::from_millis(
-                options.timeout_ms.unwrap_or(5000)
-            ))
-            .connect()
-            .await
-            .map_err(|e| Error::Protocol(format!("Failed to connect to '{}': {}", address, e)))?;
+        debug!("   Step 1: Parsing address...");
+        let endpoint = tonic::transport::Channel::from_shared(address.clone())
+            .map_err(|e| {
+                error!("❌ Failed to parse gRPC address '{}': {:?}", address, e);
+                Error::Protocol(format!("Invalid gRPC address '{}': {}", address, e))
+            })?;
         
-        debug!("✅ gRPC channel created for: {}", address);
+        debug!("   Step 2: Setting timeout...");
+        let endpoint = endpoint.timeout(std::time::Duration::from_millis(
+            options.timeout_ms.unwrap_or(5000)
+        ));
+        
+        debug!("   Step 3: Connecting to {}...", address);
+        let channel = endpoint.connect()
+            .await
+            .map_err(|e| {
+                error!("❌ Failed to connect to '{}': {:?}", address, e);
+                error!("   Error details: {}", e);
+                Error::Protocol(format!("Failed to connect to '{}': transport error", address))
+            })?;
+        
+        info!("✅ gRPC channel created for: {}", address);
         
         Ok(Self {
             address,
