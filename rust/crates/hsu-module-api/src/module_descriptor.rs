@@ -296,15 +296,6 @@ where
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    #[ignore] // TODO: Update test to match new Module trait
-    fn test_module_descriptor_creation() {
-        // Test disabled until Module trait is stable
-        // The descriptor pattern works correctly as demonstrated in the registry tests
-    }
-}
+// Tests removed - the descriptor pattern is validated through integration tests
+// in bootstrap.rs and real-world usage in the example projects
 

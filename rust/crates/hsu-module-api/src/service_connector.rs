@@ -353,7 +353,7 @@ mod tests {
     #[test]
     fn test_enable_direct_closure() {
         let registry_client = Arc::new(ServiceRegistryClient::new("http://localhost:8080"));
-        let mut connector = ServiceConnectorImpl::new(registry_client);
+        let connector = ServiceConnectorImpl::new(registry_client);
         
         let module_id = ModuleID::from("test-module");
         let service_ids = vec![

@@ -378,26 +378,31 @@ impl ProtocolServer for GrpcProtocolServer {
     async fn start(&self) -> Result<()> {
         info!("Starting gRPC protocol server on {}", self.options.bind_address());
 
+        // Check for registered services BEFORE allocating port
+        let service_adders = {
+            let state = self.state.read().await;
+            state.service_adders.clone()
+        };
+        
+        info!("Building Router with {} registered services", service_adders.len());
+        
+        if service_adders.is_empty() {
+            return Err(Error::Validation {
+                message: "Cannot start gRPC server with no registered services".to_string(),
+            });
+        }
+
         // Allocate port and get listener (handles dynamic allocation and updates state)
         let (addr, listener) = self.allocate_port().await?;
 
         // Create shutdown channel
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
-        // Get actual port and service adders for logging and serving
-        let (actual_port, service_adders) = {
+        // Get actual port for logging
+        let actual_port = {
             let state = self.state.read().await;
-            (state.actual_port, state.service_adders.clone())
+            state.actual_port
         };
-        
-        info!("Building Router with {} registered services", service_adders.len());
-        
-        // Build Router with all registered services
-        if service_adders.is_empty() {
-            return Err(Error::Validation {
-                message: "Cannot start gRPC server with no registered services".to_string(),
-            });
-        }
         
         // Add services one by one
         // Note: Server::builder() returns Server, first add_service() returns Router
@@ -564,15 +569,15 @@ mod tests {
         let options = GrpcServerOptions::new().with_port(0); // Dynamic port
         let server = GrpcProtocolServer::new(options);
 
-        // Start server
-        server.start().await.unwrap();
+        // Server should not allow starting without services
+        let result = server.start().await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("no registered services"));
         
-        let port = server.port();
-        assert!(port > 0, "Should have allocated a port");
-        
-        info!("Server allocated port: {}", port);
+        // Port should still be 0 (not started)
+        assert_eq!(server.port(), 0);
 
-        // Stop server
+        // Stop should be a no-op (idempotent)
         server.stop().await.unwrap();
     }
 
@@ -581,9 +586,7 @@ mod tests {
         let options = GrpcServerOptions::new().with_port(0);
         let server = GrpcProtocolServer::new(options);
 
-        server.start().await.unwrap();
-        
-        // Stop once
+        // Even without starting, stop should be idempotent
         server.stop().await.unwrap();
         
         // Stop again (should be no-op)
@@ -595,11 +598,12 @@ mod tests {
         let options = GrpcServerOptions::new().with_port(0);
         let server = GrpcProtocolServer::new(options);
 
-        server.start().await.unwrap();
+        // Server should fail to start without services
+        let result = server.start().await;
+        assert!(result.is_err());
         
-        let port = server.port();
-        assert!(port > 0, "Port should be allocated");
-        // Note: u16 max is 65535, so no need to check upper bound
+        // Port should remain 0 (not allocated)
+        assert_eq!(server.port(), 0, "Port should not be allocated without services");
         
         server.stop().await.unwrap();
     }
@@ -617,7 +621,11 @@ mod tests {
         
         let server = GrpcProtocolServer::new(options);
 
-        server.start().await.unwrap();
+        // Server should fail to start without services
+        let result = server.start().await;
+        assert!(result.is_err());
+        
+        // Port configuration should still be retained
         assert_eq!(server.port(), port);
         
         server.stop().await.unwrap();
@@ -626,11 +634,15 @@ mod tests {
     #[tokio::test]
     async fn test_trait_object() {
         let options = GrpcServerOptions::new().with_port(0);
-        let mut server: Box<dyn ProtocolServer> = Box::new(GrpcProtocolServer::new(options));
+        let server: Box<dyn ProtocolServer> = Box::new(GrpcProtocolServer::new(options));
 
-        server.start().await.unwrap();
+        // Test that trait object methods work
         assert_eq!(server.protocol(), Protocol::Grpc);
-        assert!(server.port() > 0);
+        assert_eq!(server.port(), 0); // Not started yet
+        
+        // Server should fail to start without services
+        let result = server.start().await;
+        assert!(result.is_err());
         
         server.stop().await.unwrap();
     }

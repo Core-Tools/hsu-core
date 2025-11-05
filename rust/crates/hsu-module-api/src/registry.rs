@@ -408,19 +408,6 @@ pub fn create_module_with_options(
     Ok((module, protocol_map))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::module_descriptor::{ModuleDescriptor, ServiceProviderHandle};
-    use crate::ServiceConnector;
-    use hsu_module_management::{ServiceID, Protocol};
-    use std::sync::Arc;
-
-    #[test]
-    #[ignore] // TODO: Update test to match new Module trait and descriptor
-    fn test_register_and_create_module() {
-        // Test disabled until Module trait is stable
-        // The registration pattern works correctly as demonstrated in real usage
-    }
-}
+// Tests removed - the registration pattern is validated through integration tests
+// in bootstrap.rs and real-world usage in the example projects
 

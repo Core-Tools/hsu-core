@@ -146,6 +146,7 @@ impl ProtocolHandler for GrpcProtocolHandler {
 /// - Keep-alive
 /// 
 /// **All for free!**
+#[derive(Debug)]
 pub struct GrpcProtocolGateway {
     /// Target server address.
     address: String,
@@ -515,11 +516,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_grpc_gateway_connect() {
-        let options = GrpcOptions::new("localhost:50051");
-        let result = GrpcProtocolGateway::connect("localhost:50051", options).await;
+        let options = GrpcOptions::new("http://localhost:50051");
+        let result = GrpcProtocolGateway::connect("http://localhost:50051", options).await;
         
-        // For now, this succeeds without actually connecting
-        assert!(result.is_ok());
+        // Should fail to connect to non-existent server
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Failed to connect"));
     }
 
     #[tokio::test]
