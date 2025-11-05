@@ -203,7 +203,11 @@ pub async fn run_with_config(config: Config) -> Result<()> {
     
     // Step 4: Create modules using service providers
     debug!("[Bootstrap] Creating {} modules", config.modules.len());
+    
+    // Store both modules and their protocol-to-services maps
+    use crate::module_descriptor::ProtocolToServicesMap;
     let mut modules: Vec<Box<dyn Module>> = Vec::new();
+    let mut module_protocol_maps: HashMap<hsu_common::ModuleID, ProtocolToServicesMap> = HashMap::new();
     
     for module_config in &config.modules {
         if !module_config.enabled {
@@ -235,10 +239,13 @@ pub async fn run_with_config(config: Config) -> Result<()> {
             protocol_servers: protocol_servers_arc.clone(),  // ✅ Protocol servers passed!
         };
         
-        let (module, _protocol_map) = crate::registry::create_module_with_options(&module_config.id, options)?;
+        let (module, protocol_map) = crate::registry::create_module_with_options(&module_config.id, options)?;
         debug!("[Bootstrap]   - Module instance created");
         
         // ✅ Handler registration and direct closure are now handled inside create_module_with_options!
+        
+        // Store the protocol map for API publishing
+        module_protocol_maps.insert(module_config.id.clone(), protocol_map);
         
         modules.push(module);
         info!("✅ Module '{}' created successfully", module_config.id);
@@ -288,18 +295,40 @@ pub async fn run_with_config(config: Config) -> Result<()> {
                 continue;
             }
             
-            // Build list of APIs from protocol servers
-            // Note: For now, use "service" as service_id (generic).
-            // Future: Get actual service IDs from module's service handlers.
+            // Get the protocol-to-services map for this module
+            let protocol_map = module_protocol_maps.get(&module_config.id);
+            
+            if protocol_map.is_none() {
+                debug!("[Bootstrap] Module '{}' has no protocol map, skipping API publishing", module_config.id);
+                continue;
+            }
+            
+            let protocol_map = protocol_map.unwrap();
+            
+            // Build list of APIs from protocol servers using ACTUAL service IDs
+            // This matches Golang's approach: use protocolToServicesMap to get real service IDs
             let mut apis = Vec::new();
             for server in &protocol_servers_arc {
-                let api = RemoteAPI {
-                    service_id: "service".to_string(),  // Generic service ID
-                    protocol: server.protocol(),
-                    address: Some(server.address()),
-                    metadata: None,
-                };
-                apis.push(api);
+                let protocol = server.protocol();
+                
+                // Get service IDs for this protocol from the module's protocol map
+                if let Some(service_ids) = protocol_map.get(&protocol) {
+                    // Create one RemoteAPI per service ID (matching Golang!)
+                    for service_id in service_ids {
+                        let api = RemoteAPI {
+                            service_id: service_id.to_string(),  // ✅ ACTUAL service ID!
+                            protocol,
+                            address: Some(server.address()),
+                            metadata: None,
+                        };
+                        apis.push(api);
+                        debug!("[Bootstrap]   - API: protocol={:?}, service_id={}, address={}", 
+                            protocol, service_id, server.address());
+                    }
+                } else {
+                    debug!("[Bootstrap]   - Module '{}' has no services for protocol {:?}", 
+                        module_config.id, protocol);
+                }
             }
             
             if !apis.is_empty() {
@@ -316,6 +345,8 @@ pub async fn run_with_config(config: Config) -> Result<()> {
                     .await?;
                 
                 info!("✅ Published {} API(s) for module '{}'", num_apis, module_config.id);
+            } else {
+                debug!("[Bootstrap] Module '{}' has no APIs to publish", module_config.id);
             }
         }
         
