@@ -318,6 +318,5 @@ mod tests {
 
     // Note: Integration tests that actually call the registry
     // would require the registry server to be running.
-    // Those will be in Phase 5 with full examples.
 }
 

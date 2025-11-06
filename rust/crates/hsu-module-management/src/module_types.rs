@@ -6,7 +6,7 @@
 //! - Go uses `interface{}` for protocol-agnostic abstractions
 //! - Rust uses **enums** (sum types) for type-safe variants
 //! 
-//! ## The Key Pattern: Enums Instead of interface{}
+//! ## The Key Pattern: Type Erasure (Like Go's interface{})
 //! 
 //! ```go
 //! // Go: Type erasure with interface{}
@@ -17,18 +17,19 @@
 //! ```
 //! 
 //! ```rust,ignore
-//! // Rust: Sum type with enum
-//! enum ServiceHandler {
-//!     Echo(EchoHandler),    // Variant 1
-//!     Storage(StorageHandler),  // Variant 2
-//! }
+//! // Rust: Type erasure with dyn Any (domain-agnostic!)
+//! pub struct ServiceHandler(Arc<dyn Any + Send + Sync>);
 //! 
 //! let handler = handlers.get(&id)?;
-//! match handler {
-//!     ServiceHandler::Echo(echo) => { /* echo is the right type! */ }
-//!     ServiceHandler::Storage(storage) => { /* storage is the right type! */ }
-//! }  // Compiler checks exhaustiveness!
+//! if let Some(echo) = handler.downcast_ref::<EchoService>() {
+//!     // Use echo service
+//! } else if let Some(storage) = handler.downcast_ref::<StorageService>() {
+//!     // Use storage service
+//! }
 //! ```
+//! 
+//! **Key Principle:** Framework stays domain-agnostic!
+//! Domain-specific types belong in Layer 2 (Domain) or Layer 5 (Application Glue).
 
 use async_trait::async_trait;
 use hsu_common::{ModuleID, ServiceID, Protocol, Result};
@@ -39,45 +40,81 @@ use std::sync::Arc;
 /// 
 /// # Rust Learning Note
 /// 
-/// This enum demonstrates how Rust replaces Go's `interface{}` with
-/// type-safe sum types. Each variant represents a different service type.
+/// This is the framework's domain-agnostic handler type.
+/// It uses **type erasure** (similar to Go's `interface{}`).
 /// 
-/// ## Why Arc<T>?
+/// ## Type Erasure in Rust
 /// 
-/// `Arc` (Atomic Reference Counted) allows multiple owners to share
-/// the same data safely. It's like `shared_ptr` in C++ or `Rc` in Rust's
-/// single-threaded contexts.
+/// **Go approach:**
+/// ```go
+/// type ServiceHandler interface{}  // Can be anything!
+/// handler := handlers[id]
+/// concreteHandler := handler.(ConcreteType)  // Runtime cast
+/// ```
 /// 
-/// We use `Arc` because:
-/// 1. Handlers are shared between runtime and modules
-/// 2. Arc is thread-safe (Send + Sync)
-/// 3. Cloning Arc is cheap (just incrementing a counter)
+/// **Rust approach:**
+/// ```rust
+/// // Store as Any trait object - domain-agnostic!
+/// pub struct ServiceHandler(Arc<dyn Any + Send + Sync>);
 /// 
-/// ## Adding New Service Types
+/// // Application layer can downcast to concrete type
+/// let concrete: &ConcreteService = handler.downcast_ref::<ConcreteService>()?;
+/// ```
 /// 
-/// To add a new service type:
-/// 1. Add a variant: `NewService(Arc<NewServiceHandler>)`
-/// 2. Compiler will show you all places that need updating!
-/// 3. Update all `match` expressions
+/// ## Why Arc<dyn Any>?
 /// 
-/// This is **impossible to forget** - the compiler enforces it!
+/// 1. **Domain-agnostic**: Framework has no knowledge of specific services
+/// 2. **Type-safe**: Runtime type checking via `downcast_ref`
+/// 3. **Thread-safe**: `Send + Sync` ensures cross-thread safety
+/// 4. **Cheap cloning**: Arc is just incrementing a counter
+/// 
+/// ## Framework Layer Principle
+/// 
+/// The framework must remain **domain-agnostic**. Domain-specific types
+/// (like `EchoService`, `StorageService`) belong in Layer 2 (Domain) or
+/// Layer 5 (Application Glue), not in Layer 1 (Framework).
 #[derive(Clone)]
-pub enum ServiceHandler {
-    /// Echo service handler (for example purposes).
+pub struct ServiceHandler(Arc<dyn std::any::Any + Send + Sync>);
+
+impl ServiceHandler {
+    /// Creates a new service handler from any type-erased service.
     /// 
-    /// In a real application, this would be your domain-specific service.
-    Echo(Arc<dyn EchoService>),
-    
-    // Add more service types here:
-    // Storage(Arc<dyn StorageService>),
-    // Compute(Arc<dyn ComputeService>),
+    /// # Example
+    /// 
+    /// ```rust,ignore
+    /// let echo_service = EchoServiceImpl::new();
+    /// let handler = ServiceHandler::new(echo_service);
+    /// ```
+    pub fn new<T: std::any::Any + Send + Sync>(service: T) -> Self {
+        Self(Arc::new(service))
+    }
+
+    /// Gets a reference to the inner type-erased service.
+    /// 
+    /// # Returns
+    /// 
+    /// Returns `Some(&T)` if the handler contains type `T`, otherwise `None`.
+    /// 
+    /// # Example
+    /// 
+    /// ```rust,ignore
+    /// if let Some(echo) = handler.downcast_ref::<EchoServiceImpl>() {
+    ///     // Use echo service
+    /// }
+    /// ```
+    pub fn downcast_ref<T: std::any::Any>(&self) -> Option<&T> {
+        self.0.downcast_ref::<T>()
+    }
+
+    /// Gets the inner Arc for advanced use cases.
+    pub fn inner(&self) -> &Arc<dyn std::any::Any + Send + Sync> {
+        &self.0
+    }
 }
 
 impl std::fmt::Debug for ServiceHandler {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ServiceHandler::Echo(_) => write!(f, "ServiceHandler::Echo"),
-        }
+        write!(f, "ServiceHandler(<type-erased>)")
     }
 }
 
@@ -133,39 +170,85 @@ impl std::fmt::Debug for ServiceGateway {
 // For Go-like simplicity, use extension traits in your application code.
 // See the echo example for the pattern.
 
-/// gRPC gateway variants for different services.
+/// gRPC gateway - domain-agnostic client for gRPC services.
 /// 
 /// # Rust Learning Note
 /// 
-/// This is a **nested enum** - each gRPC gateway variant can be
-/// a different service type. This maintains type safety all the way down!
+/// Like `ServiceHandler`, this uses **type erasure** to remain domain-agnostic.
+/// 
+/// The framework doesn't need to know about specific gRPC clients (EchoClient,
+/// StorageClient, etc.). It just holds a type-erased reference that the
+/// application layer can downcast to the concrete type.
+/// 
+/// ## Usage Pattern
+/// 
+/// **Framework layer (this):**
+/// ```rust
+/// // Domain-agnostic storage
+/// pub struct GrpcGateway(Arc<dyn Any + Send + Sync>);
+/// ```
+/// 
+/// **Application layer:**
+/// ```rust
+/// // Downcast to concrete client
+/// let echo_client = gateway.downcast_ref::<EchoGrpcClient>()?;
+/// let result = echo_client.echo("hello").await?;
+/// ```
 #[derive(Clone)]
-pub enum GrpcGateway {
-    /// Echo service gRPC client.
-    Echo(Arc<dyn EchoService>),
-    
-    // Add more service types:
-    // Storage(Arc<dyn StorageService>),
+pub struct GrpcGateway(Arc<dyn std::any::Any + Send + Sync>);
+
+impl GrpcGateway {
+    /// Creates a new gRPC gateway from any gRPC client.
+    pub fn new<T: std::any::Any + Send + Sync>(client: T) -> Self {
+        Self(Arc::new(client))
+    }
+
+    /// Gets a reference to the concrete client type.
+    pub fn downcast_ref<T: std::any::Any>(&self) -> Option<&T> {
+        self.0.downcast_ref::<T>()
+    }
+
+    /// Gets the inner Arc for advanced use cases.
+    pub fn inner(&self) -> &Arc<dyn std::any::Any + Send + Sync> {
+        &self.0
+    }
 }
 
 impl std::fmt::Debug for GrpcGateway {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            GrpcGateway::Echo(_) => write!(f, "GrpcGateway::Echo"),
-        }
+        write!(f, "GrpcGateway(<type-erased>)")
     }
 }
 
-/// HTTP gateway variants (placeholder for future).
+/// HTTP gateway - domain-agnostic client for HTTP services (future).
+/// 
+/// # Rust Learning Note
+/// 
+/// Like `GrpcGateway`, this uses type erasure for domain-agnostic HTTP clients.
+/// Currently a placeholder for future HTTP protocol support.
 #[derive(Clone)]
-pub enum HttpGateway {
-    /// Placeholder for HTTP gateway.
-    _Placeholder,
+pub struct HttpGateway(Arc<dyn std::any::Any + Send + Sync>);
+
+impl HttpGateway {
+    /// Creates a new HTTP gateway from any HTTP client.
+    pub fn new<T: std::any::Any + Send + Sync>(client: T) -> Self {
+        Self(Arc::new(client))
+    }
+
+    /// Gets a reference to the concrete client type.
+    pub fn downcast_ref<T: std::any::Any>(&self) -> Option<&T> {
+        self.0.downcast_ref::<T>()
+    }
+
+    /// Gets the inner Arc for advanced use cases.
+    pub fn inner(&self) -> &Arc<dyn std::any::Any + Send + Sync> {
+        &self.0
+    }
 }
 
 impl std::fmt::Debug for HttpGateway {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "HttpGateway::_Placeholder")
+        write!(f, "HttpGateway(<type-erased>)")
     }
 }
 
@@ -240,8 +323,11 @@ pub trait ServiceGatewayFactory: Send + Sync {
 /// #[async_trait]
 /// impl ProtocolGatewayFactory for EchoGrpcGatewayFactory {
 ///     async fn create_gateway(&self, address: String) -> Result<ServiceGateway> {
+///         // Connect to gRPC service
 ///         let gateway = EchoGrpcGateway::connect(address).await?;
-///         Ok(ServiceGateway::Grpc(GrpcGateway::Echo(Arc::new(gateway))))
+///         
+///         // Wrap in domain-agnostic GrpcGateway (type-erased)
+///         Ok(ServiceGateway::Grpc(GrpcGateway::new(gateway)))
 ///     }
 /// }
 /// ```
@@ -282,8 +368,8 @@ pub trait ProtocolGatewayFactory: Send + Sync {
     ///         // Connect to service
     ///         let gateway = EchoGrpcGateway::connect(address).await?;
     ///         
-    ///         // Wrap in ServiceGateway enum
-    ///         Ok(ServiceGateway::Grpc(GrpcGateway::Echo(Arc::new(gateway))))
+    ///         // Wrap in domain-agnostic ServiceGateway (type-erased)
+    ///         Ok(ServiceGateway::Grpc(GrpcGateway::new(gateway)))
     ///     }
     /// }
     /// ```
@@ -324,70 +410,106 @@ pub trait Module: Send + Sync {
     async fn stop(&mut self) -> Result<()>;
 }
 
-// Example service trait (will be in echo example)
-// This demonstrates the pattern for domain-specific service traits
-
-/// Echo service trait - example service interface.
-/// 
-/// # Rust Learning Note
-/// 
-/// This is similar to Go's contract.Contract1, but:
-/// - Uses `async fn` for async operations
-/// - Uses `Result<T>` for error handling (no separate error return)
-/// - Requires `Send + Sync` for thread safety
-#[async_trait]
-pub trait EchoService: Send + Sync {
-    /// Echo method - returns the input message.
-    async fn echo(&self, message: String) -> Result<String>;
-}
+// NOTE: Domain-specific service traits (like EchoService, StorageService, etc.)
+// belong in Layer 2 (Domain) or Layer 5 (Application Glue), NOT here in the
+// framework (Layer 1).
+//
+// The framework remains completely domain-agnostic.
+//
+// See the echo-contract crate in hsu-example1-rust for examples of
+// domain-specific service traits.
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // Mock Echo service for testing
-    struct MockEchoService;
+    // Mock service for testing (domain-agnostic)
+    struct MockService {
+        value: String,
+    }
 
-    #[async_trait]
-    impl EchoService for MockEchoService {
-        async fn echo(&self, message: String) -> Result<String> {
-            Ok(message)
+    impl MockService {
+        fn new(value: String) -> Self {
+            Self { value }
+        }
+
+        fn get_value(&self) -> &str {
+            &self.value
         }
     }
 
     #[test]
-    fn test_service_handler_enum() {
-        // Create a handler
-        let handler = ServiceHandler::Echo(Arc::new(MockEchoService));
+    fn test_service_handler_type_erasure() {
+        // Create a handler with type-erased service
+        let mock_service = MockService::new("test".to_string());
+        let handler = ServiceHandler::new(mock_service);
         
-        // Pattern match on it
-        match handler {
-            ServiceHandler::Echo(_) => {
-                // Success - we got the Echo variant
-            }
-        }
+        // Downcast to concrete type
+        let concrete = handler.downcast_ref::<MockService>().unwrap();
+        assert_eq!(concrete.get_value(), "test");
     }
 
     #[test]
-    fn test_service_gateway_enum() {
-        // Create a direct gateway
-        let handler = ServiceHandler::Echo(Arc::new(MockEchoService));
+    fn test_service_handler_wrong_type() {
+        // Create a handler with one type
+        let mock_service = MockService::new("test".to_string());
+        let handler = ServiceHandler::new(mock_service);
+        
+        // Try to downcast to wrong type
+        let result = handler.downcast_ref::<String>();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_service_gateway_direct() {
+        // Create a direct gateway with type-erased handler
+        let mock_service = MockService::new("test".to_string());
+        let handler = ServiceHandler::new(mock_service);
         let gateway = ServiceGateway::Direct(Arc::new(handler));
         
-        // Pattern match
+        // Pattern match on gateway type
         match gateway {
-            ServiceGateway::Direct(_) => {
-                // Success - it's a direct gateway
+            ServiceGateway::Direct(handler) => {
+                // Extract and verify the service
+                let concrete = handler.downcast_ref::<MockService>().unwrap();
+                assert_eq!(concrete.get_value(), "test");
             }
             _ => panic!("Expected direct gateway"),
         }
     }
 
-    #[tokio::test]
-    async fn test_echo_service() {
-        let service = MockEchoService;
-        let result = service.echo("test".to_string()).await.unwrap();
-        assert_eq!(result, "test");
+    #[test]
+    fn test_grpc_gateway_type_erasure() {
+        // Simulate a gRPC client (domain-agnostic)
+        struct MockGrpcClient {
+            address: String,
+        }
+
+        let client = MockGrpcClient {
+            address: "localhost:50051".to_string(),
+        };
+        let gateway = GrpcGateway::new(client);
+
+        // Downcast to concrete type
+        let concrete = gateway.downcast_ref::<MockGrpcClient>().unwrap();
+        assert_eq!(concrete.address, "localhost:50051");
+    }
+
+    #[test]
+    fn test_http_gateway_type_erasure() {
+        // Simulate an HTTP client (domain-agnostic)
+        struct MockHttpClient {
+            base_url: String,
+        }
+
+        let client = MockHttpClient {
+            base_url: "http://localhost:8080".to_string(),
+        };
+        let gateway = HttpGateway::new(client);
+
+        // Downcast to concrete type
+        let concrete = gateway.downcast_ref::<MockHttpClient>().unwrap();
+        assert_eq!(concrete.base_url, "http://localhost:8080");
     }
 }
 

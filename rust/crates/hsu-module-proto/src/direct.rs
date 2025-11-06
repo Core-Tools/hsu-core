@@ -64,12 +64,12 @@ use crate::traits::{ProtocolHandler, ProtocolGateway};
 /// ```
 /// DirectProtocol
 /// ├── handlers: HashMap
-/// │   └── [service_id] → Arc<ServiceHandler::Echo(handler)>
-/// │                           └── Points to actual EchoHandler
+/// │   └── [service_id] → Arc<ServiceHandler(dyn Any)>
+/// │                           └── Points to type-erased service
 /// ```
 /// 
-/// Call path: HashMap lookup → Arc dereference → Direct call
-/// **Cost: ~5-10 CPU cycles** (mostly HashMap lookup)
+/// Call path: HashMap lookup → Arc dereference → Downcast → Direct call
+/// **Cost: ~5-10 CPU cycles** (mostly HashMap lookup + type check)
 #[derive(Clone)]
 pub struct DirectProtocol {
     /// Map of service IDs to handlers.
@@ -116,10 +116,22 @@ impl DirectProtocol {
         Self::new(handlers_map)
     }
 
-    /// Gets a handler by service ID.
-    fn get_handler(&self, service_id: &ServiceID) -> Result<&Arc<ServiceHandler>> {
+    /// Gets a handler by service ID (public for framework use).
+    /// 
+    /// # Rust Learning Note
+    /// 
+    /// This method allows the framework to extract individual service handlers
+    /// for direct gateway creation. This is needed because:
+    /// 
+    /// 1. ServiceGateway::Direct wraps `Arc<ServiceHandler>`
+    /// 2. DirectProtocol contains all handlers in a HashMap
+    /// 3. We need to extract the specific handler for the requested service
+    /// 
+    /// **Performance:** Just a HashMap lookup (~5 CPU cycles)
+    pub fn get_handler(&self, service_id: &ServiceID) -> Result<Arc<ServiceHandler>> {
         self.handlers
             .get(service_id)
+            .cloned()  // Cheap Arc clone (just increment ref count)
             .ok_or_else(|| {
                 Error::service_not_found(
                     ModuleID::from("local"),  // We don't know module ID in direct protocol
@@ -131,32 +143,44 @@ impl DirectProtocol {
 
 #[async_trait]
 impl ProtocolHandler for DirectProtocol {
-    /// Handles a direct service call.
+    /// Handles a direct service call (ProtocolHandler trait implementation).
     /// 
     /// # Rust Learning Note
     /// 
-    /// ## Zero-Cost Abstraction
+    /// ## ⚠️ Important: This is NOT Used for Real Direct Calls!
     /// 
-    /// This function just:
-    /// 1. Looks up handler in HashMap (~5 cycles)
-    /// 2. Calls the actual service method (direct call)
+    /// This method implements the `ProtocolHandler` trait for interface
+    /// consistency, but **real direct communication bypasses this entirely**.
     /// 
-    /// **No serialization!**
-    /// **No network!**
-    /// **No type casts!**
+    /// **Why?** The `ProtocolHandler` trait uses `Vec<u8>` (serialized bytes),
+    /// which is designed for network protocols. For in-process calls, we want
+    /// **zero serialization overhead**!
     /// 
-    /// The `Vec<u8>` is actually optimized away when inlined:
-    /// ```rust
-    /// // This:
-    /// let bytes = serialize(request);
-    /// let result_bytes = handler.handle(..., bytes).await?;
-    /// let result = deserialize(result_bytes);
+    /// ## Real Direct Communication Path
     /// 
-    /// // Compiles to:
-    /// let result = actual_handler.method(request).await?;
+    /// Real direct calls happen at the application layer:
+    /// 
+    /// ```rust,ignore
+    /// // 1. Get gateway with type-erased handler
+    /// let gateway = factory.new_service_gateway(&module_id, &service_id, Protocol::Direct).await?;
+    /// 
+    /// // 2. Extract handler from ServiceGateway::Direct
+    /// if let ServiceGateway::Direct(handler) = gateway {
+    ///     // 3. Downcast to concrete service type
+    ///     let echo_service = handler.downcast_ref::<EchoService>().unwrap();
+    ///     
+    ///     // 4. Call method directly - NO SERIALIZATION!
+    ///     let result = echo_service.echo("hello").await?;
+    /// }
     /// ```
     /// 
-    /// **The abstraction costs nothing!**
+    /// **That's true zero-cost abstraction!** Just a HashMap lookup + downcast.
+    /// 
+    /// ## This Implementation
+    /// 
+    /// This method just echoes bytes for trait compliance. It's only called
+    /// if someone explicitly uses DirectProtocol as a ProtocolHandler,
+    /// which is not the normal direct communication path.
     async fn handle(
         &self,
         service_id: &ServiceID,
@@ -169,19 +193,41 @@ impl ProtocolHandler for DirectProtocol {
             method
         );
 
-        // Get the handler
+        // Verify the handler exists
         let _handler = self.get_handler(service_id)?;
 
-        // For demonstration, we'll just echo the request
-        // In a real implementation, this would:
-        // 1. Deserialize request bytes to actual type
-        // 2. Call the actual service method
-        // 3. Serialize result back to bytes
-        //
-        // But since we're in-process, we could even skip serialization entirely!
+        // ARCHITECTURAL NOTE:
+        // 
+        // This method is implemented for ProtocolHandler trait compliance,
+        // but it's NOT used for real direct communication!
+        // 
+        // ## Why Not?
+        // 
+        // The ProtocolHandler trait uses Vec<u8> (serialized bytes) because
+        // it's designed for network protocols (gRPC, HTTP) that need serialization.
+        // 
+        // For direct (in-process) calls, serialization is unnecessary overhead!
+        // 
+        // ## How Real Direct Communication Works
+        // 
+        // Real direct calls happen at the APPLICATION LAYER:
+        // 
+        // 1. Application gets `ServiceGateway::Direct(Arc<ServiceHandler>)`
+        // 2. Application downcasts: `handler.downcast_ref::<ConcreteService>()`
+        // 3. Application calls methods directly: `service.method(args).await`
+        // 
+        // **Zero serialization! True zero-cost abstraction!**
+        // 
+        // ## This Implementation
+        // 
+        // This byte-based interface is only used if someone explicitly calls
+        // DirectProtocol as a ProtocolHandler (which is rare). For interface
+        // compliance, we just echo the bytes.
+        // 
+        // The framework stays domain-agnostic - it cannot dispatch to 
+        // domain-specific methods. That's the application layer's job!
         
-        // TODO: In Phase 5, we'll implement actual service method dispatch
-        Ok(request)
+        Ok(request)  // Echo for interface compliance
     }
 }
 
@@ -222,26 +268,26 @@ impl ProtocolGateway for DirectProtocol {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hsu_module_management::module_types::EchoService;
 
-    // Mock Echo service for testing
-    struct MockEchoService;
+    // Mock service for testing (domain-agnostic)
+    struct MockService {
+        name: String,
+    }
 
-    #[async_trait]
-    impl EchoService for MockEchoService {
-        async fn echo(&self, message: String) -> Result<String> {
-            Ok(message)
+    impl MockService {
+        fn new(name: String) -> Self {
+            Self { name }
         }
     }
 
     #[tokio::test]
     async fn test_direct_protocol_handler() {
         let mut handlers = HashMap::new();
-        let service_id = ServiceID::from("echo");
+        let service_id = ServiceID::from("test-service");
         
-        // Create handler
-        let echo_service = Arc::new(MockEchoService);
-        let handler = ServiceHandler::Echo(echo_service);
+        // Create a type-erased handler
+        let mock_service = MockService::new("test".to_string());
+        let handler = ServiceHandler::new(mock_service);
         handlers.insert(service_id.clone(), Arc::new(handler));
 
         // Create protocol
@@ -250,20 +296,21 @@ mod tests {
         // Call through protocol
         let request = b"test message".to_vec();
         let response = protocol
-            .handle(&service_id, "echo", request.clone())
+            .handle(&service_id, "test_method", request.clone())
             .await
             .unwrap();
 
+        // Currently just echoes the request
         assert_eq!(response, request);
     }
 
     #[tokio::test]
     async fn test_direct_protocol_gateway() {
         let mut handlers = HashMap::new();
-        let service_id = ServiceID::from("echo");
+        let service_id = ServiceID::from("test-service");
         
-        let echo_service = Arc::new(MockEchoService);
-        let handler = ServiceHandler::Echo(echo_service);
+        let mock_service = MockService::new("test".to_string());
+        let handler = ServiceHandler::new(mock_service);
         handlers.insert(service_id.clone(), Arc::new(handler));
 
         let protocol = DirectProtocol::new(handlers);
@@ -272,7 +319,7 @@ mod tests {
         let module_id = ModuleID::from("test-module");
         let request = b"test".to_vec();
         let response = protocol
-            .call(&module_id, &service_id, "echo", request.clone())
+            .call(&module_id, &service_id, "test_method", request.clone())
             .await
             .unwrap();
 
@@ -288,6 +335,39 @@ mod tests {
             .handle(&ServiceID::from("nonexistent"), "method", vec![])
             .await;
 
+        assert!(result.is_err());
+        match result {
+            Err(Error::ServiceNotFound { .. }) => { /* OK */ }
+            _ => panic!("Expected ServiceNotFound error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_handler_success() {
+        let mut handlers = HashMap::new();
+        let service_id = ServiceID::from("test-service");
+        
+        let mock_service = MockService::new("test".to_string());
+        let handler = ServiceHandler::new(mock_service);
+        handlers.insert(service_id.clone(), Arc::new(handler));
+
+        let protocol = DirectProtocol::new(handlers);
+
+        // Test public getter
+        let retrieved = protocol.get_handler(&service_id).unwrap();
+        
+        // Verify we can downcast to the correct type
+        let concrete = retrieved.downcast_ref::<MockService>().unwrap();
+        assert_eq!(concrete.name, "test");
+    }
+
+    #[tokio::test]
+    async fn test_get_handler_not_found() {
+        let handlers = HashMap::new();
+        let protocol = DirectProtocol::new(handlers);
+
+        let result = protocol.get_handler(&ServiceID::from("nonexistent"));
+        
         assert!(result.is_err());
         match result {
             Err(Error::ServiceNotFound { .. }) => { /* OK */ }

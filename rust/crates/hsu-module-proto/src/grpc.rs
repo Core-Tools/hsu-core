@@ -344,7 +344,7 @@ impl ProtocolGateway for GrpcProtocolGateway {
     /// impl ProtocolGatewayFactory for EchoGrpcGatewayFactory {
     ///     async fn create_gateway(&self, address: String) -> Result<ServiceGateway> {
     ///         let gateway = EchoGrpcGateway::connect(address).await?;  // ← Creates real gateway!
-    ///         Ok(ServiceGateway::Grpc(GrpcGateway::Echo(Arc::new(gateway))))
+    ///         Ok(ServiceGateway::Grpc(GrpcGateway::new(gateway)))  // ← Type-erased!
     ///     }
     /// }
     /// ```
