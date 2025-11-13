@@ -71,7 +71,7 @@ use tracing::{debug, trace, error};
 
 use crate::module_descriptor::{
     ModuleDescriptor, CreateModuleOptions, CreateServiceProviderOptions,
-    ServiceProviderHandle, ProtocolToServicesMap, DirectClosureEnableOptions,
+    ServiceProviderHandle, ProtocolToServicesMap, DirectClosureEnablerOptions, HandlersRegistrarOptions,
 };
 
 /// Type-erased module factory function.
@@ -181,15 +181,18 @@ pub fn register_module<SP, SG, SH>(
         
         // Register handlers if needed (server modules)
         let mut protocol_map = HashMap::new();
-        if let Some(registrar_factory) = descriptor.handlers_registrar_factory {
+        if let Some(registrar_fn) = descriptor.handlers_registrar {
             trace!("[Registry] Creating handlers registrar for: {}", module_id_module);
-            let registrar = registrar_factory(options.protocol_servers.clone())?;
-            protocol_map = registrar.register_handlers(handlers.clone())?;
+            let opts = HandlersRegistrarOptions {
+                protocol_servers: options.protocol_servers.clone(),
+                service_handlers: handlers.clone(),
+            };
+            protocol_map = registrar_fn(opts)?;
             debug!("[Registry] Handlers registered for {}: {:?}", module_id_module, protocol_map.keys());
         }
         
         // Enable direct closure if needed
-        if let Some(enable_fn) = descriptor.direct_closure_enable {
+        if let Some(enabler_fn) = descriptor.direct_closure_enabler {
             trace!("[Registry] Enabling direct closure for: {}", module_id_module);
             for sg in options.service_gateways {
                 let typed_sg = sg.downcast_ref::<SG>()
@@ -207,12 +210,12 @@ pub fn register_module<SP, SG, SH>(
                         }
                     })?;
                 
-                let opts = DirectClosureEnableOptions {
+                let opts = DirectClosureEnablerOptions {
                     service_connector: Arc::clone(&options.service_connector),
                     service_gateways: typed_sg.clone(),
                     service_handlers: handlers.clone(),
                 };
-                enable_fn(opts);
+                enabler_fn(opts);
                 debug!("[Registry] Direct closure enabled for: {}", module_id_module);
             }
         }

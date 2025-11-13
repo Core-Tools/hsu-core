@@ -137,17 +137,14 @@ pub struct CreateModuleOptions {
 /// Returned by `HandlersRegistrar::register_handlers()`.
 pub type ProtocolToServicesMap = HashMap<Protocol, Vec<ServiceID>>;
 
-/// Trait for registering service handlers with protocol servers.
+/// Options for registering handlers.
 ///
 /// # Rust Learning Note
 ///
-/// This is a trait (not generic struct) because different modules
-/// have different handler types (SH).
-pub trait HandlersRegistrar<SH>: Send + Sync {
-    /// Registers handlers with protocol servers.
-    ///
-    /// Returns a map of which services are available on which protocols.
-    fn register_handlers(&self, handlers: SH) -> Result<ProtocolToServicesMap>;
+/// Generic over both SG (service gateways) and SH (service handlers).
+pub struct HandlersRegistrarOptions<SH> {
+    pub protocol_servers: Vec<Arc<dyn ProtocolServer>>,
+    pub service_handlers: SH,
 }
 
 /// Options for enabling direct closure.
@@ -155,7 +152,7 @@ pub trait HandlersRegistrar<SH>: Send + Sync {
 /// # Rust Learning Note
 ///
 /// Generic over both SG (service gateways) and SH (service handlers).
-pub struct DirectClosureEnableOptions<SG, SH> {
+pub struct DirectClosureEnablerOptions<SG, SH> {
     pub service_connector: Arc<dyn ServiceConnector>,
     pub service_gateways: SG,
     pub service_handlers: SH,
@@ -186,8 +183,8 @@ pub type TypedModuleFactoryFunc<SP, SH> =
 /// # Type Parameters
 ///
 /// * `SH` - Service Handlers type
-pub type TypedHandlersRegistrarFactoryFunc<SH> = 
-    fn(Vec<Arc<dyn ProtocolServer>>) -> Result<Box<dyn HandlersRegistrar<SH>>>;
+pub type TypedHandlersRegistrarFunc<SH> = 
+    fn(HandlersRegistrarOptions<SH>) -> Result<ProtocolToServicesMap>;
 
 /// Function for enabling direct closure.
 ///
@@ -195,8 +192,8 @@ pub type TypedHandlersRegistrarFactoryFunc<SH> =
 ///
 /// * `SG` - Service Gateways type
 /// * `SH` - Service Handlers type
-pub type TypedDirectClosureEnableFunc<SG, SH> = 
-    fn(DirectClosureEnableOptions<SG, SH>);
+pub type TypedDirectClosureEnablerFunc<SG, SH> = 
+    fn(DirectClosureEnablerOptions<SG, SH>);
 
 /// Module descriptor with generic type parameters.
 ///
@@ -228,8 +225,8 @@ pub type TypedDirectClosureEnableFunc<SG, SH> =
 ///         let handlers = (); // No handlers for client
 ///         (module, handlers)
 ///     },
-///     handlers_registrar_factory: None,
-///     direct_closure_enable: None,
+///     handlers_registrar: None,
+///     direct_closure_enabler: None,
 /// };
 ///
 /// register_module(ModuleID::from("echo-client"), descriptor);
@@ -253,15 +250,15 @@ where
     /// Takes the typed service provider and returns the module + handlers.
     pub module_factory: TypedModuleFactoryFunc<SP, SH>,
     
-    /// Optional factory for creating a handlers registrar.
+    /// Optional function for registering handlers.
     ///
     /// Only needed for server modules.
-    pub handlers_registrar_factory: Option<TypedHandlersRegistrarFactoryFunc<SH>>,
+    pub handlers_registrar: Option<TypedHandlersRegistrarFunc<SH>>,
     
     /// Optional function for enabling direct closure.
     ///
     /// Allows local (in-process) service calls.
-    pub direct_closure_enable: Option<TypedDirectClosureEnableFunc<SG, SH>>,
+    pub direct_closure_enabler: Option<TypedDirectClosureEnablerFunc<SG, SH>>,
 }
 
 /// Creates a new module descriptor.
@@ -279,8 +276,8 @@ where
 pub fn new_module_descriptor<SP, SG, SH>(
     service_provider_factory: TypedServiceProviderFactoryFunc,
     module_factory: TypedModuleFactoryFunc<SP, SH>,
-    handlers_registrar_factory: Option<TypedHandlersRegistrarFactoryFunc<SH>>,
-    direct_closure_enable: Option<TypedDirectClosureEnableFunc<SG, SH>>,
+    handlers_registrar: Option<TypedHandlersRegistrarFunc<SH>>,
+    direct_closure_enabler: Option<TypedDirectClosureEnablerFunc<SG, SH>>,
 ) -> ModuleDescriptor<SP, SG, SH>
 where
     SP: Send + Sync + 'static,
@@ -290,8 +287,8 @@ where
     ModuleDescriptor {
         service_provider_factory,
         module_factory,
-        handlers_registrar_factory,
-        direct_closure_enable,
+        handlers_registrar,
+        direct_closure_enabler,
         _phantom: std::marker::PhantomData,
     }
 }

@@ -33,7 +33,13 @@ type CreateServiceProviderOptions struct {
 
 type ServiceProviderFactoryFunc func(options CreateServiceProviderOptions) moduletypes.ServiceProviderHandle
 
-type DirectClosureEnableOptions[SG any, SH any] struct {
+type HandlersRegistrarOptions[SH any] struct {
+	ProtocolServers []moduleproto.ProtocolServer
+	Logger          logging.Logger
+	ServiceHandlers SH
+}
+
+type DirectClosureEnablerOptions[SG any, SH any] struct {
 	ServiceConnector moduleapi.ServiceConnector
 	ServiceGateways  SG
 	ServiceHandlers  SH
@@ -41,14 +47,14 @@ type DirectClosureEnableOptions[SG any, SH any] struct {
 
 type TypedServiceProviderFactoryFunc[SP any] func(serviceConnector moduleapi.ServiceConnector, logger logging.Logger) moduletypes.ServiceProviderHandle
 type TypedModuleFactoryFunc[SP any, SH any] func(serviceProvider SP, logger logging.Logger) (moduletypes.Module, SH)
-type TypedHandlersRegistrarFactoryFunc[SH any] func(protocolServers []moduleproto.ProtocolServer, logger logging.Logger) (HandlersRegistrar[SH], error)
-type TypedDirectClosureEnableFunc[SG any, SH any] func(options DirectClosureEnableOptions[SG, SH])
+type TypedHandlersRegistrarFunc[SH any] func(options HandlersRegistrarOptions[SH]) (ProtocolToServicesMap, error)
+type TypedDirectClosureEnablerFunc[SG any, SH any] func(options DirectClosureEnablerOptions[SG, SH])
 
 type ModuleDescriptor[SP any, SG any, SH any] struct {
-	ServiceProviderFactoryFunc   TypedServiceProviderFactoryFunc[SP]
-	ModuleFactoryFunc            TypedModuleFactoryFunc[SP, SH]
-	HandlersRegistrarFactoryFunc TypedHandlersRegistrarFactoryFunc[SH]
-	DirectClosureEnableFunc      TypedDirectClosureEnableFunc[SG, SH]
+	ServiceProviderFactoryFunc TypedServiceProviderFactoryFunc[SP]
+	ModuleFactoryFunc          TypedModuleFactoryFunc[SP, SH]
+	HandlersRegistrarFunc      TypedHandlersRegistrarFunc[SH]
+	DirectClosureEnablerFunc   TypedDirectClosureEnablerFunc[SG, SH]
 }
 
 var (
@@ -82,19 +88,20 @@ func RegisterModule[SP any, SG any, SH any](moduleID moduletypes.ModuleID, modul
 		module, typedServiceHandlers := moduleDesc.ModuleFactoryFunc(typedServiceProvider, logger)
 
 		var protocolToServicesMap ProtocolToServicesMap
-		if moduleDesc.HandlersRegistrarFactoryFunc != nil {
-			handlersRegistrar, err := moduleDesc.HandlersRegistrarFactoryFunc(protocolServers, logger)
-			if err != nil {
-				return nil, nil, err
+		var err error
+		if moduleDesc.HandlersRegistrarFunc != nil {
+			options := HandlersRegistrarOptions[SH]{
+				ProtocolServers: protocolServers,
+				Logger:          logger,
+				ServiceHandlers: typedServiceHandlers,
 			}
-
-			protocolToServicesMap, err = handlersRegistrar.RegisterHandlers(typedServiceHandlers)
+			protocolToServicesMap, err = moduleDesc.HandlersRegistrarFunc(options)
 			if err != nil {
 				return nil, nil, err
 			}
 		}
 
-		if moduleDesc.DirectClosureEnableFunc != nil {
+		if moduleDesc.DirectClosureEnablerFunc != nil {
 			for _, serviceGateway := range serviceGatewaysArray {
 				typedServiceGateway, ok := serviceGateway.(SG)
 				if !ok {
@@ -106,12 +113,12 @@ func RegisterModule[SP any, SG any, SH any](moduleID moduletypes.ModuleID, modul
 					)
 				}
 
-				directClosureEnableOptions := DirectClosureEnableOptions[SG, SH]{
+				options := DirectClosureEnablerOptions[SG, SH]{
 					ServiceConnector: serviceConnector,
 					ServiceGateways:  typedServiceGateway,
 					ServiceHandlers:  typedServiceHandlers,
 				}
-				moduleDesc.DirectClosureEnableFunc(directClosureEnableOptions)
+				moduleDesc.DirectClosureEnablerFunc(options)
 			}
 		}
 

@@ -33,12 +33,12 @@ pub use module_descriptor::{
     CreateServiceProviderOptions,
     ServiceProviderHandle,
     ProtocolToServicesMap,
-    HandlersRegistrar,
-    DirectClosureEnableOptions,
+    HandlersRegistrarOptions,
+    DirectClosureEnablerOptions,
     TypedServiceProviderFactoryFunc,
     TypedModuleFactoryFunc,
-    TypedHandlersRegistrarFactoryFunc,
-    TypedDirectClosureEnableFunc,
+    TypedHandlersRegistrarFunc,
+    TypedDirectClosureEnablerFunc,
     new_module_descriptor,
 };
 pub use registry::{
