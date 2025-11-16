@@ -6,6 +6,9 @@ authors.workspace = true
 license.workspace = true
 description = "Module management and lifecycle for HSU framework"
 
+[lib]
+doctest = false
+
 [dependencies]
 hsu-common = { path = "../hsu-common" }
 

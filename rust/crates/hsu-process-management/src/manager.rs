@@ -422,7 +422,7 @@ impl ManagedProcessInstance {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{ProcessControlConfig, ProcessManagementConfig};
+    use crate::config::{ProcessControlConfig, ProcessManagementConfig, ProcessManagementType};
 
     fn create_test_config() -> ProcessManagerConfig {
         ProcessManagerConfig {

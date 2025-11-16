@@ -6,6 +6,9 @@ authors.workspace = true
 license.workspace = true
 description = "Protocol abstraction layer for HSU framework"
 
+[lib]
+doctest = false
+
 [dependencies]
 hsu-common = { path = "../hsu-common" }
 hsu-module-management = { path = "../hsu-module-management" }

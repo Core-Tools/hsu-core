@@ -16,7 +16,7 @@ pub fn validate_config(config: &ProcessManagerConfig) -> Result<()> {
 
 /// Validate process manager options
 fn validate_process_manager_options(options: &ProcessManagerOptions) -> Result<()> {
-    if options.port == 0 || options.port > 65535 {
+    if options.port == 0 {
         return Err(anyhow!("Port must be between 1 and 65535, got: {}", options.port));
     }
     
@@ -283,8 +283,6 @@ mod tests {
         options.port = 8080;
         assert!(validate_process_manager_options(&options).is_ok());
 
-        // Port too high should fail
-        options.port = 70000;
-        assert!(validate_process_manager_options(&options).is_err());
+        // Note: Port values > 65535 are prevented by u16 type, no runtime check needed
     }
 }
