@@ -10,6 +10,6 @@ pub mod errors;
 pub mod types;
 
 // Re-export commonly used items
-pub use errors::{Error, Result};
+pub use errors::{Error, Result, ProcessError, ProcessResult};
 pub use types::{ModuleID, ServiceID, Protocol};
 

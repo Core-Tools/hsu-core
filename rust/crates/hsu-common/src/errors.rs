@@ -198,6 +198,146 @@ impl<T> ResultExt<T> for Result<T> {
     }
 }
 
+// ==============================================================================
+// Process Management Errors
+// ==============================================================================
+
+/// Process-specific error types for process management.
+#[derive(Error, Debug)]
+pub enum ProcessError {
+    #[error("Process not found: {id}")]
+    NotFound { id: String },
+
+    #[error("Process already exists: {id}")]
+    AlreadyExists { id: String },
+
+    #[error("Process spawn failed: {id} - {reason}")]
+    SpawnFailed { id: String, reason: String },
+
+    #[error("Process start failed: {id} - {reason}")]
+    StartFailed { id: String, reason: String },
+
+    #[error("Process stop failed: {id} - {reason}")]
+    StopFailed { id: String, reason: String },
+
+    #[error("Process killed: {id} - {signal}")]
+    Killed { id: String, signal: String },
+
+    #[error("Process crashed: {id} - exit code {exit_code:?}")]
+    Crashed { id: String, exit_code: Option<i32> },
+
+    #[error("Process timeout: {id} - {operation}")]
+    Timeout { id: String, operation: String },
+
+    #[error("Process state error: {id} - expected {expected}, got {actual}")]
+    InvalidState {
+        id: String,
+        expected: String,
+        actual: String,
+    },
+
+    #[error("Process configuration error: {id} - {reason}")]
+    Configuration { id: String, reason: String },
+
+    #[error("Process health check failed: {id} - {reason}")]
+    HealthCheckFailed { id: String, reason: String },
+
+    #[error("Process resource limit exceeded: {id} - {resource}: {limit}")]
+    ResourceLimitExceeded {
+        id: String,
+        resource: String,
+        limit: String,
+    },
+
+    #[error("Process restart failed: {id} - attempt {attempt} of {max_attempts}")]
+    RestartFailed {
+        id: String,
+        attempt: u32,
+        max_attempts: u32,
+    },
+
+    #[error("Process operation not allowed: {id} - {operation} (state: {state})")]
+    OperationNotAllowed {
+        id: String,
+        operation: String,
+        state: String,
+    },
+
+    #[error("Process monitoring error: {id} - {reason}")]
+    MonitoringError { id: String, reason: String },
+
+    #[error("Process logging error: {id} - {reason}")]
+    LoggingError { id: String, reason: String },
+
+    #[error("Process gRPC error: {id} - {reason}")]
+    GrpcError { id: String, reason: String },
+}
+
+impl ProcessError {
+    pub fn not_found(id: impl Into<String>) -> Self {
+        Self::NotFound { id: id.into() }
+    }
+
+    pub fn already_exists(id: impl Into<String>) -> Self {
+        Self::AlreadyExists { id: id.into() }
+    }
+
+    pub fn spawn_failed(id: impl Into<String>, reason: impl Into<String>) -> Self {
+        Self::SpawnFailed {
+            id: id.into(),
+            reason: reason.into(),
+        }
+    }
+
+    pub fn start_failed(id: impl Into<String>, reason: impl Into<String>) -> Self {
+        Self::StartFailed {
+            id: id.into(),
+            reason: reason.into(),
+        }
+    }
+
+    pub fn stop_failed(id: impl Into<String>, reason: impl Into<String>) -> Self {
+        Self::StopFailed {
+            id: id.into(),
+            reason: reason.into(),
+        }
+    }
+
+    pub fn timeout(id: impl Into<String>, operation: impl Into<String>) -> Self {
+        Self::Timeout {
+            id: id.into(),
+            operation: operation.into(),
+        }
+    }
+
+    pub fn invalid_state(
+        id: impl Into<String>,
+        expected: impl Into<String>,
+        actual: impl Into<String>,
+    ) -> Self {
+        Self::InvalidState {
+            id: id.into(),
+            expected: expected.into(),
+            actual: actual.into(),
+        }
+    }
+
+    pub fn operation_not_allowed(
+        id: impl Into<String>,
+        operation: impl Into<String>,
+        state: impl Into<String>,
+    ) -> Self {
+        Self::OperationNotAllowed {
+            id: id.into(),
+            operation: operation.into(),
+            state: state.into(),
+        }
+    }
+}
+
+/// Result type for process operations.
+pub type ProcessResult<T> = std::result::Result<T, ProcessError>;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -227,6 +367,17 @@ mod tests {
             }
             _ => panic!("Wrong error type"),
         }
+    }
+
+    #[test]
+    fn test_process_error_construction() {
+        let error = ProcessError::not_found("test-process");
+        assert!(matches!(error, ProcessError::NotFound { .. }));
+        assert_eq!(format!("{}", error), "Process not found: test-process");
+
+        let error = ProcessError::spawn_failed("test-process", "executable not found");
+        assert!(matches!(error, ProcessError::SpawnFailed { .. }));
+        assert!(format!("{}", error).contains("spawn failed"));
     }
 }
 

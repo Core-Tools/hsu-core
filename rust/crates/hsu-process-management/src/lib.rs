@@ -1,0 +1,30 @@
+//! # HSU Process Management
+//!
+//! Main process management orchestration for the HSU framework.
+//!
+//! This crate provides:
+//! - ProcessManager - main orchestrator
+//! - Configuration management  
+//! - Process lifecycle management
+//! - Management APIs (HTTP/gRPC)
+//!
+//! This corresponds to the Go package `pkg/processmanagement`.
+
+pub mod config;
+pub mod manager;
+pub mod lifecycle;
+pub mod attachment;
+pub mod api;
+
+// Re-export main types
+pub use config::{
+    ProcessManagerConfig, ProcessConfig, ProcessManagementType,
+    ProcessManagerOptions, ProcessManagementConfig, ProcessControlConfig,
+    HealthCheckConfig, ResourceLimitsConfig, RestartPolicyConfig,
+    RestartStrategy, ProcessLoggingConfig, LogCollectionConfig,
+};
+pub use manager::{ProcessManager, ProcessManagerState, ProcessInfo, ProcessDiagnostics};
+
+/// Library version
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
