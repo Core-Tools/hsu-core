@@ -37,3 +37,6 @@ async-trait = { workspace = true }
 hsu-common = { path = "../hsu-common" }
 hsu-process-state = { path = "../hsu-process-state" }
 
+# [build-dependencies]
+# tonic-build = "0.11"  # TODO: Re-enable when gRPC is fixed
+

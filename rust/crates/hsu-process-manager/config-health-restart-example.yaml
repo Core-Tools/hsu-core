@@ -1,0 +1,316 @@
+# Process Manager Configuration - Health Check + Restart Policy Integration
+# This example demonstrates how health check failures trigger restart policies
+
+process_manager:
+  port: 50055
+  log_level: "info"
+  force_shutdown_timeout: "30s"
+
+managed_processes:
+  # ========================================
+  # Example 1: Health Check with OnFailure Restart
+  # ========================================
+  # If health checks fail, restart only if process exits abnormally
+  - id: "web-api"
+    type: "standard_managed"
+    enabled: true
+    management:
+      control:
+        executable: "/usr/local/bin/web-api"
+        arguments: ["--port", "8080"]
+        startup_timeout: "10s"
+        shutdown_timeout: "10s"
+      
+      # Health check configuration
+      health_check:
+        enabled: true
+        interval: "15s"              # Check every 15 seconds
+        timeout: "5s"                # 5 second timeout per check
+        failure_threshold: 3         # 3 consecutive failures = unhealthy
+        http_endpoint: "http://localhost:8080/health"
+      
+      # Restart policy
+      restart_policy:
+        strategy: "on_failure"       # Only restart on failures
+        max_attempts: 5              # Try up to 5 times
+        restart_delay: "5s"          # Initial delay
+        backoff_multiplier: 2.0      # Double each time
+      
+      # BEHAVIOR:
+      # 1. Health check runs every 15s
+      # 2. If 3 checks fail in a row -> process marked unhealthy
+      # 3. Unhealthy process is stopped and restarted
+      # 4. Restart delays: 5s, 10s, 20s, 40s, 80s (then stops)
+      # 5. Circuit breaker protects against loops (5 failures in 60s)
+
+  # ========================================
+  # Example 2: Critical Service - Always Restart
+  # ========================================
+  - id: "critical-service"
+    type: "standard_managed"
+    enabled: true
+    management:
+      control:
+        executable: "/usr/local/bin/critical-svc"
+        arguments: []
+        startup_timeout: "10s"
+        shutdown_timeout: "10s"
+      
+      health_check:
+        enabled: true
+        interval: "10s"              # Frequent checks
+        timeout: "3s"
+        failure_threshold: 2         # Quick detection
+        http_endpoint: "http://localhost:9000/health"
+      
+      restart_policy:
+        strategy: "always"           # Always restart
+        max_attempts: 10             # Many attempts
+        restart_delay: "2s"          # Quick recovery
+        backoff_multiplier: 1.5      # Gentler backoff
+      
+      # BEHAVIOR:
+      # - Very aggressive recovery
+      # - 2 failed health checks = restart
+      # - Up to 10 restart attempts
+      # - Circuit breaker still protects (5 failures/60s)
+
+  # ========================================
+  # Example 3: Never Restart (Monitoring Only)
+  # ========================================
+  - id: "one-time-job"
+    type: "standard_managed"
+    enabled: true
+    management:
+      control:
+        executable: "/usr/local/bin/batch-job"
+        arguments: ["--process-data"]
+        startup_timeout: "30s"
+        shutdown_timeout: "10s"
+      
+      health_check:
+        enabled: true
+        interval: "60s"              # Infrequent checks
+        timeout: "10s"
+        failure_threshold: 1         # Single failure = unhealthy
+        http_endpoint: "http://localhost:8081/status"
+      
+      restart_policy:
+        strategy: "never"            # Never restart
+        max_attempts: 0
+        restart_delay: "0s"
+        backoff_multiplier: 1.0
+      
+      # BEHAVIOR:
+      # - Health checks monitor the job
+      # - If unhealthy: process stopped but NOT restarted
+      # - Useful for jobs that should run once
+
+  # ========================================
+  # Example 4: Balanced Configuration
+  # ========================================
+  - id: "database-proxy"
+    type: "standard_managed"
+    enabled: true
+    management:
+      control:
+        executable: "/usr/local/bin/db-proxy"
+        arguments: ["--config", "/etc/proxy.conf"]
+        startup_timeout: "15s"
+        shutdown_timeout: "10s"
+      
+      health_check:
+        enabled: true
+        interval: "30s"              # Moderate frequency
+        timeout: "5s"
+        failure_threshold: 3         # Tolerate transient issues
+        http_endpoint: "http://localhost:5432/health"
+      
+      restart_policy:
+        strategy: "on_failure"
+        max_attempts: 3              # Conservative
+        restart_delay: "10s"         # Allow time to recover
+        backoff_multiplier: 2.0      # Standard backoff
+      
+      # BEHAVIOR:
+      # - Balanced approach for stable services
+      # - 3 failures over 90s before restart
+      # - 3 restart attempts with increasing delays
+      # - Circuit breaker protection active
+
+  # ========================================
+  # Example 5: Fast Recovery Service
+  # ========================================
+  - id: "cache-server"
+    type: "standard_managed"
+    enabled: true
+    management:
+      control:
+        executable: "/usr/local/bin/redis-server"
+        arguments: ["--port", "6379"]
+        startup_timeout: "5s"
+        shutdown_timeout: "5s"
+      
+      health_check:
+        enabled: true
+        interval: "5s"               # Very frequent
+        timeout: "1s"                # Fast timeout
+        failure_threshold: 2         # Quick detection
+        http_endpoint: "http://localhost:6379/ping"
+      
+      restart_policy:
+        strategy: "always"
+        max_attempts: 20             # Many attempts
+        restart_delay: "1s"          # Minimal delay
+        backoff_multiplier: 1.1      # Very slow backoff
+      
+      # BEHAVIOR:
+      # - Optimized for fast recovery
+      # - 2 failures over 10s = restart
+      # - Up to 20 attempts with gentle backoff
+      # - Delays: 1s, 1.1s, 1.21s, 1.33s, etc.
+
+# ========================================
+# How Health Check → Restart Policy Works
+# ========================================
+#
+# 1. **Health Check Monitoring:**
+#    - Background task checks endpoint at configured interval
+#    - Tracks consecutive failures
+#    - Updates health status in ProcessInfo
+#
+# 2. **Failure Threshold Reached:**
+#    - When consecutive_failures >= failure_threshold
+#    - Process is marked unhealthy
+#    - Restart handler is triggered
+#
+# 3. **Restart Decision:**
+#    - Failure recorded in lifecycle_manager
+#    - Circuit breaker checked (5 failures/60s = trip)
+#    - Restart policy evaluated:
+#      * Never: Don't restart
+#      * OnFailure: Restart (health failure = exit code 1)
+#      * Always: Restart
+#
+# 4. **Restart Process:**
+#    - Stop unhealthy process (terminate child)
+#    - Wait configured restart_delay (with exponential backoff)
+#    - Spawn new process
+#    - Reset health status
+#    - Start new health check task
+#
+# 5. **Circuit Breaker Protection:**
+#    - Tracks failures in 60-second window
+#    - If 5 failures in 60s: circuit breaker trips
+#    - 5-minute cooldown before allowing more restarts
+#    - Prevents endless restart loops
+#
+# 6. **Restart Limits:**
+#    - max_attempts enforced per process
+#    - After max_attempts: process stays stopped
+#    - Circuit breaker provides additional protection
+#
+# ========================================
+# Configuration Best Practices
+# ========================================
+#
+# **failure_threshold:**
+# - Too low (1-2): May restart on transient issues
+# - Recommended: 3 for most services, 2 for critical
+# - Too high (5+): Slow to detect real problems
+#
+# **health check interval:**
+# - Should allow multiple checks within restart_delay
+# - Critical services: 5-10s
+# - Normal services: 15-30s
+# - Background jobs: 60s+
+#
+# **restart_policy strategy:**
+# - "never": Monitoring only, no auto-recovery
+# - "on_failure": Most common, restart on crashes/unhealthy
+# - "always": Use only for critical infrastructure
+#
+# **max_attempts:**
+# - Too few (1-2): Give up too early
+# - Recommended: 3-5 for most services
+# - Too many (10+): Risk of loops despite circuit breaker
+#
+# **backoff_multiplier:**
+# - 1.0: No backoff (fixed delay)
+# - 1.5-2.0: Recommended for most services
+# - 2.5-3.0: Aggressive backoff for heavy processes
+#
+# ========================================
+# Monitoring and Debugging
+# ========================================
+#
+# **ProcessInfo fields:**
+# - is_healthy: Current health status
+# - last_health_check: When last check occurred
+# - consecutive_health_failures: Current failure count
+# - restart_count: Total restarts
+#
+# **Logs to watch:**
+# - "Health check failed for X: <reason>"
+# - "Process X marked unhealthy after N failures"
+# - "Health failure threshold reached, attempting restart"
+# - "Restart policy allows restart for X"
+# - "Circuit breaker tripped for X"
+#
+# **Circuit breaker states:**
+# - CLOSED: Normal operation
+# - OPEN: Tripped, blocking restarts
+# - After 5min cooldown: Can retry
+#
+# ========================================
+# Example Scenarios
+# ========================================
+#
+# **Scenario 1: Temporary Network Issue**
+# - Health checks fail 2 times
+# - Network recovers
+# - Health check succeeds
+# - Result: No restart (threshold = 3)
+#
+# **Scenario 2: Service Crash**
+# - Health checks fail 3 times (threshold reached)
+# - Process restarted automatically
+# - New health checks start passing
+# - Result: Service recovered
+#
+# **Scenario 3: Persistent Problem**
+# - Health checks keep failing
+# - Restart attempt 1: Fails again
+# - Restart attempt 2: Fails again
+# - Restart attempt 3: Fails again
+# - Result: Max attempts reached, stays stopped
+#
+# **Scenario 4: Restart Loop**
+# - Process crashes 5 times in 60 seconds
+# - Circuit breaker trips
+# - No more restart attempts for 5 minutes
+# - Result: Protected from infinite loop
+#
+# ========================================
+# Testing Your Configuration
+# ========================================
+#
+# 1. **Test health endpoint:**
+#    curl http://localhost:8080/health
+#
+# 2. **Simulate failure:**
+#    # Stop the health endpoint but keep process running
+#    # Watch logs for restart behavior
+#
+# 3. **Check process info:**
+#    # Via future API: GET /processes/{id}
+#    # Should show health status and restart count
+#
+# 4. **Verify circuit breaker:**
+#    # Trigger 5 failures quickly
+#    # Confirm 5-minute cooldown is enforced
+#
+# 5. **Monitor restart delays:**
+#    # Watch timestamps in logs
+#    # Verify exponential backoff working
+

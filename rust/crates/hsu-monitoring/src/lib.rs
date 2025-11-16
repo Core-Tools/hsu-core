@@ -11,7 +11,8 @@
 //! This corresponds to the Go package `pkg/monitoring`.
 
 pub mod http;
-pub mod grpc;
+// TODO: Fix gRPC proto compilation issues
+// pub mod grpc;
 pub mod resource_monitoring;
 
 use chrono::{DateTime, Utc};
@@ -101,6 +102,6 @@ impl Default for HealthStatus {
 
 // Re-export main types
 pub use http::*;
-pub use grpc::*;
+// pub use grpc::*;  // TODO: Enable when gRPC is fixed
 pub use resource_monitoring::*;
 

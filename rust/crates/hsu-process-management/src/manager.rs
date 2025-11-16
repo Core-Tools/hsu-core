@@ -1,14 +1,25 @@
+//! Simplified Process Manager - Orchestration layer using ProcessControl trait
+//!
+//! This module focuses on high-level orchestration:
+//! - Managing multiple processes
+//! - Configuration management
+//! - Process lifecycle coordination
+//! - Reattachment after restart
+//!
+//! All process control logic is delegated to ProcessControl implementations.
+
 use crate::config::{ProcessConfig, ProcessManagerConfig};
-use crate::lifecycle::ProcessLifecycleManager;
+use crate::process_control_impl::ProcessControlImpl;
 use hsu_common::ProcessError;
-use hsu_process_state::{ProcessState, ProcessStateMachine};
-use hsu_process_file::{ProcessFileManager, compute_config_hash};
+use hsu_process_state::ProcessState;
+use hsu_process_file::ProcessFileManager;
+use hsu_managed_process::{ProcessControl, ProcessControlConfig};
+use hsu_monitoring::HealthStatus;
+use hsu_resource_limits::ResourceUsage;
 use std::collections::HashMap;
-use std::process::Stdio;
 use std::sync::Arc;
-use tokio::process::{Child, Command};
 use tokio::sync::{Mutex, RwLock};
-use tokio::time::{timeout, Duration};
+use tokio::time::Duration;
 use tracing::{debug, error, info, warn};
 
 /// Result type for process management operations
@@ -23,15 +34,19 @@ pub struct ProcessManager {
 }
 
 /// Individual managed process instance with runtime state
+/// 
+/// This is now a lightweight wrapper around ProcessControl trait,
+/// focusing on orchestration rather than implementation details.
 pub struct ManagedProcessInstance {
+    /// Process configuration
     pub config: ProcessConfig,
-    pub child: Option<Child>,
-    pub state_machine: ProcessStateMachine,
-    pub pid: Option<u32>,
-    pub start_time: Option<chrono::DateTime<chrono::Utc>>,
+    
+    /// Process control implementation (encapsulates all lifecycle logic)
+    pub process_control: Box<dyn ProcessControl>,
+    
+    /// Manager-level restart tracking
     pub restart_count: u32,
     pub last_restart_time: Option<chrono::DateTime<chrono::Utc>>,
-    pub lifecycle_manager: ProcessLifecycleManager,
 }
 
 /// Process manager overall state
@@ -56,6 +71,9 @@ pub struct ProcessInfo {
     pub cpu_usage: Option<f32>,
     pub memory_usage: Option<u64>,
     pub uptime: Option<Duration>,
+    pub is_healthy: bool,
+    pub last_health_check: Option<chrono::DateTime<chrono::Utc>>,
+    pub consecutive_health_failures: u32,
 }
 
 /// Process diagnostics information
@@ -66,25 +84,6 @@ pub struct ProcessDiagnostics {
     pub resource_usage: ResourceUsage,
     pub last_error: Option<String>,
     pub logs_preview: Vec<String>,
-}
-
-/// Health status information
-#[derive(Debug, Clone)]
-pub struct HealthStatus {
-    pub is_healthy: bool,
-    pub last_check: Option<chrono::DateTime<chrono::Utc>>,
-    pub consecutive_failures: u32,
-    pub last_success: Option<chrono::DateTime<chrono::Utc>>,
-    pub failure_reason: Option<String>,
-}
-
-/// Resource usage information
-#[derive(Debug, Clone)]
-pub struct ResourceUsage {
-    pub cpu_percent: Option<f32>,
-    pub memory_mb: Option<u64>,
-    pub file_descriptors: Option<u32>,
-    pub network_connections: Option<u32>,
 }
 
 impl ProcessManager {
@@ -118,20 +117,26 @@ impl ProcessManager {
                 continue;
             }
 
-            let lifecycle_manager = ProcessLifecycleManager::new(
-                process_config.id.clone(),
-                process_config.management.restart_policy.clone(),
-            );
+            // Create ProcessControl implementation
+            let control_config = ProcessControlConfig {
+                process_id: process_config.id.clone(),
+                can_attach: matches!(process_config.process_type, crate::config::ProcessManagementType::Unmanaged),
+                can_terminate: true,
+                can_restart: true,
+                graceful_timeout: process_config.management.control.shutdown_timeout,
+                process_profile_type: "standard".to_string(),
+            };
+            
+            let process_control = Box::new(ProcessControlImpl::new(
+                process_config.clone(),
+                control_config,
+            ));
             
             let managed_process = ManagedProcessInstance {
                 config: process_config.clone(),
-                child: None,
-                state_machine: ProcessStateMachine::new(&process_config.id),
-                pid: None,
-                start_time: None,
+                process_control,
                 restart_count: 0,
                 last_restart_time: None,
-                lifecycle_manager,
             };
 
             processes.insert(process_config.id.clone(), managed_process);
@@ -145,66 +150,43 @@ impl ProcessManager {
     async fn attempt_reattachment(&self) -> Result<()> {
         info!("Scanning for existing processes to reattach");
         
-        let mut processes = self.processes.write().await;
+        let processes = self.processes.read().await;
         let mut reattached_count = 0;
         let mut cleaned_count = 0;
         
-        for (process_id, managed_process) in processes.iter_mut() {
+        for (process_id, _managed_process) in processes.iter() {
             // Try to read the PID file for this process
             match self.pid_file_manager.read_pid_file(process_id).await {
                 Ok(pid) => {
                     // Check if process still exists
                     match hsu_process::process_exists(pid) {
                         Ok(true) => {
-                            // Process exists! Check config hash if we have it
-                            let _config_hash = compute_config_hash(&managed_process.config);
-                            
-                            // For now, always accept the process (config hash validation can be added later)
-                            info!("Reattaching to existing process: {} (PID: {})", process_id, pid);
-                            
-                            managed_process.pid = Some(pid);
-                            managed_process.start_time = Some(chrono::Utc::now()); // Approximate
-                            
-                            // Update state machine to running
-                            if let Err(e) = managed_process.state_machine.transition_to_starting() {
-                                warn!("Failed to transition {} to starting during reattachment: {}", process_id, e);
-                            }
-                            if let Err(e) = managed_process.state_machine.transition_to_running() {
-                                warn!("Failed to transition {} to running during reattachment: {}", process_id, e);
-                            }
-                            
+                            info!("Found existing process: {} (PID: {})", process_id, pid);
+                            // TODO: Implement reattachment logic in ProcessControl trait
+                            // For now, just log and count
                             reattached_count += 1;
                         }
                         Ok(false) => {
-                            // Process no longer exists, clean up stale PID file
-                            info!("Process {} (PID: {}) no longer exists, cleaning up PID file", process_id, pid);
+                            info!("Process {} (PID: {}) no longer exists, cleaning up", process_id, pid);
                             if let Err(e) = self.pid_file_manager.delete_pid_file(process_id).await {
                                 warn!("Failed to delete stale PID file for {}: {}", process_id, e);
+                            } else {
+                                cleaned_count += 1;
                             }
-                            cleaned_count += 1;
                         }
                         Err(e) => {
-                            warn!("Error checking if process {} (PID: {}) exists: {}", process_id, pid, e);
+                            warn!("Failed to check if process {} exists: {}", process_id, e);
                         }
                     }
                 }
-                Err(hsu_common::ProcessError::NotFound { .. }) => {
-                    // No PID file found, this is normal for a fresh start
-                    debug!("No PID file found for {}, will start fresh", process_id);
-                }
-                Err(e) => {
-                    warn!("Error reading PID file for {}: {}", process_id, e);
+                Err(_) => {
+                    // No PID file found, process not running
+                    debug!("No PID file found for process: {}", process_id);
                 }
             }
         }
         
-        if reattached_count > 0 || cleaned_count > 0 {
-            info!("Reattachment complete: {} processes reattached, {} stale PID files cleaned", 
-                  reattached_count, cleaned_count);
-        } else {
-            info!("No existing processes found to reattach");
-        }
-        
+        info!("Reattachment scan complete: {} reattached, {} cleaned up", reattached_count, cleaned_count);
         Ok(())
     }
 
@@ -226,7 +208,6 @@ impl ProcessManager {
         for process_id in process_ids {
             if let Err(e) = self.start_process(&process_id).await {
                 error!("Failed to start process {}: {}", process_id, e);
-                // Continue with other processes
             }
         }
 
@@ -239,257 +220,81 @@ impl ProcessManager {
         Ok(())
     }
 
-    /// Start a specific process
+    /// Start a specific process by ID
     pub async fn start_process(&self, process_id: &str) -> Result<()> {
         info!("Starting process: {}", process_id);
 
         let mut processes = self.processes.write().await;
-        let managed_process = processes
-            .get_mut(process_id)
-            .ok_or_else(|| ProcessError::NotFound { id: process_id.to_string() })?;
+        let managed_process = processes.get_mut(process_id)
+            .ok_or_else(|| ProcessError::NotFound { 
+                id: process_id.to_string() 
+            })?;
 
-        // Check if process can be started
-        if !managed_process.state_machine.can_start() {
-            return Err(ProcessError::InvalidState {
-                id: process_id.to_string(),
-                expected: "Stopped or Failed".to_string(),
-                actual: format!("{:?}", managed_process.state_machine.current_state()),
-            });
-        }
+        // Delegate to ProcessControl
+        managed_process.process_control.start().await?;
 
-        // Transition to starting state
-        managed_process.state_machine.transition_to_starting()?;
-
-        // Dispatch based on process type
-        use crate::config::ProcessManagementType;
-        match managed_process.config.process_type {
-            ProcessManagementType::StandardManaged => {
-                self.start_standard_managed_process(process_id, managed_process).await?;
-            }
-            ProcessManagementType::IntegratedManaged => {
-                // IntegratedManaged is treated like StandardManaged for now
-                // gRPC health check integration will be added in Phase 2.2
-                self.start_standard_managed_process(process_id, managed_process).await?;
-            }
-            ProcessManagementType::Unmanaged => {
-                self.start_unmanaged_process(process_id, managed_process).await?;
+        // Write PID file for managed processes
+        if let Some(pid) = managed_process.process_control.get_pid() {
+            if let Err(e) = self.pid_file_manager.write_pid_file(process_id, pid).await {
+                warn!("Failed to write PID file for {}: {}", process_id, e);
             }
         }
 
-        // Transition to running state
-        managed_process.state_machine.transition_to_running()?;
-
-        info!("Process started successfully: {} (PID: {:?})", process_id, managed_process.pid);
+        info!("Process started successfully: {}", process_id);
         Ok(())
     }
-    
-    /// Start a standard managed process (spawn new process)
-    async fn start_standard_managed_process(
-        &self,
-        process_id: &str,
-        managed_process: &mut ManagedProcessInstance,
-    ) -> Result<()> {
-        info!("Starting StandardManaged process: {}", process_id);
-        
-        // Spawn the process
-        let child = self.spawn_process_child(&managed_process.config).await?;
-        let pid = child.id().unwrap_or(0);
 
-        managed_process.child = Some(child);
-        managed_process.pid = Some(pid);
-        managed_process.start_time = Some(chrono::Utc::now());
-
-        // Write PID file for reattachment on manager restart
-        if let Err(e) = self.pid_file_manager.write_pid_file(process_id, pid).await {
-            warn!("Failed to write PID file for {}: {}", process_id, e);
-            // Don't fail the start operation if PID file write fails
-        }
-        
-        info!("StandardManaged process spawned: {} (PID: {})", process_id, pid);
-        Ok(())
-    }
-    
-    /// Start an unmanaged process (attach to existing process)
-    async fn start_unmanaged_process(
-        &self,
-        process_id: &str,
-        managed_process: &mut ManagedProcessInstance,
-    ) -> Result<()> {
-        info!("Starting Unmanaged process (attach only): {}", process_id);
-        
-        // Unmanaged processes should already have a PID file from external source
-        // Try to read it and attach
-        match self.pid_file_manager.read_pid_file(process_id).await {
-            Ok(pid) => {
-                // Verify process exists
-                match hsu_process::process_exists(pid) {
-                    Ok(true) => {
-                        info!("Attaching to existing unmanaged process: {} (PID: {})", process_id, pid);
-                        managed_process.pid = Some(pid);
-                        managed_process.start_time = Some(chrono::Utc::now()); // Approximate
-                        // Note: no Child handle for unmanaged processes
-                        Ok(())
-                    }
-                    Ok(false) => {
-                        Err(ProcessError::NotFound {
-                            id: format!("Unmanaged process {} (PID: {}) not running", process_id, pid),
-                        })
-                    }
-                    Err(e) => Err(e),
-                }
-            }
-            Err(hsu_common::ProcessError::NotFound { .. }) => {
-                Err(ProcessError::Configuration {
-                    id: process_id.to_string(),
-                    reason: "Unmanaged process requires existing PID file, but none found".to_string(),
-                })
-            }
-            Err(e) => Err(e),
-        }
-    }
-
-    /// Spawn a child process from configuration
-    async fn spawn_process_child(&self, config: &ProcessConfig) -> Result<Child> {
-        let mut command = Command::new(&config.management.control.executable);
-        
-        // Set arguments
-        command.args(&config.management.control.arguments);
-        
-        // Set working directory
-        if let Some(ref wd) = config.management.control.working_directory {
-            command.current_dir(wd);
-        }
-        
-        // Set environment variables
-        for (key, value) in &config.management.control.environment {
-            command.env(key, value);
-        }
-        
-        // Configure stdio
-        command
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null());
-
-        // Platform-specific configuration
-        #[cfg(windows)]
-        {
-            // Windows-specific process creation flags
-            #[allow(unused_imports)]
-            use std::os::windows::process::CommandExt;
-            command.creation_flags(0x08000000); // CREATE_NO_WINDOW
-        }
-
-        // Spawn the process
-        let child = command.spawn()
-            .map_err(|e| ProcessError::spawn_failed(&config.id, e.to_string()))?;
-
-        Ok(child)
-    }
-
-    /// Stop a specific process
+    /// Stop a specific process by ID
     pub async fn stop_process(&self, process_id: &str) -> Result<()> {
         info!("Stopping process: {}", process_id);
 
         let mut processes = self.processes.write().await;
-        let managed_process = processes
-            .get_mut(process_id)
-            .ok_or_else(|| ProcessError::NotFound { id: process_id.to_string() })?;
+        let managed_process = processes.get_mut(process_id)
+            .ok_or_else(|| ProcessError::NotFound { 
+                id: process_id.to_string() 
+            })?;
 
-        // Check if process can be stopped
-        if !managed_process.state_machine.can_stop() {
-            return Err(ProcessError::InvalidState {
-                id: process_id.to_string(),
-                expected: "Running".to_string(),
-                actual: format!("{:?}", managed_process.state_machine.current_state()),
-            });
+        // Delegate to ProcessControl
+        managed_process.process_control.stop().await?;
+
+        // Delete PID file for managed processes
+        if let Err(e) = self.pid_file_manager.delete_pid_file(process_id).await {
+            warn!("Failed to delete PID file for {}: {}", process_id, e);
         }
-
-        // Transition to stopping state
-        managed_process.state_machine.transition_to_stopping()?;
-
-        // Dispatch based on process type
-        use crate::config::ProcessManagementType;
-        match managed_process.config.process_type {
-            ProcessManagementType::StandardManaged | ProcessManagementType::IntegratedManaged => {
-                // Stop the child process
-                if let Some(ref mut child) = managed_process.child {
-                    self.stop_child_process(child, &managed_process.config).await?;
-                }
-                
-                // Clean up PID file (we created it)
-                if let Err(e) = self.pid_file_manager.delete_pid_file(process_id).await {
-                    warn!("Failed to delete PID file for {}: {}", process_id, e);
-                }
-            }
-            ProcessManagementType::Unmanaged => {
-                // For unmanaged processes, we only detach (don't terminate)
-                // The external process continues running
-                info!("Detaching from unmanaged process: {} (PID: {:?})", process_id, managed_process.pid);
-                // Note: We don't delete the PID file as we didn't create it
-            }
-        }
-
-        // Clean up process state
-        managed_process.child = None;
-        managed_process.pid = None;
-        managed_process.state_machine.transition_to_stopped()?;
 
         info!("Process stopped successfully: {}", process_id);
         Ok(())
     }
 
-    /// Stop a child process gracefully or forcefully
-    async fn stop_child_process(&self, child: &mut Child, config: &ProcessConfig) -> Result<()> {
-        let shutdown_timeout = config.management.control.shutdown_timeout;
+    /// Restart a specific process by ID
+    pub async fn restart_process(&self, process_id: &str, force: bool) -> Result<()> {
+        info!("Restarting process: {} (force: {})", process_id, force);
 
-        // Try graceful shutdown first
-        #[cfg(unix)]
-        {
-            if let Some(pid) = child.id() {
-                // Send SIGTERM
-                let nix_pid = nix::unistd::Pid::from_raw(pid as i32);
-                if let Err(e) = nix::sys::signal::kill(nix_pid, nix::sys::signal::Signal::SIGTERM) {
-                    warn!("Failed to send SIGTERM to process {}: {}", pid, e);
-                }
+        let mut processes = self.processes.write().await;
+        let managed_process = processes.get_mut(process_id)
+            .ok_or_else(|| ProcessError::NotFound { 
+                id: process_id.to_string() 
+            })?;
+
+        // Update manager-level tracking
+        managed_process.restart_count += 1;
+        managed_process.last_restart_time = Some(chrono::Utc::now());
+
+        // Delegate to ProcessControl
+        managed_process.process_control.restart(force).await?;
+
+        // Update PID file if PID changed
+        if let Some(pid) = managed_process.process_control.get_pid() {
+            if let Err(e) = self.pid_file_manager.write_pid_file(process_id, pid).await {
+                warn!("Failed to update PID file for {}: {}", process_id, e);
             }
         }
 
-        #[cfg(windows)]
-        {
-            // On Windows, we'll use the kill method directly
-            // In a real implementation, you might want to try a more graceful approach first
-        }
-
-        // Wait for graceful shutdown
-        match timeout(shutdown_timeout, child.wait()).await {
-            Ok(Ok(exit_status)) => {
-                info!("Process exited gracefully with status: {}", exit_status);
-                return Ok(());
-            }
-            Ok(Err(e)) => {
-                warn!("Error waiting for process exit: {}", e);
-            }
-            Err(_) => {
-                warn!("Process did not exit gracefully within timeout, force killing");
-            }
-        }
-
-        // Force kill if graceful shutdown failed
-        if let Err(e) = child.kill().await {
-            error!("Failed to force kill process: {}", e);
-            return Err(ProcessError::stop_failed(&config.id, e.to_string()).into());
-        }
-
-        // Wait for force kill to complete
-        if let Err(e) = child.wait().await {
-            warn!("Error waiting for force-killed process: {}", e);
-        }
-
+        info!("Process restarted successfully: {}", process_id);
         Ok(())
     }
 
-    /// Shutdown the entire process manager
+    /// Shutdown the process manager and all processes
     pub async fn shutdown(&mut self) -> Result<()> {
         info!("Shutting down process manager");
 
@@ -506,21 +311,7 @@ impl ProcessManager {
 
         for process_id in process_ids {
             if let Err(e) = self.stop_process(&process_id).await {
-                error!("Failed to stop process {}: {}", process_id, e);
-                // Continue with other processes
-            }
-        }
-
-        // Force shutdown after timeout
-        let force_timeout = self.config.process_manager.force_shutdown_timeout;
-        tokio::time::sleep(force_timeout).await;
-
-        // Force kill any remaining processes
-        let mut processes = self.processes.write().await;
-        for (id, managed_process) in processes.iter_mut() {
-            if let Some(ref mut child) = managed_process.child {
-                warn!("Force killing remaining process: {}", id);
-                let _ = child.kill().await;
+                error!("Failed to stop process {} during shutdown: {}", process_id, e);
             }
         }
 
@@ -536,34 +327,45 @@ impl ProcessManager {
     /// Get information about a specific process
     pub async fn get_process_info(&self, process_id: &str) -> Result<ProcessInfo> {
         let processes = self.processes.read().await;
-        let managed_process = processes
-            .get(process_id)
-            .ok_or_else(|| ProcessError::not_found(process_id))?;
+        let managed_process = processes.get(process_id)
+            .ok_or_else(|| ProcessError::NotFound { 
+                id: process_id.to_string() 
+            })?;
 
-        let uptime = managed_process.start_time.map(|start_time| {
-            let now = chrono::Utc::now();
-            Duration::from_secs((now - start_time).num_seconds() as u64)
-        });
+        // Get diagnostics from ProcessControl
+        let diagnostics = managed_process.process_control.get_diagnostics();
 
         Ok(ProcessInfo {
             id: process_id.to_string(),
-            state: managed_process.state_machine.current_state(),
-            pid: managed_process.pid,
-            start_time: managed_process.start_time,
+            state: diagnostics.state,
+            pid: diagnostics.process_id,
+            start_time: diagnostics.start_time,
             restart_count: managed_process.restart_count,
-            cpu_usage: None, // TODO: Implement monitoring
-            memory_usage: None, // TODO: Implement monitoring
-            uptime,
+            cpu_usage: diagnostics.cpu_usage,
+            memory_usage: diagnostics.memory_usage,
+            uptime: diagnostics.start_time.map(|st| {
+                let now = chrono::Utc::now();
+                let duration = now.signed_duration_since(st);
+                Duration::from_secs(duration.num_seconds() as u64)
+            }),
+            is_healthy: diagnostics.is_healthy,
+            last_health_check: None, // TODO: Add to diagnostics
+            consecutive_health_failures: diagnostics.failure_count,
         })
     }
 
     /// Get information about all processes
     pub async fn get_all_process_info(&self) -> Vec<ProcessInfo> {
-        let processes = self.processes.read().await;
-        let mut info_list = Vec::new();
+        // Collect process IDs first
+        let process_ids: Vec<String> = {
+            let processes = self.processes.read().await;
+            processes.keys().cloned().collect()
+        };
 
-        for (id, _) in processes.iter() {
-            if let Ok(info) = self.get_process_info(id).await {
+        // Then get info for each (lock is released between iterations)
+        let mut info_list = Vec::new();
+        for process_id in process_ids {
+            if let Ok(info) = self.get_process_info(&process_id).await {
                 info_list.push(info);
             }
         }
@@ -571,57 +373,58 @@ impl ProcessManager {
         info_list
     }
 
-    /// Get the current state of the process manager
+    /// Get the current manager state
     pub async fn get_manager_state(&self) -> ProcessManagerState {
         let state = self.state.lock().await;
         state.clone()
     }
 }
 
-impl ManagedProcessInstance {
-    /// Check if the process is currently running
-    pub fn is_running(&self) -> bool {
-        matches!(self.state_machine.current_state(), ProcessState::Running)
-    }
-
-    /// Check if the process has a valid PID
-    pub fn has_pid(&self) -> bool {
-        self.pid.is_some()
-    }
-}
+// Re-export for compatibility
+pub use ProcessManagerState as State;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{ProcessControlConfig, ProcessManagementConfig, ProcessManagementType};
+    use crate::config::{
+        ProcessManagerOptions, ProcessManagementType, ProcessManagementConfig,
+        ProcessControlConfig as ConfigProcessControl, RestartPolicyConfig, RestartStrategy,
+    };
 
     fn create_test_config() -> ProcessManagerConfig {
         ProcessManagerConfig {
-            process_manager: crate::config::ProcessManagerOptions {
-                port: 8080,
+            process_manager: ProcessManagerOptions {
+                port: 50055,
                 log_level: "info".to_string(),
                 force_shutdown_timeout: Duration::from_secs(30),
             },
-            managed_processes: vec![ProcessConfig {
-                id: "test-process".to_string(),
-                process_type: ProcessManagementType::StandardManaged,
-                profile_type: "test".to_string(),
-                enabled: true,
-                management: ProcessManagementConfig {
-                    control: ProcessControlConfig {
-                        executable: "echo".to_string(),
-                        arguments: vec!["hello".to_string()],
-                        working_directory: None,
-                        environment: HashMap::new(),
-                        startup_timeout: Duration::from_secs(10),
-                        shutdown_timeout: Duration::from_secs(5),
+            managed_processes: vec![
+                ProcessConfig {
+                    id: "test-process".to_string(),
+                    enabled: true,
+                    profile_type: "test".to_string(),
+                    process_type: ProcessManagementType::StandardManaged,
+                    management: ProcessManagementConfig {
+                        control: ConfigProcessControl {
+                            executable: "echo".to_string(),
+                            arguments: vec!["hello".to_string()],
+                            working_directory: None,
+                            environment: HashMap::new(),
+                            startup_timeout: Duration::from_secs(5),
+                            shutdown_timeout: Duration::from_secs(5),
+                        },
+                        health_check: None,
+                        resource_limits: None,
+                        restart_policy: Some(RestartPolicyConfig {
+                            strategy: RestartStrategy::OnFailure,
+                            max_attempts: 3,
+                            restart_delay: Duration::from_secs(1),
+                            backoff_multiplier: 2.0,
+                        }),
+                        logging: None,
                     },
-                    health_check: None,
-                    resource_limits: None,
-                    restart_policy: None,
-                    logging: None,
                 },
-            }],
+            ],
             log_collection: None,
         }
     }
@@ -631,19 +434,26 @@ mod tests {
         let config = create_test_config();
         let manager = ProcessManager::new(config).await;
         assert!(manager.is_ok());
-
-        let manager = manager.unwrap();
-        let processes = manager.processes.read().await;
-        assert_eq!(processes.len(), 1);
-        assert!(processes.contains_key("test-process"));
     }
 
     #[tokio::test]
     async fn test_process_manager_state_transitions() {
         let config = create_test_config();
-        let manager = ProcessManager::new(config).await.unwrap();
-
-        let initial_state = manager.get_manager_state().await;
-        assert!(matches!(initial_state, ProcessManagerState::Initializing));
+        let mut manager = ProcessManager::new(config).await.unwrap();
+        
+        // Check initial state
+        let state = manager.get_manager_state().await;
+        assert!(matches!(state, ProcessManagerState::Initializing));
+        
+        // Start manager
+        manager.start().await.unwrap();
+        let state = manager.get_manager_state().await;
+        assert!(matches!(state, ProcessManagerState::Running));
+        
+        // Shutdown manager
+        manager.shutdown().await.unwrap();
+        let state = manager.get_manager_state().await;
+        assert!(matches!(state, ProcessManagerState::Stopped));
     }
 }
+

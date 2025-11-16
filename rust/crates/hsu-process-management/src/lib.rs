@@ -15,6 +15,10 @@ pub mod manager;
 pub mod lifecycle;
 pub mod attachment;
 pub mod api;
+pub mod process_control_impl;
+
+#[cfg(test)]
+mod manager_tests;
 
 // Re-export main types
 pub use config::{

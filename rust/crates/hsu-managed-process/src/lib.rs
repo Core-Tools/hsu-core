@@ -3,11 +3,39 @@
 //! Process types and management for the HSU framework.
 //!
 //! This crate provides:
+//! - Process control trait (interface) for lifecycle management
 //! - Process type definitions (standard, integrated, unmanaged)
 //! - Process metadata and options
-//! - Process control interfaces
+//! - Process control implementations (coming next)
 //!
 //! This corresponds to the Go package `pkg/managedprocess`.
+//!
+//! **Architecture:**
+//! ```text
+//! ProcessManager (orchestration)
+//!       ↓ uses
+//! ProcessControl trait (interface)
+//!       ↓ implemented by
+//! ProcessControlImpl (complex logic)
+//!       ↓ wrapped by
+//! StandardManaged, IntegratedManaged, Unmanaged
+//! ```
+
+pub mod process_control;
+pub mod process_types;
+
+// Re-export main types from process_control
+pub use process_control::{
+    ProcessControl, ProcessControlConfig, ProcessDiagnostics, ProcessError,
+    ErrorCategory, RestartTriggerType, RestartContext,
+};
+
+// Re-export process types
+pub use process_types::{
+    StandardManagedProcess,
+    IntegratedManagedProcess,
+    UnmanagedProcess,
+};
 
 use hsu_process_state::{ProcessState, ProcessStateMachine};
 use serde::{Deserialize, Serialize};

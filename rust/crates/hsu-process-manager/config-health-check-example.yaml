@@ -1,0 +1,267 @@
+# Process Manager Configuration - Health Check Examples
+# This example demonstrates HTTP health checking configuration
+
+process_manager:
+  port: 50055
+  log_level: "info"
+  force_shutdown_timeout: "30s"
+
+managed_processes:
+  # ========================================
+  # Basic HTTP Health Check
+  # ========================================
+  - id: "web-server"
+    type: "standard_managed"
+    enabled: true
+    management:
+      control:
+        executable: "/usr/local/bin/web-server"
+        arguments: ["--port", "8080"]
+        startup_timeout: "10s"
+        shutdown_timeout: "10s"
+      
+      # HTTP health check configuration
+      health_check:
+        enabled: true
+        interval: "30s"              # Check every 30 seconds
+        timeout: "5s"                # Health check must respond within 5s
+        failure_threshold: 3         # Mark unhealthy after 3 failures
+        http_endpoint: "http://localhost:8080/health"
+      
+      restart_policy:
+        strategy: "on_failure"
+        max_attempts: 3
+        restart_delay: "5s"
+        backoff_multiplier: 2.0
+
+  # ========================================
+  # Health Check with Custom Status Codes
+  # ========================================
+  - id: "api-server"
+    type: "standard_managed"
+    enabled: true
+    management:
+      control:
+        executable: "/usr/local/bin/api-server"
+        arguments: []
+        startup_timeout: "15s"
+        shutdown_timeout: "10s"
+      
+      health_check:
+        enabled: true
+        interval: "15s"
+        timeout: "3s"
+        failure_threshold: 5
+        http_endpoint: "http://localhost:3000/api/health"
+        # Accept both 200 OK and 204 No Content as healthy
+        expected_status: [200, 204]
+      
+      restart_policy:
+        strategy: "always"
+        max_attempts: 5
+        restart_delay: "10s"
+        backoff_multiplier: 1.5
+
+  # ========================================
+  # Health Check with Body Validation
+  # ========================================
+  - id: "database-service"
+    type: "standard_managed"
+    enabled: true
+    management:
+      control:
+        executable: "/usr/local/bin/db-service"
+        arguments: ["--config", "/etc/db.conf"]
+        startup_timeout: "30s"
+        shutdown_timeout: "15s"
+      
+      health_check:
+        enabled: true
+        interval: "60s"              # Less frequent checks for DB
+        timeout: "10s"               # Longer timeout for DB operations
+        failure_threshold: 2         # Quick detection of issues
+        http_endpoint: "http://localhost:5432/health"
+        # Ensure response body contains "healthy" or "ok"
+        expected_body: "healthy"
+      
+      restart_policy:
+        strategy: "on_failure"
+        max_attempts: 2
+        restart_delay: "30s"
+        backoff_multiplier: 2.0
+
+  # ========================================
+  # Process Without Health Check
+  # ========================================
+  - id: "background-worker"
+    type: "standard_managed"
+    enabled: true
+    management:
+      control:
+        executable: "/usr/local/bin/worker"
+        arguments: ["--queue", "jobs"]
+        startup_timeout: "5s"
+        shutdown_timeout: "10s"
+      
+      # No health check configured - rely on process exit code only
+      health_check:
+        enabled: false
+      
+      restart_policy:
+        strategy: "always"
+        max_attempts: 3
+        restart_delay: "5s"
+        backoff_multiplier: 2.0
+
+  # ========================================
+  # Fast Health Check for Critical Service
+  # ========================================
+  - id: "cache-server"
+    type: "standard_managed"
+    enabled: true
+    management:
+      control:
+        executable: "/usr/local/bin/redis-server"
+        arguments: ["--port", "6379"]
+        startup_timeout: "5s"
+        shutdown_timeout: "5s"
+      
+      health_check:
+        enabled: true
+        interval: "5s"               # Very frequent checks
+        timeout: "1s"                # Fast response required
+        failure_threshold: 3
+        http_endpoint: "http://localhost:6379/ping"
+      
+      restart_policy:
+        strategy: "always"
+        max_attempts: 10
+        restart_delay: "1s"
+        backoff_multiplier: 1.2
+
+# ========================================
+# Health Check Behavior
+# ========================================
+#
+# 1. **Health Check Interval:**
+#    - Determines how often the health check is performed
+#    - Balance between responsiveness and overhead
+#    - Typical values: 15s-60s for most services
+#
+# 2. **Health Check Timeout:**
+#    - How long to wait for a response before considering it failed
+#    - Should be less than the interval
+#    - Typical values: 3s-10s
+#
+# 3. **Failure Threshold:**
+#    - Number of consecutive failures before marking service unhealthy
+#    - Prevents transient issues from triggering restarts
+#    - Typical values: 2-5 failures
+#
+# 4. **HTTP Endpoint:**
+#    - Must return appropriate status code (default: 200)
+#    - Can include custom status codes via expected_status
+#    - Can validate response body via expected_body
+#
+# 5. **Integration with Restart Policy:**
+#    - Health check failures are treated like process crashes
+#    - Triggers restart according to restart_policy
+#    - Subject to circuit breaker protection
+#
+# ========================================
+# Health Check Response Format
+# ========================================
+#
+# Your health endpoint should:
+# 1. Respond quickly (within timeout)
+# 2. Return appropriate HTTP status code
+# 3. Optionally include JSON body:
+#
+# ```json
+# {
+#   "status": "healthy",
+#   "timestamp": "2025-11-16T10:30:00Z",
+#   "checks": {
+#     "database": "ok",
+#     "redis": "ok",
+#     "disk_space": "ok"
+#   }
+# }
+# ```
+#
+# ========================================
+# Health Check Methods
+# ========================================
+#
+# Currently supported:
+# - HTTP GET (default, most common)
+# - HTTP POST (for endpoints that require it)
+# - HTTP HEAD (lightweight, no body)
+#
+# Coming soon:
+# - gRPC health checks (standard protocol)
+# - TCP connection checks
+# - Custom command execution
+#
+# ========================================
+# Best Practices
+# ========================================
+#
+# 1. **Lightweight Checks:**
+#    - Health checks should be fast and cheap
+#    - Don't perform heavy operations
+#    - Cache expensive checks
+#
+# 2. **Appropriate Intervals:**
+#    - Critical services: 5-15s
+#    - Normal services: 30-60s
+#    - Background workers: 60-120s or disabled
+#
+# 3. **Failure Thresholds:**
+#    - Use 2-3 for fast detection
+#    - Use 3-5 for stability
+#    - Higher values for flaky services (but fix the flakiness!)
+#
+# 4. **Graceful Degradation:**
+#    - Health check should reflect actual capability
+#    - Return unhealthy if dependencies are down
+#    - But allow time for recovery
+#
+# 5. **Monitoring:**
+#    - Log health check results
+#    - Track failure rates
+#    - Alert on persistent failures
+#
+# 6. **Testing:**
+#    - Test health endpoint independently
+#    - Verify timeout handling
+#    - Test failure scenarios
+#
+# ========================================
+# Troubleshooting
+# ========================================
+#
+# **Service keeps restarting:**
+# - Check health endpoint is accessible
+# - Verify timeout is sufficient
+# - Increase failure_threshold
+# - Check circuit breaker logs
+#
+# **Health checks timing out:**
+# - Optimize health endpoint
+# - Increase timeout value
+# - Check network connectivity
+# - Verify service is actually healthy
+#
+# **False positives:**
+# - Increase failure_threshold
+# - Adjust interval to give more time
+# - Check for resource contention
+# - Verify expected_status/expected_body
+#
+# **Circuit breaker tripping:**
+# - Indicates systemic issues
+# - Check service logs
+# - Verify configuration
+# - May need to fix underlying problem
+

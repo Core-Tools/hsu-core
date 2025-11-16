@@ -34,7 +34,7 @@ tokio-util = "0.7"
 # HTTP server/client
 axum = "0.7"
 hyper = "1.1"
-hyper-util = "0.1"
+hyper-util = { version = "0.1", features = ["tokio", "client", "client-legacy", "http1", "http2"] }
 http-body-util = "0.1"
 tower = "0.4"
 
