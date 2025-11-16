@@ -1,6 +1,7 @@
 use crate::config::{ProcessConfig, ProcessManagerConfig};
 use hsu_common::ProcessError;
 use hsu_process_state::{ProcessState, ProcessStateMachine};
+use hsu_process_file::{ProcessFileManager, compute_config_hash};
 use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::Arc;
@@ -17,6 +18,7 @@ pub struct ProcessManager {
     config: ProcessManagerConfig,
     processes: Arc<RwLock<HashMap<String, ManagedProcessInstance>>>,
     state: Arc<Mutex<ProcessManagerState>>,
+    pid_file_manager: ProcessFileManager,
 }
 
 /// Individual managed process instance with runtime state
@@ -92,10 +94,14 @@ impl ProcessManager {
             config,
             processes: Arc::new(RwLock::new(HashMap::new())),
             state: Arc::new(Mutex::new(ProcessManagerState::Initializing)),
+            pid_file_manager: ProcessFileManager::with_defaults(),
         };
 
         // Initialize processes from configuration
         manager.initialize_processes().await?;
+        
+        // Attempt to reattach to existing processes
+        manager.attempt_reattachment().await?;
 
         Ok(manager)
     }
@@ -124,6 +130,73 @@ impl ProcessManager {
             info!("Initialized process: {}", process_config.id);
         }
 
+        Ok(())
+    }
+    
+    /// Attempt to reattach to existing processes from previous manager run
+    async fn attempt_reattachment(&self) -> Result<()> {
+        info!("Scanning for existing processes to reattach");
+        
+        let mut processes = self.processes.write().await;
+        let mut reattached_count = 0;
+        let mut cleaned_count = 0;
+        
+        for (process_id, managed_process) in processes.iter_mut() {
+            // Try to read the PID file for this process
+            match self.pid_file_manager.read_pid_file(process_id).await {
+                Ok(pid) => {
+                    // Check if process still exists
+                    match hsu_process::process_exists(pid) {
+                        Ok(true) => {
+                            // Process exists! Check config hash if we have it
+                            let _config_hash = compute_config_hash(&managed_process.config);
+                            
+                            // For now, always accept the process (config hash validation can be added later)
+                            info!("Reattaching to existing process: {} (PID: {})", process_id, pid);
+                            
+                            managed_process.pid = Some(pid);
+                            managed_process.start_time = Some(chrono::Utc::now()); // Approximate
+                            
+                            // Update state machine to running
+                            if let Err(e) = managed_process.state_machine.transition_to_starting() {
+                                warn!("Failed to transition {} to starting during reattachment: {}", process_id, e);
+                            }
+                            if let Err(e) = managed_process.state_machine.transition_to_running() {
+                                warn!("Failed to transition {} to running during reattachment: {}", process_id, e);
+                            }
+                            
+                            reattached_count += 1;
+                        }
+                        Ok(false) => {
+                            // Process no longer exists, clean up stale PID file
+                            info!("Process {} (PID: {}) no longer exists, cleaning up PID file", process_id, pid);
+                            if let Err(e) = self.pid_file_manager.delete_pid_file(process_id).await {
+                                warn!("Failed to delete stale PID file for {}: {}", process_id, e);
+                            }
+                            cleaned_count += 1;
+                        }
+                        Err(e) => {
+                            warn!("Error checking if process {} (PID: {}) exists: {}", process_id, pid, e);
+                        }
+                    }
+                }
+                Err(hsu_common::ProcessError::NotFound { .. }) => {
+                    // No PID file found, this is normal for a fresh start
+                    debug!("No PID file found for {}, will start fresh", process_id);
+                }
+                Err(e) => {
+                    warn!("Error reading PID file for {}: {}", process_id, e);
+                }
+            }
+        }
+        
+        if reattached_count > 0 || cleaned_count > 0 {
+            info!("Reattachment complete: {} processes reattached, {} stale PID files cleaned", 
+                  reattached_count, cleaned_count);
+        } else {
+            info!("No existing processes found to reattach");
+        }
+        
         Ok(())
     }
 
@@ -165,15 +238,15 @@ impl ProcessManager {
         let mut processes = self.processes.write().await;
         let managed_process = processes
             .get_mut(process_id)
-            .ok_or_else(|| ProcessError::not_found(process_id))?;
+            .ok_or_else(|| ProcessError::NotFound { id: process_id.to_string() })?;
 
         // Check if process can be started
         if !managed_process.state_machine.can_start() {
-            return Err(ProcessError::invalid_state(
-                process_id,
-                "Stopped or Failed",
-                format!("{:?}", managed_process.state_machine.current_state()),
-            ).into());
+            return Err(ProcessError::InvalidState {
+                id: process_id.to_string(),
+                expected: "Stopped or Failed".to_string(),
+                actual: format!("{:?}", managed_process.state_machine.current_state()),
+            });
         }
 
         // Transition to starting state
@@ -186,6 +259,12 @@ impl ProcessManager {
         managed_process.child = Some(child);
         managed_process.pid = Some(pid);
         managed_process.start_time = Some(chrono::Utc::now());
+
+        // Write PID file for reattachment on manager restart
+        if let Err(e) = self.pid_file_manager.write_pid_file(process_id, pid).await {
+            warn!("Failed to write PID file for {}: {}", process_id, e);
+            // Don't fail the start operation if PID file write fails
+        }
 
         // Transition to running state
         managed_process.state_machine.transition_to_running()?;
@@ -240,15 +319,15 @@ impl ProcessManager {
         let mut processes = self.processes.write().await;
         let managed_process = processes
             .get_mut(process_id)
-            .ok_or_else(|| ProcessError::not_found(process_id))?;
+            .ok_or_else(|| ProcessError::NotFound { id: process_id.to_string() })?;
 
         // Check if process can be stopped
         if !managed_process.state_machine.can_stop() {
-            return Err(ProcessError::invalid_state(
-                process_id,
-                "Running",
-                format!("{:?}", managed_process.state_machine.current_state()),
-            ).into());
+            return Err(ProcessError::InvalidState {
+                id: process_id.to_string(),
+                expected: "Running".to_string(),
+                actual: format!("{:?}", managed_process.state_machine.current_state()),
+            });
         }
 
         // Transition to stopping state
@@ -259,7 +338,13 @@ impl ProcessManager {
             self.stop_child_process(child, &managed_process.config).await?;
         }
 
-        // Clean up
+        // Clean up PID file
+        if let Err(e) = self.pid_file_manager.delete_pid_file(process_id).await {
+            warn!("Failed to delete PID file for {}: {}", process_id, e);
+            // Don't fail the stop operation if PID file deletion fails
+        }
+
+        // Clean up process state
         managed_process.child = None;
         managed_process.pid = None;
         managed_process.state_machine.transition_to_stopped()?;

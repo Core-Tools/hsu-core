@@ -29,7 +29,7 @@ pub struct ProcessManagerOptions {
 }
 
 /// Individual process configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash)]
 pub struct ProcessConfig {
     pub id: String,
     #[serde(rename = "type")]
@@ -51,7 +51,7 @@ pub enum ProcessManagementType {
 }
 
 /// Process management configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash)]
 pub struct ProcessManagementConfig {
     pub control: ProcessControlConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -86,8 +86,22 @@ pub struct ProcessControlConfig {
     pub shutdown_timeout: Duration,
 }
 
+impl std::hash::Hash for ProcessControlConfig {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.executable.hash(state);
+        self.arguments.hash(state);
+        self.working_directory.hash(state);
+        // Hash environment as sorted vec of (key, value) pairs
+        let mut env_vec: Vec<_> = self.environment.iter().collect();
+        env_vec.sort_by_key(|(k, _)| *k);
+        env_vec.hash(state);
+        self.startup_timeout.hash(state);
+        self.shutdown_timeout.hash(state);
+    }
+}
+
 /// Health check configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash)]
 pub struct HealthCheckConfig {
     #[serde(default = "default_enabled")]
     pub enabled: bool,
@@ -120,6 +134,15 @@ pub struct ResourceLimitsConfig {
     pub max_file_descriptors: Option<u32>,
 }
 
+impl std::hash::Hash for ResourceLimitsConfig {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.max_memory_mb.hash(state);
+        // Convert f32 to bits for hashing
+        self.max_cpu_percent.map(|f| f.to_bits()).hash(state);
+        self.max_file_descriptors.hash(state);
+    }
+}
+
 /// Restart policy configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RestartPolicyConfig {
@@ -138,8 +161,18 @@ pub struct RestartPolicyConfig {
     pub backoff_multiplier: f32,
 }
 
+impl std::hash::Hash for RestartPolicyConfig {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.strategy.hash(state);
+        self.max_attempts.hash(state);
+        self.restart_delay.hash(state);
+        // Convert f32 to bits for hashing
+        self.backoff_multiplier.to_bits().hash(state);
+    }
+}
+
 /// Restart strategy enumeration
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum RestartStrategy {
     Never,
@@ -148,7 +181,7 @@ pub enum RestartStrategy {
 }
 
 /// Process logging configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash)]
 pub struct ProcessLoggingConfig {
     #[serde(default = "default_enabled")]
     pub capture_stdout: bool,
