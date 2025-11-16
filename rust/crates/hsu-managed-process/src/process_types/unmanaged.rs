@@ -41,6 +41,8 @@ impl UnmanagedProcess {
             can_restart: false,      // Does NOT restart
             graceful_timeout,
             process_profile_type: "unmanaged".to_string(),
+            log_collection_service: None,  // Set later if needed
+            log_config: None,              // Set later if needed
         }
     }
 }

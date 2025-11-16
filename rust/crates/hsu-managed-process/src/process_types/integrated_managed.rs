@@ -40,6 +40,8 @@ impl IntegratedManagedProcess {
             can_restart: true,       // Can restart
             graceful_timeout,
             process_profile_type: "integrated".to_string(),
+            log_collection_service: None,  // Set later if needed
+            log_config: None,              // Set later if needed
         }
     }
 }

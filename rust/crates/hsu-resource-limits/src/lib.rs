@@ -5,15 +5,24 @@
 //! This crate provides:
 //! - Resource usage monitoring (CPU, memory, file descriptors)
 //! - Resource limit enforcement
+//! - Policy-based violation handling
 //! - Cross-platform resource management
 //!
 //! This corresponds to the Go package `pkg/resourcelimits`.
+
+pub mod policy;
 
 use hsu_common::{ProcessError, ProcessResult};
 use serde::{Deserialize, Serialize};
 use sysinfo::{Pid, ProcessRefreshKind, System};
 use std::sync::{Arc, Mutex};
 use tracing::debug;
+
+// Re-export policy types
+pub use policy::{
+    ResourcePolicy, ResourceLimitType, ViolationSeverity, 
+    ResourceViolation, ResourceViolationCallback,
+};
 
 /// Resource usage information for a process.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,12 +33,70 @@ pub struct ResourceUsage {
     pub network_connections: Option<u32>,
 }
 
-/// Resource limits configuration.
+/// Resource limits configuration with policies.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceLimits {
+    /// Memory limits and policy
+    pub memory: Option<MemoryLimits>,
+    
+    /// CPU limits and policy
+    pub cpu: Option<CpuLimits>,
+    
+    /// Process/file descriptor limits and policy
+    pub process: Option<ProcessLimits>,
+    
+    /// Legacy fields (for backward compatibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_memory_mb: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_cpu_percent: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_file_descriptors: Option<u32>,
+}
+
+/// Memory-specific limits with policy
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryLimits {
+    /// Maximum RSS (Resident Set Size) in MB
+    pub max_rss_mb: u64,
+    
+    /// Warning threshold (0-100%)
+    #[serde(default)]
+    pub warning_threshold: Option<f32>,
+    
+    /// Policy to apply when limit is exceeded
+    #[serde(default)]
+    pub policy: ResourcePolicy,
+}
+
+/// CPU-specific limits with policy
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CpuLimits {
+    /// Maximum CPU percentage (0-100 per core, so 200% on 2-core system)
+    pub max_percent: f32,
+    
+    /// Warning threshold (0-100%)
+    #[serde(default)]
+    pub warning_threshold: Option<f32>,
+    
+    /// Policy to apply when limit is exceeded
+    #[serde(default)]
+    pub policy: ResourcePolicy,
+}
+
+/// Process/file descriptor limits with policy
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProcessLimits {
+    /// Maximum file descriptors
+    pub max_file_descriptors: u32,
+    
+    /// Warning threshold (0-100%)
+    #[serde(default)]
+    pub warning_threshold: Option<f32>,
+    
+    /// Policy to apply when limit is exceeded
+    #[serde(default)]
+    pub policy: ResourcePolicy,
 }
 
 /// Resource monitor that tracks process resource usage
@@ -132,38 +199,168 @@ fn get_process_fd_count(_pid: u32) -> Option<u32> {
     None
 }
 
-/// Check if resource usage exceeds limits.
+/// Check if resource usage exceeds limits and return violations with policies.
+///
+/// This function checks both new structured limits and legacy limits for backward compatibility.
+pub fn check_resource_limits_with_policy(
+    process_id: &str,
+    usage: &ResourceUsage,
+    limits: &ResourceLimits,
+) -> Vec<(ResourceViolation, ResourcePolicy)> {
+    let mut violations = Vec::new();
+
+    // Check memory limits (new structured format)
+    if let Some(mem_limits) = &limits.memory {
+        if let Some(current_mb) = usage.memory_mb {
+            let limit_mb = mem_limits.max_rss_mb;
+            
+            // Check warning threshold
+            if let Some(warning_threshold) = mem_limits.warning_threshold {
+                let percent_used = (current_mb as f32 / limit_mb as f32) * 100.0;
+                if percent_used >= warning_threshold && percent_used < 100.0 {
+                    let violation = ResourceViolation::memory(
+                        process_id.to_string(),
+                        current_mb,
+                        limit_mb,
+                        ViolationSeverity::Warning,
+                    );
+                    violations.push((violation, mem_limits.policy));
+                }
+            }
+            
+            // Check hard limit
+            if current_mb > limit_mb {
+                let violation = ResourceViolation::memory(
+                    process_id.to_string(),
+                    current_mb,
+                    limit_mb,
+                    ViolationSeverity::Critical,
+                );
+                violations.push((violation, mem_limits.policy));
+            }
+        }
+    }
+    // Fallback to legacy memory limit
+    else if let (Some(current_mb), Some(limit_mb)) = (usage.memory_mb, limits.max_memory_mb) {
+        if current_mb > limit_mb {
+            let violation = ResourceViolation::memory(
+                process_id.to_string(),
+                current_mb,
+                limit_mb,
+                ViolationSeverity::Critical,
+            );
+            violations.push((violation, ResourcePolicy::Log));
+        }
+    }
+
+    // Check CPU limits (new structured format)
+    if let Some(cpu_limits) = &limits.cpu {
+        if let Some(current_percent) = usage.cpu_percent {
+            let limit_percent = cpu_limits.max_percent;
+            
+            // Check warning threshold
+            if let Some(warning_threshold) = cpu_limits.warning_threshold {
+                let percent_used = (current_percent / limit_percent) * 100.0;
+                if percent_used >= warning_threshold && percent_used < 100.0 {
+                    let violation = ResourceViolation::cpu(
+                        process_id.to_string(),
+                        current_percent,
+                        limit_percent,
+                        ViolationSeverity::Warning,
+                    );
+                    violations.push((violation, cpu_limits.policy));
+                }
+            }
+            
+            // Check hard limit
+            if current_percent > limit_percent {
+                let violation = ResourceViolation::cpu(
+                    process_id.to_string(),
+                    current_percent,
+                    limit_percent,
+                    ViolationSeverity::Critical,
+                );
+                violations.push((violation, cpu_limits.policy));
+            }
+        }
+    }
+    // Fallback to legacy CPU limit
+    else if let (Some(current_percent), Some(limit_percent)) = (usage.cpu_percent, limits.max_cpu_percent) {
+        if current_percent > limit_percent {
+            let violation = ResourceViolation::cpu(
+                process_id.to_string(),
+                current_percent,
+                limit_percent,
+                ViolationSeverity::Critical,
+            );
+            violations.push((violation, ResourcePolicy::Log));
+        }
+    }
+
+    // Check process/FD limits (new structured format)
+    if let Some(proc_limits) = &limits.process {
+        if let Some(current_fds) = usage.file_descriptors {
+            let limit_fds = proc_limits.max_file_descriptors;
+            
+            // Check warning threshold
+            if let Some(warning_threshold) = proc_limits.warning_threshold {
+                let percent_used = (current_fds as f32 / limit_fds as f32) * 100.0;
+                if percent_used >= warning_threshold && percent_used < 100.0 {
+                    let violation = ResourceViolation::file_descriptors(
+                        process_id.to_string(),
+                        current_fds,
+                        limit_fds,
+                        ViolationSeverity::Warning,
+                    );
+                    violations.push((violation, proc_limits.policy));
+                }
+            }
+            
+            // Check hard limit
+            if current_fds > limit_fds {
+                let violation = ResourceViolation::file_descriptors(
+                    process_id.to_string(),
+                    current_fds,
+                    limit_fds,
+                    ViolationSeverity::Critical,
+                );
+                violations.push((violation, proc_limits.policy));
+            }
+        }
+    }
+    // Fallback to legacy FD limit
+    else if let (Some(current_fds), Some(limit_fds)) = (usage.file_descriptors, limits.max_file_descriptors) {
+        if current_fds > limit_fds {
+            let violation = ResourceViolation::file_descriptors(
+                process_id.to_string(),
+                current_fds,
+                limit_fds,
+                ViolationSeverity::Critical,
+            );
+            violations.push((violation, ResourcePolicy::Log));
+        }
+    }
+
+    violations
+}
+
+/// Legacy function for backward compatibility
+/// 
+/// Returns simple string violations without policy information.
 pub fn check_resource_limits(
     usage: &ResourceUsage,
     limits: &ResourceLimits,
 ) -> Result<(), Vec<String>> {
-    let mut violations = Vec::new();
-
-    if let (Some(cpu), Some(limit)) = (usage.cpu_percent, limits.max_cpu_percent) {
-        if cpu > limit {
-            violations.push(format!("CPU usage {:.1}% exceeds limit {:.1}%", cpu, limit));
-        }
-    }
-
-    if let (Some(mem), Some(limit)) = (usage.memory_mb, limits.max_memory_mb) {
-        if mem > limit {
-            violations.push(format!("Memory usage {} MB exceeds limit {} MB", mem, limit));
-        }
-    }
-
-    if let (Some(fds), Some(limit)) = (usage.file_descriptors, limits.max_file_descriptors) {
-        if fds > limit {
-            violations.push(format!(
-                "File descriptors {} exceeds limit {}",
-                fds, limit
-            ));
-        }
-    }
-
+    let violations = check_resource_limits_with_policy("unknown", usage, limits);
+    
     if violations.is_empty() {
         Ok(())
     } else {
-        Err(violations)
+        let messages: Vec<String> = violations
+            .iter()
+            .map(|(v, _)| v.message.clone())
+            .collect();
+        Err(messages)
     }
 }
 

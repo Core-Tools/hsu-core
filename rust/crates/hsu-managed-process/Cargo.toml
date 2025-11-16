@@ -29,4 +29,5 @@ async-trait = { workspace = true }
 hsu-common = { path = "../hsu-common" }
 hsu-process-state = { path = "../hsu-process-state" }
 hsu-process = { path = "../hsu-process" }
+hsu-log-collection = { path = "../hsu-log-collection" }
 

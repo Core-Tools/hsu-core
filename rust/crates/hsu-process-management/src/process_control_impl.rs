@@ -21,7 +21,10 @@ use hsu_process_state::{ProcessState, ProcessStateMachine};
 use crate::config::ProcessConfig;
 use crate::lifecycle::ProcessLifecycleManager;
 use hsu_monitoring::{HealthStatus, check_http_health};
-use hsu_resource_limits::{ResourceMonitor, ResourceUsage, check_resource_limits};
+use hsu_resource_limits::{
+    ResourceMonitor, ResourceUsage,
+    check_resource_limits_with_policy, ResourcePolicy, ResourceViolation,
+};
 use std::sync::Arc;
 use tokio::process::{Child, Command};
 use tokio::sync::RwLock;
@@ -72,6 +75,12 @@ pub struct ProcessControlImpl {
     /// Resource monitoring background task
     resource_monitor_task: Option<tokio::task::JoinHandle<()>>,
     
+    /// Channel for sending resource violation events
+    violation_tx: Option<tokio::sync::mpsc::UnboundedSender<(ResourcePolicy, ResourceViolation)>>,
+    
+    /// Resource violation handler task
+    violation_handler_task: Option<tokio::task::JoinHandle<()>>,
+    
     /// Last error (for diagnostics)
     last_error: Option<ProcessError>,
 }
@@ -109,6 +118,8 @@ impl ProcessControlImpl {
             })),
             resource_monitor: Arc::new(ResourceMonitor::new()),
             resource_monitor_task: None,
+            violation_tx: None,
+            violation_handler_task: None,
             last_error: None,
         }
     }
@@ -258,6 +269,114 @@ impl ProcessControlImpl {
         self.health_check_task = Some(task);
     }
     
+    /// Spawn violation handler task to process resource violations
+    fn spawn_violation_handler_task(&mut self, mut rx: tokio::sync::mpsc::UnboundedReceiver<(ResourcePolicy, ResourceViolation)>) {
+        let process_id = self.config.id.clone();
+        
+        // We need a way to trigger restarts/stops - we'll use a shared state
+        // For now, we'll just log and handle simple cases
+        info!("Spawning violation handler task for {}", process_id);
+        
+        let task = tokio::spawn(async move {
+            while let Some((policy, violation)) = rx.recv().await {
+                // Process violation based on policy
+                Self::handle_resource_violation_static(
+                    &process_id,
+                    policy,
+                    violation,
+                ).await;
+            }
+        });
+        
+        self.violation_handler_task = Some(task);
+    }
+    
+    /// Handle resource violation with policy (static method for async task)
+    async fn handle_resource_violation_static(
+        process_id: &str,
+        policy: ResourcePolicy,
+        violation: ResourceViolation,
+    ) {
+        warn!(
+            "Resource violation detected for process {}: {} (policy: {:?})",
+            process_id, violation.message, policy
+        );
+        
+        match policy {
+            ResourcePolicy::None => {
+                // No action - just detected
+                debug!("No action for resource violation (policy: none)");
+            }
+            
+            ResourcePolicy::Log => {
+                // Log violation only
+                warn!(
+                    "LOG: Resource limit exceeded (policy: log): {} - Type: {:?}, Severity: {:?}, Current: {}, Limit: {}",
+                    violation.message, violation.limit_type, violation.severity, violation.current_value, violation.limit_value
+                );
+            }
+            
+            ResourcePolicy::Alert => {
+                // Send alert/notification (for now, just error log)
+                error!(
+                    "ALERT: Resource limit exceeded: {} - Type: {:?}, Severity: {:?}, Current: {}, Limit: {}",
+                    violation.message, violation.limit_type, violation.severity, violation.current_value, violation.limit_value
+                );
+                // Note: Alerting system integration planned for Phase 5 (Enterprise Features)
+            }
+            
+            ResourcePolicy::Throttle => {
+                // Future: Suspend/resume process
+                warn!(
+                    "THROTTLE: Resource limit exceeded (not yet implemented): {}",
+                    violation.message
+                );
+                // TODO: Implement process throttling (SIGSTOP/SIGCONT on Unix)
+            }
+            
+            ResourcePolicy::GracefulShutdown => {
+                error!(
+                    "GRACEFUL SHUTDOWN: Resource limit exceeded, process should be gracefully stopped (policy: graceful_shutdown): {}",
+                    violation.message
+                );
+                // Note: This would require access to the ProcessControl instance
+                // For now, we log the intent. Full implementation requires refactoring
+                // to pass a callback or use a message passing system to the main control loop
+                warn!("Graceful shutdown not yet fully implemented - requires ProcessControl access");
+            }
+            
+            ResourcePolicy::ImmediateKill => {
+                error!(
+                    "IMMEDIATE KILL: Resource limit exceeded, process should be killed immediately (policy: immediate_kill): {}",
+                    violation.message
+                );
+                // Note: This would require access to the ProcessControl instance
+                warn!("Immediate kill not yet fully implemented - requires ProcessControl access");
+            }
+            
+            ResourcePolicy::Restart => {
+                error!(
+                    "RESTART: Resource limit exceeded, process should be restarted (policy: restart): {}",
+                    violation.message
+                );
+                // Note: Actual restart requires access to ProcessControl instance
+                // Full implementation would:
+                // 1. Check circuit breaker via lifecycle_manager.should_restart()
+                // 2. Trigger restart via ProcessControl.restart()
+                // 3. Record restart attempt in circuit breaker
+                warn!("Restart not yet fully implemented - requires ProcessControl access and circuit breaker integration");
+            }
+            
+            ResourcePolicy::RestartAdjusted => {
+                error!(
+                    "RESTART ADJUSTED: Resource limit exceeded, attempting restart with adjusted limits (policy: restart_adjusted): {}",
+                    violation.message
+                );
+                warn!("Restart with adjusted limits not yet implemented");
+            }
+        }
+    }
+    
     /// Spawn resource monitoring background task
     fn spawn_resource_monitor_task(&mut self) {
         let Some(pid) = self.pid else {
@@ -270,6 +389,13 @@ impl ProcessControlImpl {
         let resource_usage = Arc::clone(&self.resource_usage);
         let resource_monitor = Arc::clone(&self.resource_monitor);
         let limits = self.config.management.resource_limits.clone();
+        
+        // Create channel for sending violations
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        self.violation_tx = Some(tx.clone());
+        
+        // Spawn violation handler task
+        self.spawn_violation_handler_task(rx);
         
         let task = tokio::spawn(async move {
             let mut interval_timer = interval(Duration::from_secs(10));
@@ -286,19 +412,27 @@ impl ProcessControlImpl {
                             *res = usage.clone();
                         }
                         
-                        // Check limits
+                        // Check limits with policy-aware checking
                         if let Some(ref limits_config) = limits {
                             // Convert config to ResourceLimits
                             let resource_limits = hsu_resource_limits::ResourceLimits {
+                                memory: limits_config.memory.clone(),
+                                cpu: limits_config.cpu.clone(),
+                                process: limits_config.process.clone(),
+                                // Legacy fields for backward compatibility
                                 max_memory_mb: limits_config.max_memory_mb,
                                 max_cpu_percent: limits_config.max_cpu_percent,
                                 max_file_descriptors: limits_config.max_file_descriptors,
                             };
                             
-                            // Check returns Result<(), Vec<String>> where Err contains violations
-                            if let Err(violations) = check_resource_limits(&usage, &resource_limits) {
-                                warn!("Resource limit violations for {}: {:?}", process_id, violations);
-                                // In full implementation, this could trigger restart or other actions
+                            // Check with policy-aware function
+                            let violations = check_resource_limits_with_policy(&process_id, &usage, &resource_limits);
+                            
+                            // Send violations through channel for handling
+                            for (violation, policy) in violations {
+                                if let Err(e) = tx.send((policy, violation)) {
+                                    error!("Failed to send resource violation for {}: {}", process_id, e);
+                                }
                             }
                         }
                     }
@@ -324,6 +458,14 @@ impl ProcessControlImpl {
             task.abort();
             debug!("Resource monitor task stopped for {}", self.config.id);
         }
+        
+        if let Some(task) = self.violation_handler_task.take() {
+            task.abort();
+            debug!("Violation handler task stopped for {}", self.config.id);
+        }
+        
+        // Drop the violation sender to signal handler task to exit
+        self.violation_tx = None;
     }
 }
 

@@ -125,6 +125,8 @@ impl ProcessManager {
                 can_restart: true,
                 graceful_timeout: process_config.management.control.shutdown_timeout,
                 process_profile_type: "standard".to_string(),
+                log_collection_service: None,  // TODO: Add log collection service integration
+                log_config: None,               // TODO: Add log config from process config
             };
             
             let process_control = Box::new(ProcessControlImpl::new(

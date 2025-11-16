@@ -72,6 +72,9 @@ pub struct ProcessControlImpl {
     /// Resource monitoring background task
     resource_monitor_task: Option<tokio::task::JoinHandle<()>>,
     
+    /// Log collection active flag
+    log_collection_active: bool,
+    
     /// Last error (for diagnostics)
     last_error: Option<ProcessError>,
 }
@@ -104,6 +107,7 @@ impl ProcessControlImpl {
             resource_usage: Arc::new(RwLock::new(ResourceUsage::default())),
             resource_monitor: Arc::new(ResourceMonitor::new()),
             resource_monitor_task: None,
+            log_collection_active: false,
             last_error: None,
         }
     }
@@ -314,6 +318,96 @@ impl ProcessControlImpl {
         self.resource_monitor_task = Some(task);
     }
     
+    /// Start log collection for the process
+    fn start_log_collection(&mut self) -> ProcessResult<()> {
+        // Check if log collection service is available
+        let log_service = match &self.control_config.log_collection_service {
+            Some(service) => service,
+            None => {
+                debug!("No log collection service configured for process {}", self.config.id);
+                return Ok(());
+            }
+        };
+        
+        // Check if log collection config is available
+        let log_config = match &self.control_config.log_config {
+            Some(config) => config.clone(),
+            None => {
+                debug!("No log collection config for process {}", self.config.id);
+                return Ok(());
+            }
+        };
+        
+        // Register process with log collection service
+        log_service.register_process(self.config.id.clone(), log_config.clone())
+            .map_err(|e| CommonProcessError::LoggingError {
+                id: self.config.id.clone(),
+                reason: format!("Failed to register process for log collection: {}", e),
+            })?;
+        
+        // Get stdout and stderr from child process
+        if let Some(child) = &mut self.child {
+            // Collect from stdout
+            if log_config.capture_stdout {
+                if let Some(stdout) = child.stdout.take() {
+                    let process_id = self.config.id.clone();
+                    let service_clone = Arc::clone(log_service);
+                    tokio::spawn(async move {
+                        if let Err(e) = service_clone.collect_from_stream(
+                            &process_id,
+                            stdout,
+                            hsu_log_collection::StreamType::Stdout
+                        ).await {
+                            warn!("Failed to start stdout collection for {}: {}", process_id, e);
+                        }
+                    });
+                }
+            }
+            
+            // Collect from stderr
+            if log_config.capture_stderr {
+                if let Some(stderr) = child.stderr.take() {
+                    let process_id = self.config.id.clone();
+                    let service_clone = Arc::clone(log_service);
+                    tokio::spawn(async move {
+                        if let Err(e) = service_clone.collect_from_stream(
+                            &process_id,
+                            stderr,
+                            hsu_log_collection::StreamType::Stderr
+                        ).await {
+                            warn!("Failed to start stderr collection for {}: {}", process_id, e);
+                        }
+                    });
+                }
+            }
+        }
+        
+        self.log_collection_active = true;
+        info!("Log collection started for process {}", self.config.id);
+        
+        Ok(())
+    }
+    
+    /// Stop log collection for the process
+    async fn stop_log_collection(&mut self) -> ProcessResult<()> {
+        if !self.log_collection_active {
+            return Ok(());
+        }
+        
+        if let Some(ref log_service) = self.control_config.log_collection_service {
+            log_service.unregister_process(&self.config.id).await
+                .map_err(|e| CommonProcessError::LoggingError {
+                    id: self.config.id.clone(),
+                    reason: format!("Failed to unregister process from log collection: {}", e),
+                })?;
+            
+            info!("Log collection stopped for process {}", self.config.id);
+        }
+        
+        self.log_collection_active = false;
+        Ok(())
+    }
+    
     /// Stop all background tasks
     fn stop_background_tasks(&mut self) {
         if let Some(task) = self.health_check_task.take() {
@@ -354,6 +448,12 @@ impl ProcessControl for ProcessControlImpl {
                 reason: e.to_string(),
             })?;
         
+        // Start log collection (before other background tasks)
+        if let Err(e) = self.start_log_collection() {
+            warn!("Failed to start log collection for process {}: {}", self.config.id, e);
+            // Don't fail process start due to log collection issues
+        }
+        
         // Start background tasks
         self.spawn_health_check_task();
         self.spawn_resource_monitor_task();
@@ -367,6 +467,12 @@ impl ProcessControl for ProcessControlImpl {
         
         // Stop background tasks first
         self.stop_background_tasks();
+        
+        // Stop log collection
+        if let Err(e) = self.stop_log_collection().await {
+            warn!("Failed to stop log collection for process {}: {}", self.config.id, e);
+            // Don't fail process stop due to log collection issues
+        }
         
         // Transition to stopping state
         if self.state_machine.can_stop() {

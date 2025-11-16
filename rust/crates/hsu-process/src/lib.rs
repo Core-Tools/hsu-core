@@ -16,9 +16,15 @@ pub mod execute;
 pub mod terminate;
 pub mod validation;
 
+#[cfg(windows)]
+pub mod terminate_windows;
+
 // Re-export main types
 pub use check::*;
 pub use execute::*;
 pub use terminate::*;
 pub use validation::*;
+
+#[cfg(windows)]
+pub use terminate_windows::*;
 

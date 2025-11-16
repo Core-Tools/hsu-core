@@ -14,6 +14,7 @@ use async_trait::async_trait;
 use hsu_common::ProcessResult;
 use hsu_process_state::ProcessState;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::Duration;
 
 /// ProcessControl trait defines the interface for controlling a process lifecycle
@@ -179,6 +180,12 @@ pub struct ProcessControlConfig {
     
     /// Process profile type for context-aware decisions
     pub process_profile_type: String,
+    
+    /// Log collection service (optional)
+    pub log_collection_service: Option<Arc<hsu_log_collection::LogCollectionService>>,
+    
+    /// Log collection configuration (optional)
+    pub log_config: Option<hsu_log_collection::ProcessLogConfig>,
 }
 
 impl Default for ProcessControlConfig {
@@ -190,6 +197,8 @@ impl Default for ProcessControlConfig {
             can_restart: true,
             graceful_timeout: Duration::from_secs(10),
             process_profile_type: "standard".to_string(),
+            log_collection_service: None,
+            log_config: None,
         }
     }
 }

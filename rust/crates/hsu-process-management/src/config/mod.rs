@@ -126,6 +126,19 @@ pub struct HealthCheckConfig {
 /// Resource limits configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceLimitsConfig {
+    /// Memory limits with policy
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory: Option<hsu_resource_limits::MemoryLimits>,
+    
+    /// CPU limits with policy
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpu: Option<hsu_resource_limits::CpuLimits>,
+    
+    /// Process/file descriptor limits with policy
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub process: Option<hsu_resource_limits::ProcessLimits>,
+    
+    /// Legacy fields (for backward compatibility)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_memory_mb: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -136,10 +149,12 @@ pub struct ResourceLimitsConfig {
 
 impl std::hash::Hash for ResourceLimitsConfig {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Hash legacy fields (new fields with policies can't be easily hashed)
         self.max_memory_mb.hash(state);
         // Convert f32 to bits for hashing
         self.max_cpu_percent.map(|f| f.to_bits()).hash(state);
         self.max_file_descriptors.hash(state);
+        // Note: memory/cpu/process fields are not hashed for simplicity
     }
 }
 
