@@ -1,4 +1,5 @@
 use crate::config::{ProcessConfig, ProcessManagerConfig};
+use crate::lifecycle::ProcessLifecycleManager;
 use hsu_common::ProcessError;
 use hsu_process_state::{ProcessState, ProcessStateMachine};
 use hsu_process_file::{ProcessFileManager, compute_config_hash};
@@ -30,6 +31,7 @@ pub struct ManagedProcessInstance {
     pub start_time: Option<chrono::DateTime<chrono::Utc>>,
     pub restart_count: u32,
     pub last_restart_time: Option<chrono::DateTime<chrono::Utc>>,
+    pub lifecycle_manager: ProcessLifecycleManager,
 }
 
 /// Process manager overall state
@@ -116,6 +118,11 @@ impl ProcessManager {
                 continue;
             }
 
+            let lifecycle_manager = ProcessLifecycleManager::new(
+                process_config.id.clone(),
+                process_config.management.restart_policy.clone(),
+            );
+            
             let managed_process = ManagedProcessInstance {
                 config: process_config.clone(),
                 child: None,
@@ -124,6 +131,7 @@ impl ProcessManager {
                 start_time: None,
                 restart_count: 0,
                 last_restart_time: None,
+                lifecycle_manager,
             };
 
             processes.insert(process_config.id.clone(), managed_process);
@@ -252,6 +260,37 @@ impl ProcessManager {
         // Transition to starting state
         managed_process.state_machine.transition_to_starting()?;
 
+        // Dispatch based on process type
+        use crate::config::ProcessManagementType;
+        match managed_process.config.process_type {
+            ProcessManagementType::StandardManaged => {
+                self.start_standard_managed_process(process_id, managed_process).await?;
+            }
+            ProcessManagementType::IntegratedManaged => {
+                // IntegratedManaged is treated like StandardManaged for now
+                // gRPC health check integration will be added in Phase 2.2
+                self.start_standard_managed_process(process_id, managed_process).await?;
+            }
+            ProcessManagementType::Unmanaged => {
+                self.start_unmanaged_process(process_id, managed_process).await?;
+            }
+        }
+
+        // Transition to running state
+        managed_process.state_machine.transition_to_running()?;
+
+        info!("Process started successfully: {} (PID: {:?})", process_id, managed_process.pid);
+        Ok(())
+    }
+    
+    /// Start a standard managed process (spawn new process)
+    async fn start_standard_managed_process(
+        &self,
+        process_id: &str,
+        managed_process: &mut ManagedProcessInstance,
+    ) -> Result<()> {
+        info!("Starting StandardManaged process: {}", process_id);
+        
         // Spawn the process
         let child = self.spawn_process_child(&managed_process.config).await?;
         let pid = child.id().unwrap_or(0);
@@ -265,12 +304,48 @@ impl ProcessManager {
             warn!("Failed to write PID file for {}: {}", process_id, e);
             // Don't fail the start operation if PID file write fails
         }
-
-        // Transition to running state
-        managed_process.state_machine.transition_to_running()?;
-
-        info!("Process started successfully: {} (PID: {})", process_id, pid);
+        
+        info!("StandardManaged process spawned: {} (PID: {})", process_id, pid);
         Ok(())
+    }
+    
+    /// Start an unmanaged process (attach to existing process)
+    async fn start_unmanaged_process(
+        &self,
+        process_id: &str,
+        managed_process: &mut ManagedProcessInstance,
+    ) -> Result<()> {
+        info!("Starting Unmanaged process (attach only): {}", process_id);
+        
+        // Unmanaged processes should already have a PID file from external source
+        // Try to read it and attach
+        match self.pid_file_manager.read_pid_file(process_id).await {
+            Ok(pid) => {
+                // Verify process exists
+                match hsu_process::process_exists(pid) {
+                    Ok(true) => {
+                        info!("Attaching to existing unmanaged process: {} (PID: {})", process_id, pid);
+                        managed_process.pid = Some(pid);
+                        managed_process.start_time = Some(chrono::Utc::now()); // Approximate
+                        // Note: no Child handle for unmanaged processes
+                        Ok(())
+                    }
+                    Ok(false) => {
+                        Err(ProcessError::NotFound {
+                            id: format!("Unmanaged process {} (PID: {}) not running", process_id, pid),
+                        })
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+            Err(hsu_common::ProcessError::NotFound { .. }) => {
+                Err(ProcessError::Configuration {
+                    id: process_id.to_string(),
+                    reason: "Unmanaged process requires existing PID file, but none found".to_string(),
+                })
+            }
+            Err(e) => Err(e),
+        }
     }
 
     /// Spawn a child process from configuration
@@ -333,15 +408,26 @@ impl ProcessManager {
         // Transition to stopping state
         managed_process.state_machine.transition_to_stopping()?;
 
-        // Stop the child process
-        if let Some(ref mut child) = managed_process.child {
-            self.stop_child_process(child, &managed_process.config).await?;
-        }
-
-        // Clean up PID file
-        if let Err(e) = self.pid_file_manager.delete_pid_file(process_id).await {
-            warn!("Failed to delete PID file for {}: {}", process_id, e);
-            // Don't fail the stop operation if PID file deletion fails
+        // Dispatch based on process type
+        use crate::config::ProcessManagementType;
+        match managed_process.config.process_type {
+            ProcessManagementType::StandardManaged | ProcessManagementType::IntegratedManaged => {
+                // Stop the child process
+                if let Some(ref mut child) = managed_process.child {
+                    self.stop_child_process(child, &managed_process.config).await?;
+                }
+                
+                // Clean up PID file (we created it)
+                if let Err(e) = self.pid_file_manager.delete_pid_file(process_id).await {
+                    warn!("Failed to delete PID file for {}: {}", process_id, e);
+                }
+            }
+            ProcessManagementType::Unmanaged => {
+                // For unmanaged processes, we only detach (don't terminate)
+                // The external process continues running
+                info!("Detaching from unmanaged process: {} (PID: {:?})", process_id, managed_process.pid);
+                // Note: We don't delete the PID file as we didn't create it
+            }
         }
 
         // Clean up process state

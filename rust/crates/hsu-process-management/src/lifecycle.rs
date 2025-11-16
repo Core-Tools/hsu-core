@@ -17,6 +17,108 @@ pub struct ProcessLifecycleManager {
     restart_attempts: u32,
     last_restart_time: Option<DateTime<Utc>>,
     consecutive_failures: u32,
+    circuit_breaker: CircuitBreaker,
+}
+
+/// Circuit breaker to prevent restart loops
+#[derive(Debug, Clone)]
+pub struct CircuitBreaker {
+    /// Maximum failures before tripping
+    failure_threshold: u32,
+    /// Time window for counting failures
+    time_window: Duration,
+    /// Recent failure timestamps
+    recent_failures: Vec<DateTime<Utc>>,
+    /// Whether the circuit breaker is currently tripped
+    is_tripped: bool,
+    /// When the circuit breaker was tripped
+    tripped_at: Option<DateTime<Utc>>,
+    /// How long to wait before allowing retry
+    cooldown_period: Duration,
+}
+
+impl CircuitBreaker {
+    pub fn new() -> Self {
+        Self {
+            failure_threshold: 5,
+            time_window: Duration::from_secs(60),
+            recent_failures: Vec::new(),
+            is_tripped: false,
+            tripped_at: None,
+            cooldown_period: Duration::from_secs(300), // 5 minutes
+        }
+    }
+    
+    /// Record a failure and check if circuit breaker should trip
+    pub fn record_failure(&mut self) -> bool {
+        let now = Utc::now();
+        self.recent_failures.push(now);
+        
+        // Remove failures outside the time window
+        let cutoff = now - chrono::Duration::from_std(self.time_window).unwrap();
+        self.recent_failures.retain(|&failure_time| failure_time > cutoff);
+        
+        // Check if we should trip
+        if self.recent_failures.len() >= self.failure_threshold as usize && !self.is_tripped {
+            self.is_tripped = true;
+            self.tripped_at = Some(now);
+            warn!(
+                "Circuit breaker tripped: {} failures in {:?} window",
+                self.recent_failures.len(),
+                self.time_window
+            );
+            return true;
+        }
+        
+        false
+    }
+    
+    /// Check if circuit breaker is currently tripped
+    pub fn is_tripped(&self) -> bool {
+        if !self.is_tripped {
+            return false;
+        }
+        
+        // Check if cooldown period has passed
+        if let Some(tripped_at) = self.tripped_at {
+            let now = Utc::now();
+            let elapsed = (now - tripped_at).to_std().unwrap_or(Duration::from_secs(0));
+            
+            if elapsed >= self.cooldown_period {
+                // Cooldown passed, but we don't auto-reset here
+                // The caller should explicitly reset after successful operation
+                return false;
+            }
+        }
+        
+        true
+    }
+    
+    /// Reset the circuit breaker
+    pub fn reset(&mut self) {
+        self.is_tripped = false;
+        self.tripped_at = None;
+        self.recent_failures.clear();
+        info!("Circuit breaker reset");
+    }
+    
+    /// Get remaining cooldown time
+    pub fn remaining_cooldown(&self) -> Option<Duration> {
+        if !self.is_tripped {
+            return None;
+        }
+        
+        if let Some(tripped_at) = self.tripped_at {
+            let now = Utc::now();
+            let elapsed = (now - tripped_at).to_std().unwrap_or(Duration::from_secs(0));
+            
+            if elapsed < self.cooldown_period {
+                return Some(self.cooldown_period - elapsed);
+            }
+        }
+        
+        None
+    }
 }
 
 impl ProcessLifecycleManager {
@@ -27,11 +129,25 @@ impl ProcessLifecycleManager {
             restart_attempts: 0,
             last_restart_time: None,
             consecutive_failures: 0,
+            circuit_breaker: CircuitBreaker::new(),
         }
     }
 
     /// Check if the process should be restarted based on the restart policy
     pub async fn should_restart(&mut self, exit_code: Option<i32>) -> bool {
+        // Check circuit breaker first
+        if self.circuit_breaker.is_tripped() {
+            if let Some(remaining) = self.circuit_breaker.remaining_cooldown() {
+                warn!(
+                    "Circuit breaker is tripped for process {}, cooldown remaining: {:?}",
+                    self.process_id, remaining
+                );
+            } else {
+                info!("Circuit breaker cooldown expired for process {}, ready for reset", self.process_id);
+            }
+            return false;
+        }
+        
         let policy = match &self.restart_policy {
             Some(policy) => policy.clone(),
             None => {
@@ -52,6 +168,8 @@ impl ProcessLifecycleManager {
                 if let Some(code) = exit_code {
                     if code == 0 {
                         debug!("Process {} exited successfully, not restarting", self.process_id);
+                        // Reset circuit breaker on successful exit
+                        self.circuit_breaker.reset();
                         return false;
                     }
                 }
@@ -98,16 +216,42 @@ impl ProcessLifecycleManager {
     pub fn reset_restart_counters(&mut self) {
         self.restart_attempts = 0;
         self.consecutive_failures = 0;
+        self.circuit_breaker.reset();
         debug!("Reset restart counters for process: {}", self.process_id);
     }
 
     /// Record a failure
     pub fn record_failure(&mut self) {
         self.consecutive_failures += 1;
-        debug!(
-            "Recorded failure for process: {} (consecutive: {})",
-            self.process_id, self.consecutive_failures
-        );
+        let tripped = self.circuit_breaker.record_failure();
+        
+        if tripped {
+            warn!(
+                "Circuit breaker TRIPPED for process: {} after {} consecutive failures",
+                self.process_id, self.consecutive_failures
+            );
+        } else {
+            debug!(
+                "Recorded failure for process: {} (consecutive: {})",
+                self.process_id, self.consecutive_failures
+            );
+        }
+    }
+    
+    /// Check if circuit breaker is tripped
+    pub fn is_circuit_breaker_tripped(&self) -> bool {
+        self.circuit_breaker.is_tripped()
+    }
+    
+    /// Get remaining cooldown time
+    pub fn get_remaining_cooldown(&self) -> Option<Duration> {
+        self.circuit_breaker.remaining_cooldown()
+    }
+    
+    /// Manually reset circuit breaker (admin override)
+    pub fn reset_circuit_breaker(&mut self) {
+        self.circuit_breaker.reset();
+        info!("Circuit breaker manually reset for process: {}", self.process_id);
     }
 
     /// Get restart statistics
