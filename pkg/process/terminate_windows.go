@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/core-tools/hsu-core/pkg/processstate"
+	"github.com/core-tools/hsu-procman-go/pkg/processstate"
 )
 
 // Windows console operation lock to prevent race conditions

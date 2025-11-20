@@ -4,7 +4,7 @@
 package resourcelimits
 
 import (
-	"github.com/core-tools/hsu-core/pkg/logging"
+	"github.com/core-tools/hsu-procman-go/pkg/logging"
 )
 
 // linuxResourceMonitor provides Linux-specific monitoring

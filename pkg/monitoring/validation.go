@@ -1,6 +1,6 @@
 package monitoring
 
-import "github.com/core-tools/hsu-core/pkg/errors"
+import "github.com/core-tools/hsu-procman-go/pkg/errors"
 
 // ValidateHealthCheckConfig validates health check configuration
 func ValidateHealthCheckConfig(config HealthCheckConfig) error {

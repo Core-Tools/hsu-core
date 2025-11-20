@@ -3,10 +3,10 @@ package managedprocess
 import (
 	"context"
 
-	"github.com/core-tools/hsu-core/pkg/logging"
-	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
-	"github.com/core-tools/hsu-core/pkg/monitoring"
-	"github.com/core-tools/hsu-core/pkg/process"
+	"github.com/core-tools/hsu-procman-go/pkg/logging"
+	"github.com/core-tools/hsu-procman-go/pkg/managedprocess/processcontrol"
+	"github.com/core-tools/hsu-procman-go/pkg/monitoring"
+	"github.com/core-tools/hsu-procman-go/pkg/process"
 )
 
 type UnmanagedProcessConfig struct {

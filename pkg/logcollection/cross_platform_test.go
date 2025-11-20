@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/core-tools/hsu-core/pkg/logcollection/config"
-	"github.com/core-tools/hsu-core/pkg/processfile"
+	"github.com/core-tools/hsu-procman-go/pkg/logcollection/config"
+	"github.com/core-tools/hsu-procman-go/pkg/processfile"
 )
 
 // TestCrossPlatformLogPaths demonstrates the new cross-platform log path resolution

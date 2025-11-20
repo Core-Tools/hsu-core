@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/core-tools/hsu-core/pkg/errors"
+	"github.com/core-tools/hsu-procman-go/pkg/errors"
 )
 
 // ValidateDiscoveryConfig validates discovery configuration

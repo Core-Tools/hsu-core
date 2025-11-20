@@ -5,7 +5,7 @@ package processcontrolimpl
 import (
 	"testing"
 
-	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
+	"github.com/core-tools/hsu-procman-go/pkg/managedprocess/processcontrol"
 )
 
 // ===== PERFORMANCE BENCHMARKS =====

@@ -1,6 +1,6 @@
 package managedprocess
 
-import "github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
+import "github.com/core-tools/hsu-procman-go/pkg/managedprocess/processcontrol"
 
 type ProcessMetadata struct {
 	Name        string `yaml:"name"`

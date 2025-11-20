@@ -4,7 +4,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/core-tools/hsu-core/pkg/logging"
+	"github.com/core-tools/hsu-procman-go/pkg/logging"
 )
 
 // Platform-specific constructor functions are implemented in platform_monitor_*.go files

@@ -11,9 +11,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/core-tools/hsu-core/pkg/errors"
-	"github.com/core-tools/hsu-core/pkg/logcollection/config"
-	"github.com/core-tools/hsu-core/pkg/processfile"
+	"github.com/core-tools/hsu-procman-go/pkg/errors"
+	"github.com/core-tools/hsu-procman-go/pkg/logcollection/config"
+	"github.com/core-tools/hsu-procman-go/pkg/processfile"
 )
 
 // ===== MAIN LOG COLLECTION SERVICE =====

@@ -6,12 +6,12 @@ import (
 	"net"
 	"time"
 
-	"github.com/core-tools/hsu-core/pkg/errors"
-	"github.com/core-tools/hsu-core/pkg/logging"
-	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
-	"github.com/core-tools/hsu-core/pkg/monitoring"
-	"github.com/core-tools/hsu-core/pkg/process"
-	"github.com/core-tools/hsu-core/pkg/processfile"
+	"github.com/core-tools/hsu-procman-go/pkg/errors"
+	"github.com/core-tools/hsu-procman-go/pkg/logging"
+	"github.com/core-tools/hsu-procman-go/pkg/managedprocess/processcontrol"
+	"github.com/core-tools/hsu-procman-go/pkg/monitoring"
+	"github.com/core-tools/hsu-procman-go/pkg/process"
+	"github.com/core-tools/hsu-procman-go/pkg/processfile"
 )
 
 type IntegratedManagedProcessConfig struct {

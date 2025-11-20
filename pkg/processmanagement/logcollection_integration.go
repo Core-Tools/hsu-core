@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/core-tools/hsu-core/pkg/logcollection"
-	"github.com/core-tools/hsu-core/pkg/logcollection/config"
-	"github.com/core-tools/hsu-core/pkg/logging"
-	"github.com/core-tools/hsu-core/pkg/processfile"
+	"github.com/core-tools/hsu-procman-go/pkg/logcollection"
+	"github.com/core-tools/hsu-procman-go/pkg/logcollection/config"
+	"github.com/core-tools/hsu-procman-go/pkg/logging"
+	"github.com/core-tools/hsu-procman-go/pkg/processfile"
 )
 
 // LogCollectionIntegration handles log collection setup and management for the process manager service

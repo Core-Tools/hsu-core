@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/core-tools/hsu-core/pkg/errors"
+	"github.com/core-tools/hsu-procman-go/pkg/errors"
 )
 
 // ValidateProcessID validates process ID format and constraints

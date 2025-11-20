@@ -7,9 +7,9 @@ import (
 	"io"
 	"sync"
 
-	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
-	"github.com/core-tools/hsu-core/pkg/monitoring"
-	"github.com/core-tools/hsu-core/pkg/resourcelimits"
+	"github.com/core-tools/hsu-procman-go/pkg/managedprocess/processcontrol"
+	"github.com/core-tools/hsu-procman-go/pkg/monitoring"
+	"github.com/core-tools/hsu-procman-go/pkg/resourcelimits"
 
 	"github.com/stretchr/testify/mock"
 )

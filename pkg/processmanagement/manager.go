@@ -6,14 +6,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/core-tools/hsu-core/pkg/errors"
-	"github.com/core-tools/hsu-core/pkg/logcollection"
-	logconfig "github.com/core-tools/hsu-core/pkg/logcollection/config"
-	"github.com/core-tools/hsu-core/pkg/logging"
-	"github.com/core-tools/hsu-core/pkg/managedprocess"
-	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
-	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrolimpl"
-	"github.com/core-tools/hsu-core/pkg/processmanagement/processstatemachine"
+	"github.com/core-tools/hsu-procman-go/pkg/errors"
+	"github.com/core-tools/hsu-procman-go/pkg/logcollection"
+	logconfig "github.com/core-tools/hsu-procman-go/pkg/logcollection/config"
+	"github.com/core-tools/hsu-procman-go/pkg/logging"
+	"github.com/core-tools/hsu-procman-go/pkg/managedprocess"
+	"github.com/core-tools/hsu-procman-go/pkg/managedprocess/processcontrol"
+	"github.com/core-tools/hsu-procman-go/pkg/managedprocess/processcontrolimpl"
+	"github.com/core-tools/hsu-procman-go/pkg/processmanagement/processstatemachine"
 )
 
 type ProcessRegistry interface {

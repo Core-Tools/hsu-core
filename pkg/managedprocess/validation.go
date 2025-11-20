@@ -3,10 +3,10 @@ package managedprocess
 import (
 	"fmt"
 
-	"github.com/core-tools/hsu-core/pkg/errors"
-	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
-	"github.com/core-tools/hsu-core/pkg/monitoring"
-	"github.com/core-tools/hsu-core/pkg/process"
+	"github.com/core-tools/hsu-procman-go/pkg/errors"
+	"github.com/core-tools/hsu-procman-go/pkg/managedprocess/processcontrol"
+	"github.com/core-tools/hsu-procman-go/pkg/monitoring"
+	"github.com/core-tools/hsu-procman-go/pkg/process"
 )
 
 func ValidateStandardManagedProcessConfig(config StandardManagedProcessConfig) error {

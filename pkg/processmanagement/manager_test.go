@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/core-tools/hsu-core/pkg/errors"
-	"github.com/core-tools/hsu-core/pkg/managedprocess"
-	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
-	"github.com/core-tools/hsu-core/pkg/process"
-	"github.com/core-tools/hsu-core/pkg/processmanagement/processstatemachine"
+	"github.com/core-tools/hsu-procman-go/pkg/errors"
+	"github.com/core-tools/hsu-procman-go/pkg/managedprocess"
+	"github.com/core-tools/hsu-procman-go/pkg/managedprocess/processcontrol"
+	"github.com/core-tools/hsu-procman-go/pkg/process"
+	"github.com/core-tools/hsu-procman-go/pkg/processmanagement/processstatemachine"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

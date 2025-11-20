@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/core-tools/hsu-core/pkg/errors"
-	"github.com/core-tools/hsu-core/pkg/logging"
+	"github.com/core-tools/hsu-procman-go/pkg/errors"
+	"github.com/core-tools/hsu-procman-go/pkg/logging"
 )
 
 // Default application name for HSU Process Manager

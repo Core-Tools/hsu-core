@@ -5,11 +5,11 @@ import (
 	"io/ioutil"
 	"time"
 
-	"github.com/core-tools/hsu-core/pkg/errors"
-	logconfig "github.com/core-tools/hsu-core/pkg/logcollection/config"
-	"github.com/core-tools/hsu-core/pkg/logging"
-	"github.com/core-tools/hsu-core/pkg/managedprocess"
-	"github.com/core-tools/hsu-core/pkg/managedprocess/processcontrol"
+	"github.com/core-tools/hsu-procman-go/pkg/errors"
+	logconfig "github.com/core-tools/hsu-procman-go/pkg/logcollection/config"
+	"github.com/core-tools/hsu-procman-go/pkg/logging"
+	"github.com/core-tools/hsu-procman-go/pkg/managedprocess"
+	"github.com/core-tools/hsu-procman-go/pkg/managedprocess/processcontrol"
 
 	"gopkg.in/yaml.v3"
 )

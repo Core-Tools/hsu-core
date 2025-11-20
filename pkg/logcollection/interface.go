@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/core-tools/hsu-core/pkg/logcollection/config"
+	"github.com/core-tools/hsu-procman-go/pkg/logcollection/config"
 )
 
 // ===== CORE LOG COLLECTION INTERFACES =====

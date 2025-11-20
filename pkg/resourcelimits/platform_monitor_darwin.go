@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/core-tools/hsu-core/pkg/logging"
+	"github.com/core-tools/hsu-procman-go/pkg/logging"
 )
 
 // darwinResourceMonitor provides macOS-specific monitoring

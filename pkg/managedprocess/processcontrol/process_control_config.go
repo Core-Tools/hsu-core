@@ -4,9 +4,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/core-tools/hsu-core/pkg/process"
-	"github.com/core-tools/hsu-core/pkg/processfile"
-	"github.com/core-tools/hsu-core/pkg/resourcelimits"
+	"github.com/core-tools/hsu-procman-go/pkg/process"
+	"github.com/core-tools/hsu-procman-go/pkg/processfile"
+	"github.com/core-tools/hsu-procman-go/pkg/resourcelimits"
 )
 
 // SystemProcessControlConfig defines configuration for system-managed processes

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	sprintflogging "github.com/core-tools/hsu-core/pkg/logging/sprintf"
+	sprintflogging "github.com/core-tools/hsu-procman-go/pkg/logging/sprintf"
 
-	"github.com/core-tools/hsu-core/pkg/logging"
-	"github.com/core-tools/hsu-core/pkg/processmanagement"
+	"github.com/core-tools/hsu-procman-go/pkg/logging"
+	"github.com/core-tools/hsu-procman-go/pkg/processmanagement"
 
 	flags "github.com/jessevdk/go-flags"
 )
