@@ -1,49 +1,51 @@
-# HSU Core
+# HSU Core - Go Implementation
 
-Modular system development framework with universal module communication and native process management.
-
-## Implementations
-
-- **[Go](go/)** - ✅ Production-ready
-- **[Rust](rust/)** - 🚧 Under development  
-- **[Python](python/)** - 📋 Planned
-
-## Documentation
-
-**📚 Complete Architecture Documentation:** [`docs/v3/`](../docs/v3/)
-
-### Main Documentation
-- **[VISION](../docs/v3/VISION.md)** - Framework philosophy and scope
-- **[INDEX](../docs/v3/INDEX.md)** - Documentation navigation
-- **[Architecture Overview](../docs/v3/architecture/README.md)**
-
-### Core Components
-- **[Process Management](../docs/v3/architecture/process-management/README.md)** - Native process orchestration (on-premise)
-- **[Module Communication](../docs/v3/architecture/module-communication/README.md)** - Location-transparent communication (universal)
-- **[Service Registry](../docs/v3/architecture/service-registry/README.md)** - Service discovery
-- **[Code Organization](../docs/v3/architecture/code-organization/README.md)** - Repository patterns
+Go implementation of the HSU (Host System Unit) framework for modular system development.
 
 ## Quick Start
 
-### Go
 ```bash
-cd go/cmd/srv/procman
+# Build process manager
+cd cmd/srv/procman
 go build
-./procman config-example.yaml
+
+# Run with example config
+./procman config-echotest-unix.yaml
+
+# Run tests
+cd ../../..
+go test ./pkg/...
 ```
 
-### Rust
-```bash
-cd rust
-cargo build --workspace
-cd crates/hsu-process-manager
-cargo run -- --config config-example.yaml
-```
+## Project Structure
+
+- **Module Communication** (Universal) - `pkg/modulemanagement/` - Production ready
+- **Process Management** (On-Premise) - `pkg/processmanagement/` - Production ready
+- **Service Registry** - `pkg/serviceregistry/` - Production ready
+
+## Documentation
+
+**📚 Architecture Documentation:** [`docs/v3/architecture/`](../../docs/v3/architecture/)
+
+- **[Process Management](../../docs/v3/architecture/process-management/)** - Native process orchestration
+  - [Overview](../../docs/v3/architecture/process-management/README.md)
+  - [Go Implementation Guide](../../docs/v3/architecture/process-management/implementation-go.md)
+
+- **[Service Registry](../../docs/v3/architecture/service-registry/)** - Service discovery
+  - [Overview](../../docs/v3/architecture/service-registry/README.md)
+  - [Go Implementation](../../docs/v3/architecture/service-registry/implementation-go.md)
+
+- **[Module Communication](../../docs/v3/architecture/module-communication/README.md)** - Universal patterns
+- **[Vision & Philosophy](../../docs/v3/VISION.md)** - Framework philosophy
+
+## Status
+
+✅ **Production-Ready**
+- All features implemented
+- Comprehensive test coverage
+- Used in production deployments
 
 ## License
 
 Apache-2.0
 
----
-
-*Part of: Modular System Development Framework*
