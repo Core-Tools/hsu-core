@@ -18,9 +18,6 @@ or
 ./procman --config config-echotest-unix.yaml
 ```
 
-## Project Structure
-
-
 ## Documentation
 
 - **[Architecture](./architecture.md)** - architecture description

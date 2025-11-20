@@ -8,7 +8,7 @@ This document describes the architectural patterns and design principles of the 
 
 ## Core Architecture Pattern
 
-Both implementations follow a **layered architecture** with trait/interface-based separation:
+Implementations follows a **layered architecture** with interface-based separation:
 
 ```
 ┌─────────────────────────────────────────┐
@@ -57,7 +57,7 @@ Both implementations follow a **layered architecture** with trait/interface-base
 **Orchestration vs Implementation**
 
 - **ProcessManager**: High-level coordination, configuration, API exposure
-- **ProcessControl**: Lifecycle operations interface/trait
+- **ProcessControl**: Lifecycle operations interface
 - **ProcessControlImpl**: Actual implementation of complex logic
 
 **Go Example:**
@@ -163,7 +163,7 @@ All processes follow a validated state machine:
 
 **Implementation:**
 
-Both implementations use a state machine with:
+Implementations uses a state machine with:
 - Validated transitions (invalid transitions return errors)
 - State history tracking
 - Transition timestamps
@@ -201,7 +201,7 @@ execute_windows.go   // Windows
 - Implement restart logic
 - Handle platform-specific details
 
-### ProcessControl (Interface/Trait)
+### ProcessControl (Interface)
 
 **Defines:**
 - Lifecycle operations (start/stop/restart)
@@ -262,7 +262,7 @@ execute_windows.go   // Windows
 
 ### 1. Background Task Management
 
-Both implementations spawn background tasks for monitoring:
+Implementation spawns background tasks for monitoring:
 
 **Go:**
 ```go
@@ -310,7 +310,7 @@ restart_policy:
 
 ### 3. Graceful Shutdown
 
-Both implementations follow the same pattern:
+Implementation follows the pattern:
 
 1. **Send termination signal** (SIGTERM/Ctrl+C)
 2. **Wait for graceful timeout** (configurable, default 10s)
