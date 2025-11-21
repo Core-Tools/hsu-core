@@ -5,7 +5,7 @@
 ## Package Structure
 
 ```
-hsu-core/go/
+hsu-procman-go/
 ├── pkg/
 │   ├── process/                    # Low-level process operations
 │   │   ├── execute.go             # Common interface
@@ -205,7 +205,7 @@ package main
 import (
     "context"
     "log"
-    "github.com/core-tools/hsu-core/pkg/processmanagement"
+    "github.com/core-tools/hsu-procman-go/pkg/processmanagement"
 )
 
 func main() {
@@ -324,8 +324,8 @@ log_collection:
 
 ## Resources
 
-- **Source Code:** `hsu-core/go/pkg/`
-- **Examples:** `hsu-core/go/cmd/srv/procman/config-*.yaml`
+- **Source Code:** `hsu-procman-go/pkg/`
+- **Examples:** `hsu-procman-go/cmd/srv/procman/config-*.yaml`
 - **Tests:** Run `go test ./pkg/...` for comprehensive examples
 
 ## Related Documentation
